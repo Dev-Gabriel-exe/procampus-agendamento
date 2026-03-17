@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Secretary {
+  id       String @id @default(cuid())
+  username String @unique
+  password String // bcrypt hash
+}
+
+model Teacher {
+  id             String           @id @default(cuid())
+  name           String
+  email          String
+  phone          String           // formato: "5586999999999"
+  subjects       TeacherSubject[]
+  availabilities Availability[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model Subject {
+  id       String           @id @default(cuid())
+  name     String           // ex: "Matemática"
+  grade    String           // ex: "5º Ano"
+  teachers TeacherSubject[]
+}
+
+model TeacherSubject {
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId String
+
+  @@id([teacherId, subjectId])
+}
+
+model Availability {
+  id        String   @id @default(cuid())
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  date      DateTime // data do dia disponível
+  startTime String   // "08:00"
+  endTime   String   // "10:00"
+  slots     Slot[]
+  createdAt DateTime @default(now())
+}
+
+model Slot {
+  id             String       @id @default(cuid())
+  availability   Availability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+  availabilityId String
+  startTime      String       // "08:00"
+  endTime        String       // "08:30"
+  isBooked       Boolean      @default(false)
+  appointment    Appointment?
+}
+
+model Appointment {
+  id           String   @id @default(cuid())
+  slot         Slot     @relation(fields: [slotId], references: [id])
+  slotId       String   @unique
+  parentName   String
+  parentEmail  String
+  parentPhone  String
+  reason       String
+  studentName  String
+  studentGrade String
+  status       String   @default("confirmed") // confirmed | cancelled
+  createdAt    DateTime @default(now())
+}
