@@ -176,7 +176,7 @@ export default function SecretariaPage() {
     return (
       a.parentName.toLowerCase().includes(q) ||
       a.studentName.toLowerCase().includes(q) ||
-      a.slot.availability.teacher.name.toLowerCase().includes(q) ||
+      a.availability.teacher.name.toLowerCase().includes(q) ||
       a.studentGrade.toLowerCase().includes(q)
     )
   })
