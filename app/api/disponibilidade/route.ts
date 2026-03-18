@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateSlots, getNextOccurrences } from '@/lib/slots'
-
+export const dynamic = 'force-dynamic' 
 // Compara datas usando o dia em Brasília (UTC-3)
 // Resolve o bug de "aparecer um dia antes"
 function sameDay(a: Date, b: Date): boolean {

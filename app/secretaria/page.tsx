@@ -52,14 +52,16 @@ function SecretariaNav({ active }: { active: 'dashboard' | 'professores' }) {
           maxWidth: 1280, margin: '0 auto', padding: '0 16px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Pro Campus" style={{ width: 34, height: 34, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
-            <div>
-              <p style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', fontWeight: 800, color: 'white', fontSize: 15, lineHeight: 1, margin: 0 }}>Pro Campus</p>
-              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 2 }}>Secretaria</p>
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Pro Campus" style={{ width: 34, height: 34, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
+              <div>
+                <p style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', fontWeight: 800, color: 'white', fontSize: 15, lineHeight: 1, margin: 0 }}>Pro Campus</p>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 2 }}>Secretaria</p>
+              </div>
             </div>
-          </div>
+          </Link>
 
           <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }} className="desktop-nav">
             <Link href="/secretaria" style={{ textDecoration: 'none' }}>
