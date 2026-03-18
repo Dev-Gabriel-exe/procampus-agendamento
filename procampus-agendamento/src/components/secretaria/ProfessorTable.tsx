@@ -35,7 +35,14 @@ type AvailabilityItem = {
 
 type TeacherFull = Teacher & {
   subjects: { subject: Subject }[]
-  availabilities?: AvailabilityItem[]
+  availabilities?: {
+    id: string
+    dayOfWeek: number
+    startTime: string
+    endTime: string
+    active: boolean
+    appointments?: { id: string; date: string; startTime: string }[]
+  }[]
 }
 
 interface ProfessorTableProps {
