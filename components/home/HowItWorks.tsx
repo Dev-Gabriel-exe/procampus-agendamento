@@ -52,7 +52,7 @@ export default function HowItWorks() {
             Como funciona?
           </h2>
           <p style={{ color: '#6b8f72', fontSize: 18, maxWidth: 500, margin: '0 auto', lineHeight: 1.75 }}>
-            Em menos de 2 minutos você agenda a reunião com o professor do seu filho.
+            Em menos de 2 minutos você agenda uma reunião de 30min com o professor do seu filho.
           </p>
         </motion.div>
  

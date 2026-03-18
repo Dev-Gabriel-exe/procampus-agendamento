@@ -1,6 +1,6 @@
 // ============================================================
-// ARQUIVO: src/app/page.tsx
-// CAMINHO: procampus-agendamento/app/page.tsx
+// ARQUIVO: app/page.tsx
+// CAMINHO: app/page.tsx
 // ============================================================
 
 import Navbar          from '@/components/home/Navbar'
