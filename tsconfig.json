@@ -19,10 +19,8 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    },
+  "@/*": ["./*"]
+},
     "allowJs": true,
     "incremental": true,
     "plugins": [
