@@ -7,7 +7,7 @@
 import { motion } from 'framer-motion'
 import { CheckCircle, CalendarDays, MessageCircle, User, Clock, BookOpen, GraduationCap, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
+import Button  from '@/components/ui/Button'
 
 interface ConfirmacaoData {
   parentName:   string
@@ -126,7 +126,7 @@ export function Step4Confirmacao({ data }: Step4Props) {
 
         <a href={data.calendarLink} target="_blank" rel="noopener noreferrer" className="block">
           <Button
-            fullWidth
+            className="w-full"
             size="lg"
             variant="outline"
             icon={<CalendarDays className="w-5 h-5" />}

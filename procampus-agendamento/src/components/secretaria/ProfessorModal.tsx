@@ -25,7 +25,7 @@ export default function ProfessorModal({
   const [email,    setEmail]    = useState(teacher?.email || '')
   const [phone,    setPhone]    = useState(teacher?.phone || '')
   const [selected, setSelected] = useState<string[]>(
-    teacher?.subjects.map(s => s.subject.id) || []
+    teacher?.subjects.map(s => s.subject!.id) || []
   )
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')

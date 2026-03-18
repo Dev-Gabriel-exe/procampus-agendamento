@@ -153,12 +153,12 @@ export default function ProfessorTable({
                   {/* Tags de disciplinas */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
                     {teacher.subjects.slice(0, 3).map(s => (
-                      <span key={s.subject.id} style={{
+                      <span key={s.subject!.id} style={{
                         fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999,
                         background: '#f0faf2', color: '#23A455',
                         border: '1px solid rgba(97,206,112,0.2)',
                       }}>
-                        {s.subject.name} — {s.subject.grade}
+                        {s.subject!.name} — {s.subject!.grade}
                       </span>
                     ))}
                     {teacher.subjects.length > 3 && (

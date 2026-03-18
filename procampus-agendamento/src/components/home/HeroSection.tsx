@@ -68,16 +68,20 @@ export default function HeroSection() {
 
       <FloatingParticles />
 
-      <motion.div style={{ y, opacity }}
-        className="hero-content"
-        style={{
-          position: 'relative', zIndex: 10,
-          textAlign: 'center',
-          padding: '100px 24px 60px',
-          maxWidth: 900,
-          margin: '0 auto',
-          width: '100%',
-        }}
+      <motion.div
+  className="hero-content"
+  style={{
+    y,
+    opacity,
+    position: 'relative',
+    zIndex: 10,
+    textAlign: 'center',
+    padding: '100px 24px 60px',
+    maxWidth: 900,
+    margin: '0 auto',
+    width: '100%',
+  }}
+
       >
         {/* Badge */}
         <motion.div

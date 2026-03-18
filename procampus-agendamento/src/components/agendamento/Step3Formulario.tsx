@@ -7,7 +7,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { User, Mail, Phone, BookOpen, MessageSquare, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
+import  Button  from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 interface FormData {
@@ -234,7 +234,7 @@ export function Step3Formulario({ onNext, onBack, loading = false, error = '' }:
         </Button>
         <Button
           type="submit"
-          fullWidth
+          className="w-full"
           size="lg"
           loading={loading}
           iconRight={<ArrowRight className="w-5 h-5" />}

@@ -72,7 +72,7 @@ export function Step2Horarios({ subjectId, grade, onNext, onBack }: Step2Props) 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-4">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner size={32} />
         <p className="text-text-soft text-sm">Buscando horários disponíveis...</p>
       </div>
     )
@@ -229,7 +229,7 @@ export function Step2Horarios({ subjectId, grade, onNext, onBack }: Step2Props) 
           Voltar
         </Button>
         <Button
-          fullWidth
+          className="w-full"
           size="lg"
           disabled={!selected}
           iconRight={<ArrowRight className="w-5 h-5" />}
