@@ -179,9 +179,9 @@ export default function ProfessoresPage() {
             teachers={teachers}
             expanded={expanded}
             onToggleExpand={id => setExpanded(expanded === id ? null : id)}
-            onEdit={openEditTeacher}
+            onEdit={openEditTeacher as any}
             onDelete={handleDelete}
-            onAddDisponibilidade={openDisponibilidade}
+            onAddDisponibilidade={openDisponibilidade as any}
             onDeleteAvailability={handleDeleteAvailability}
           />
         )}
