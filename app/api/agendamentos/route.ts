@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { sendConfirmationToParent, sendNotificationToTeacher } from '@/lib/email'
-
+export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })

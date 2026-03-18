@@ -14,7 +14,7 @@ function sameDay(a: Date, b: Date): boolean {
   const bStr = b.toISOString().slice(0, 10) // "2026-03-18"
   return aStr === bStr
 }
-
+export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
