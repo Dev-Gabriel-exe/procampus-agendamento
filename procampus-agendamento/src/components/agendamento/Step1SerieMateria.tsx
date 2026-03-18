@@ -7,8 +7,8 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { GraduationCap, BookOpen, ArrowRight, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import Button from '@/components/ui/Button'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 interface Subject {
   id: string

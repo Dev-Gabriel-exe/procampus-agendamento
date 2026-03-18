@@ -7,8 +7,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Clock, CalendarDays, User, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react'
-import Button from '@/components/ui/Button'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import  Button  from '@/components/ui/Button'
+import  LoadingSpinner  from '@/components/ui/LoadingSpinner'
 
 interface Slot {
   slotId: string
