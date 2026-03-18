@@ -1,16 +1,15 @@
 // ============================================================
 // ARQUIVO: src/components/ui/Input.tsx
-// CAMINHO: procampus-agendamento/src/components/ui/Input.tsx
-// ============================================================
-
+// CAMINHO: components/ui/Input.tsx
 'use client'
-import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef, ReactNode } from 'react'
+import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef, ReactNode, useRef } from 'react'
 
 interface BaseProps {
   label?: string
   error?: string
   hint?: string
   icon?: ReactNode
+  mask?: 'phone' | 'phone-br'
 }
 
 interface InputProps extends BaseProps, InputHTMLAttributes<HTMLInputElement> {
@@ -27,9 +26,37 @@ type Props = InputProps | TextareaProps
 const focusStyle = { borderColor: '#23A455', boxShadow: '0 0 0 4px rgba(97,206,112,0.12)' }
 const blurStyle  = { borderColor: 'rgba(97,206,112,0.2)', boxShadow: 'none' }
 
+// ── Máscaras ─────────────────────────────────────────────
+// phone    → +55 (86) 99999-9999  (internacional, para professores)
+// phone-br → (86) 99999-9999      (nacional, para pais/responsáveis)
+
+function maskPhone(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 13)
+  if (d.length === 0)  return ''
+  if (d.length <= 2)   return `+${d}`
+  if (d.length <= 4)   return `+${d.slice(0,2)} (${d.slice(2)}`
+  if (d.length <= 9)   return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4)}`
+  return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`
+}
+
+function maskPhoneBr(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 11)
+  if (d.length === 0)  return ''
+  if (d.length <= 2)   return `(${d}`
+  if (d.length <= 7)   return `(${d.slice(0,2)}) ${d.slice(2)}`
+  if (d.length <= 11)  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+  return value
+}
+
+function applyMask(value: string, mask?: 'phone' | 'phone-br'): string {
+  if (mask === 'phone')    return maskPhone(value)
+  if (mask === 'phone-br') return maskPhoneBr(value)
+  return value
+}
+
 export const Input = forwardRef<HTMLInputElement | HTMLTextAreaElement, Props>(
   (props, ref) => {
-    const { label, error, hint, icon, className = '' } = props
+    const { label, error, hint, icon, mask, className = '' } = props
     const isMultiline = props.multiline === true
 
     const fieldStyle: React.CSSProperties = {
@@ -46,8 +73,17 @@ export const Input = forwardRef<HTMLInputElement | HTMLTextAreaElement, Props>(
       resize: isMultiline ? 'vertical' : undefined,
     }
 
-    // Remove props customizadas que não pertencem ao DOM
-    const { multiline, label: _l, error: _e, hint: _h, icon: _i, ...domProps } = props as any
+    const { multiline, label: _l, error: _e, hint: _h, icon: _i, mask: _m, ...domProps } = props as any
+
+    // Intercepta onChange para aplicar máscara
+    function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+      if (mask) {
+        const masked = applyMask(e.target.value, mask)
+        // Atualiza o valor do input visualmente
+        e.target.value = masked
+      }
+      domProps.onChange?.(e)
+    }
 
     return (
       <div style={{ width: '100%' }}>
@@ -87,6 +123,7 @@ export const Input = forwardRef<HTMLInputElement | HTMLTextAreaElement, Props>(
               {...domProps}
               style={fieldStyle}
               className={className}
+              onChange={mask ? handleChange : domProps.onChange}
               onFocus={e => { Object.assign(e.target.style, focusStyle); domProps.onFocus?.(e) }}
               onBlur={e  => { Object.assign(e.target.style, error ? { borderColor: '#ef4444', boxShadow: 'none' } : blurStyle); domProps.onBlur?.(e) }}
             />

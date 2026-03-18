@@ -1,7 +1,7 @@
 // ============================================================
-// ARQUIVO: src/components/secretaria/ProfessorTable.tsx
-// CAMINHO: procampus-agendamento/src/components/secretaria/ProfessorTable.tsx
-// SUBSTITUA o arquivo inteiro
+
+// CAMINHO: components/secretaria/ProfessorTable.tsx
+
 // ============================================================
 
 'use client'

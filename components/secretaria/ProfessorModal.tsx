@@ -1,7 +1,7 @@
+// components/secretaria/ProfessorModal.tsx
 'use client'
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect } from 'react'
 import { Mail, Phone, Check, AlertCircle } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Input from '@/components/ui/Input'
@@ -18,31 +18,55 @@ interface ProfessorModalProps {
   onSave: () => void
 }
 
+function applyPhoneMask(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 13)
+  if (digits.length <= 2)  return digits
+  if (digits.length <= 4)  return `+${digits.slice(0,2)} (${digits.slice(2)}`
+  if (digits.length <= 9)  return `+${digits.slice(0,2)} (${digits.slice(2,4)}) ${digits.slice(4)}`
+  if (digits.length <= 13) return `+${digits.slice(0,2)} (${digits.slice(2,4)}) ${digits.slice(4,9)}-${digits.slice(9)}`
+  return value
+}
+
 export default function ProfessorModal({
   open, teacher, subjects, onClose, onSave,
 }: ProfessorModalProps) {
-  const [name,     setName]     = useState(teacher?.name || '')
-  const [email,    setEmail]    = useState(teacher?.email || '')
-  const [phone,    setPhone]    = useState(teacher?.phone || '')
-  const [selected, setSelected] = useState<string[]>(
-    teacher?.subjects.map(s => s.subject!.id) || []
-  )
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
+  const [name,     setName]     = useState('')
+  const [email,    setEmail]    = useState('')
+  const [phone,    setPhone]    = useState('')
+  const [selected, setSelected] = useState<string[]>([])
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
+
+  // ✅ FIX: sincroniza campos sempre que o professor mudar ou o modal abrir
+  useEffect(() => {
+    if (open) {
+      setName(teacher?.name || '')
+      setEmail(teacher?.email || '')
+      setPhone(teacher?.phone ? applyPhoneMask(teacher.phone) : '')
+      setSelected(teacher?.subjects.map(s => s.subject!.id) || [])
+      setError('')
+    }
+  }, [open, teacher])
 
   const toggle = (id: string) =>
     setSelected(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id])
 
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setPhone(applyPhoneMask(e.target.value))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(''); setLoading(true)
+    // Envia só os dígitos para o backend
+    const rawPhone = phone.replace(/\D/g, '')
     try {
       const res = await fetch(
         teacher ? `/api/professores/${teacher.id}` : '/api/professores',
         {
           method: teacher ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, phone, subjectIds: selected }),
+          body: JSON.stringify({ name, email, phone: rawPhone, subjectIds: selected }),
         }
       )
       if (!res.ok) { setError((await res.json()).error || 'Erro ao salvar'); return }
@@ -51,7 +75,6 @@ export default function ProfessorModal({
     finally { setLoading(false) }
   }
 
-  // Agrupa disciplinas por nome
   const grouped = subjects.reduce((acc, s) => {
     if (!acc[s.name]) acc[s.name] = []
     acc[s.name].push(s)
@@ -82,9 +105,10 @@ export default function ProfessorModal({
           />
           <Input
             label="WhatsApp"
-            value={phone} onChange={e => setPhone(e.target.value)}
-            required placeholder="5586999999999"
-            hint="Com código do país: 55"
+            value={phone}
+            onChange={handlePhoneChange}
+            required placeholder="+55 (86) 99999-9999"
+            hint="Ex: +55 (86) 99999-9999"
             icon={<Phone style={{ width: 15, height: 15 }} />}
           />
         </div>
