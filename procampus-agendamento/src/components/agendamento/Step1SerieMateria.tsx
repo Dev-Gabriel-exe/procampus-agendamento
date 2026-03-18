@@ -202,11 +202,10 @@ export function Step1SerieMateria({ onNext }: Step1Props) {
       {/* Botão avançar */}
       <motion.div variants={itemVariants}>
         <Button
-          fullWidth
-          size="lg"
-          disabled={!selectedSubject}
-          onClick={handleNext}
-          iconRight={<ArrowRight className="w-5 h-5" />}
+  size="lg"
+  disabled={!selectedSubject}
+  onClick={handleNext}
+  style={{ width: '100%', justifyContent: 'center' }}
         >
           Continuar
         </Button>
