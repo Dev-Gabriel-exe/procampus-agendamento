@@ -3,7 +3,14 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
+  const token = await getToken({ 
+    req: request, 
+    secret: process.env.NEXTAUTH_SECRET,
+    cookieName: process.env.NODE_ENV === 'production' 
+      ? '__Secure-authjs.session-token' 
+      : 'authjs.session-token',
+  })
+  
   const isSecretariaRoute = request.nextUrl.pathname.startsWith('/secretaria')
   const isLoginPage = request.nextUrl.pathname === '/secretaria/login'
 
