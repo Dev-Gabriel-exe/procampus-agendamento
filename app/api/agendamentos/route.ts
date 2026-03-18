@@ -1,7 +1,7 @@
 // ============================================================
-// ARQUIVO: src/app/api/agendamentos/route.ts
-// CAMINHO: procampus-agendamento/src/app/api/agendamentos/route.ts
-// SUBSTITUA o arquivo inteiro
+// ARQUIVO: app/api/agendamentos/route.ts
+// CAMINHO: app/api/agendamentos/route.ts
+
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
