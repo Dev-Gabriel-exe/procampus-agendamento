@@ -68,7 +68,7 @@ export function Step1SerieMateria({ onNext }: Step1Props) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner size="32" />
       </div>
     )
   }
