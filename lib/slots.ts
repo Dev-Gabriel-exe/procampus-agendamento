@@ -1,7 +1,6 @@
 // ============================================================
-// ARQUIVO: src/lib/slots.ts
-// CAMINHO: procampus-agendamento/src/lib/slots.ts
-// SUBSTITUA o arquivo inteiro
+// ARQUIVO: lib/slots.ts
+// CAMINHO: lib/slots.ts (raiz do projeto)
 // ============================================================
 
 export function generateSlots(startTime: string, endTime: string) {
@@ -20,28 +19,37 @@ export function generateSlots(startTime: string, endTime: string) {
   return slots
 }
 
-// ⚠️ Usa UTC em tudo — mesma base do banco de dados
 export function getNextOccurrences(dayOfWeek: number, weeks = 4): Date[] {
   const dates: Date[] = []
+  const now = new Date()
 
-  // Meia-noite UTC de hoje
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
-
-  const todayDayUTC = today.getUTCDay()
+  // Dia atual em Brasília (UTC-3)
+  // Subtraímos 3h para saber qual dia é em Brasília agora
+  const brasiliaOffset = 3 * 60 * 60 * 1000 // 3 horas em ms
+  const brasiliaTime   = new Date(now.getTime() - brasiliaOffset)
+  const todayDay       = brasiliaTime.getUTCDay()   // dia da semana em Brasília
+  const todayY         = brasiliaTime.getUTCFullYear()
+  const todayM         = brasiliaTime.getUTCMonth()
+  const todayD         = brasiliaTime.getUTCDate()
 
   for (let w = 0; w < weeks; w++) {
-    const diff      = (dayOfWeek - todayDayUTC + 7) % 7
-    const daysToAdd = diff + w * 7
+    const diff      = (dayOfWeek - todayDay + 7) % 7
+    let   daysToAdd = diff + w * 7
 
-    // Se é hoje (diff===0, w===0) e já passou das 17h Brasília (20h UTC), pula
+    // Se é hoje (diff===0, w===0), inclui apenas se ainda é cedo
+    // Caso contrário pula para próxima semana
     if (diff === 0 && w === 0) {
-      const nowUTCHour = new Date().getUTCHours()
-      if (nowUTCHour >= 20) continue
+      const brasiliaHour = brasiliaTime.getUTCHours()
+      if (brasiliaHour >= 17) {
+        // Já passou das 17h em Brasília — pula para próxima semana
+        daysToAdd = 7
+      }
     }
 
-    const date = new Date(today)
-    date.setUTCDate(today.getUTCDate() + daysToAdd)
+    // Gera a data ao MEIO-DIA UTC (12:00Z = 09:00 Brasília)
+    // Isso garante que a data nunca "escorrega" para o dia anterior
+    // quando convertida para o fuso de Brasília (UTC-3)
+    const date = new Date(Date.UTC(todayY, todayM, todayD + daysToAdd, 12, 0, 0, 0))
     dates.push(date)
   }
 
@@ -56,6 +64,7 @@ export function formatDate(date: Date | string) {
   const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleDateString('pt-BR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+    timeZone: 'America/Fortaleza', // Teresina usa horário de Fortaleza (UTC-3 sem DST)
   })
 }
 
@@ -63,6 +72,7 @@ export function formatDateShort(date: Date | string) {
   const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleDateString('pt-BR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
+    timeZone: 'America/Fortaleza',
   })
 }
 
