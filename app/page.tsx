@@ -46,7 +46,7 @@ export default function HomePage() {
           © {new Date().getFullYear()} Grupo Educacional Pro Campus — Teresina, Piauí
         </p>
         <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12, marginTop: 4 }}>
-          Sistema de Agendamento Pedagógico
+          Sistema de Agendamento Pedagógico - Desenvolvido por Ucode
         </p>
       </footer>
     </>
