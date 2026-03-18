@@ -1,7 +1,3 @@
-// ============================================================
-// ARQUIVO: components/home/HeroSection.tsx
-// ============================================================
-
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
@@ -35,8 +31,8 @@ function MagneticOrb() {
 export default function HeroSection() {
   const ref = useRef(null)
   const { scrollY } = useScroll()
-  const heroOpacity = useTransform(scrollY, [0, 500], [1, 0])
-  const heroScale   = useTransform(scrollY, [0, 500], [1, 0.93])
+  const heroOpacity = useTransform(scrollY, [0, 800, 1000], [1, 1, 0])
+  const heroScale   = useTransform(scrollY, [0, 800, 1000], [1, 1, 0.93])
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
