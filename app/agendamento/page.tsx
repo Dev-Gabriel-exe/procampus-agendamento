@@ -13,6 +13,7 @@ import Input          from '@/components/ui/Input'
 import Button         from '@/components/ui/Button'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { generateCalendarLink } from '@/lib/calendar-link'
+import { maskPhoneBr, isValidEmail } from '@/lib/masks'
 import type { AvailableSlot } from '@/types'
 
 const GRADES = [
@@ -94,6 +95,7 @@ export default function AgendamentoPage() {
   const [reason,      setReason]      = useState('')
   const [submitting,  setSubmitting]  = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [emailError,  setEmailError]  = useState('')
 
   function goTo(next: number) { setDir(next > step ? 1 : -1); setStep(next) }
 
@@ -465,14 +467,8 @@ export default function AgendamentoPage() {
               transition={{ duration: 0.3, ease: [0.22,1,0.36,1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
             >
-              {/* Slot summary pill */}
               {selectedSlot && (
-                <div style={{
-                  background: 'rgba(35,164,85,0.12)',
-                  border: '1px solid rgba(97,206,112,0.25)',
-                  borderRadius: 12, padding: '12px 16px',
-                  display: 'flex', alignItems: 'center', gap: 12,
-                }}>
+                <div style={{ background: 'rgba(35,164,85,0.12)', border: '1px solid rgba(97,206,112,0.25)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(97,206,112,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <CalendarDays style={{ width: 17, height: 17, color: '#61CE70' }} />
                   </div>
@@ -487,24 +483,58 @@ export default function AgendamentoPage() {
                 </div>
               )}
 
-              {/* Form */}
-              <div style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(97,206,112,0.12)',
-                borderRadius: 16, padding: 20,
-                display: 'flex', flexDirection: 'column', gap: 14,
-              }}>
-                <Input label="Seu nome completo" value={parentName} onChange={e => setParentName(e.target.value)}
-                  placeholder="Nome do responsável" required icon={<User style={{ width: 15, height: 15 }} />} />
-                <Input label="E-mail" type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)}
-                  placeholder="seu@email.com" required icon={<Mail style={{ width: 15, height: 15 }} />} />
-                <Input label="WhatsApp" type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)}
-                  placeholder="(86) 99999-9999" required icon={<Phone style={{ width: 15, height: 15 }} />} />
-                <Input label="Nome do aluno" value={studentName} onChange={e => setStudentName(e.target.value)}
-                  placeholder="Nome do seu filho(a)" required icon={<GraduationCap style={{ width: 15, height: 15 }} />} />
-                <Input label="Motivo da reunião" value={reason} onChange={e => setReason(e.target.value)}
-                  placeholder="Descreva brevemente o motivo..." required
-                  multiline rows={3} icon={<MessageSquare style={{ width: 15, height: 15 }} />} />
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(97,206,112,0.12)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                
+                <Input
+                  label="Seu nome completo"
+                  value={parentName}
+                  onChange={e => setParentName(e.target.value)}
+                  placeholder="Nome do responsável"
+                  required
+                  icon={<User style={{ width: 15, height: 15 }} />}
+                />
+
+                <Input
+                  label="E-mail"
+                  type="email"
+                  value={parentEmail}
+                  onChange={e => { setParentEmail(e.target.value); setEmailError('') }}
+                  onBlur={e => { if (e.target.value && !isValidEmail(e.target.value)) setEmailError('E-mail inválido') }}
+                  placeholder="seu@email.com"
+                  required
+                  error={emailError}
+                  icon={<Mail style={{ width: 15, height: 15 }} />}
+                />
+
+                <Input
+                  label="WhatsApp"
+                  type="tel"
+                  value={parentPhone}
+                  onChange={e => setParentPhone(maskPhoneBr(e.target.value))}
+                  placeholder="(86) 99999-9999"
+                  required
+                  icon={<Phone style={{ width: 15, height: 15 }} />}
+                />
+
+                <Input
+                  label="Nome do aluno"
+                  value={studentName}
+                  onChange={e => setStudentName(e.target.value)}
+                  placeholder="Nome do seu filho(a)"
+                  required
+                  icon={<GraduationCap style={{ width: 15, height: 15 }} />}
+                />
+
+                <Input
+                  label="Motivo da reunião"
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="Descreva brevemente o motivo..."
+                  required
+                  multiline
+                  rows={3}
+                  icon={<MessageSquare style={{ width: 15, height: 15 }} />}
+                />
               </div>
 
               {submitError && (
@@ -514,35 +544,26 @@ export default function AgendamentoPage() {
               )}
 
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => goTo(2)} style={{
-                  flex: 1, padding: '14px', borderRadius: 12, border: '1.5px solid rgba(255,255,255,0.1)',
-                  background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)',
-                  fontSize: 15, fontWeight: 600, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}>
+                <button onClick={() => goTo(2)} style={{ flex: 1, padding: '14px', borderRadius: 12, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <ArrowLeft style={{ width: 16, height: 16 }} /> Voltar
                 </button>
                 <button
-                  disabled={submitting || !parentName || !parentEmail || !parentPhone || !studentName || !reason}
+                  disabled={submitting || !parentName || !parentEmail || !parentPhone || !studentName || !reason || !!emailError}
                   onClick={handleSubmit}
                   style={{
                     flex: 2, padding: '14px', borderRadius: 12, border: 'none',
-                    background: (!submitting && parentName && parentEmail && parentPhone && studentName && reason)
-                      ? 'linear-gradient(135deg,#23A455,#61CE70)' : 'rgba(255,255,255,0.06)',
-                    color: (!submitting && parentName && parentEmail && parentPhone && studentName && reason)
-                      ? '#041809' : 'rgba(255,255,255,0.2)',
+                    background: (!submitting && parentName && parentEmail && parentPhone && studentName && reason && !emailError) ? 'linear-gradient(135deg,#23A455,#61CE70)' : 'rgba(255,255,255,0.06)',
+                    color: (!submitting && parentName && parentEmail && parentPhone && studentName && reason && !emailError) ? '#041809' : 'rgba(255,255,255,0.2)',
                     fontSize: 15, fontWeight: 800,
-                    cursor: (!submitting && parentName && parentEmail && parentPhone && studentName && reason) ? 'pointer' : 'not-allowed',
+                    cursor: (!submitting && parentName && parentEmail && parentPhone && studentName && reason && !emailError) ? 'pointer' : 'not-allowed',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    fontFamily: '"Roboto Slab", Georgia, serif',
-                    transition: 'all 0.3s',
+                    fontFamily: '"Roboto Slab", Georgia, serif', transition: 'all 0.3s',
                   }}
                 >
-                  {submitting ? (
-                    <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} /> Confirmando...</>
-                  ) : (
-                    <><Check style={{ width: 16, height: 16 }} /> Confirmar</>
-                  )}
+                  {submitting
+                    ? <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} /> Confirmando...</>
+                    : <><Check style={{ width: 16, height: 16 }} /> Confirmar</>
+                  }
                 </button>
               </div>
             </motion.div>
