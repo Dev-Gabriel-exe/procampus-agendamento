@@ -13,14 +13,24 @@ import { getWeekRange } from '@/lib/slots'
 import type { Appointment } from '@/types'
 
 
-type AppointmentFull = Appointment & {
-  slot: {
+type AppointmentFull = {
+  id: string
+  date: Date | string
+  startTime: string
+  endTime: string
+  parentName: string
+  parentEmail: string
+  parentPhone: string
+  reason: string
+  studentName: string
+  studentGrade: string
+  status: string
+  createdAt: Date
+  availability: {
+    dayOfWeek: number
     startTime: string
     endTime: string
-    availability: {
-      date: string
-      teacher: { name: string; phone: string; email: string }
-    }
+    teacher: { name: string; phone: string; email: string }
   }
 }
 
