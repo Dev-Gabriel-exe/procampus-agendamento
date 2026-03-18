@@ -1,10 +1,11 @@
 // ============================================================
 // ARQUIVO: src/app/layout.tsx
-// CAMINHO: procampus-agendamento/src/app/layout.tsx
+// CAMINHO: procampus-agendamento/app/layout.tsx
 
 // ============================================================
 
 import type { Metadata } from 'next'
+import React from 'react'
 import { Roboto_Slab, DM_Sans } from 'next/font/google'
 import './globals.css'
 
