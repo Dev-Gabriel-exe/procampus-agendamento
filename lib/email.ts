@@ -7,8 +7,6 @@ import { Resend } from 'resend'
 import { generateCalendarLink } from './calendar-link'
 import { formatDateShort } from './slots'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export interface AppointmentEmailData {
   parentName: string
   parentEmail: string
@@ -24,6 +22,7 @@ export interface AppointmentEmailData {
 }
 
 export async function sendConfirmationToParent(data: AppointmentEmailData) {
+  const resend = new Resend(process.env.RESEND_API_KEY)
   const dateFormatted = formatDateShort(data.date)
   const calendarLink  = generateCalendarLink({
     title:       `Reunião Pro Campus — ${data.subject}`,
@@ -46,6 +45,7 @@ export async function sendConfirmationToParent(data: AppointmentEmailData) {
 }
 
 export async function sendNotificationToTeacher(data: AppointmentEmailData) {
+  const resend = new Resend(process.env.RESEND_API_KEY)
   const dateFormatted = formatDateShort(data.date)
 
   try {
