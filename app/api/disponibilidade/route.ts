@@ -2,21 +2,19 @@
 // ARQUIVO: app/api/disponibilidade/route.ts
 // CAMINHO: app/api/disponibilidade/route.ts
 // ============================================================
-
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getNextOccurrences } from '@/lib/slots'
 
 export const dynamic = 'force-dynamic'
 
-// Gera slots de 20 minutos (era 30)
+// ✅ Gera slots de 20 minutos
 function generateSlots20(startTime: string, endTime: string) {
   const slots: { startTime: string; endTime: string }[] = []
   const [sh, sm] = startTime.split(':').map(Number)
   const [eh, em] = endTime.split(':').map(Number)
   let current = sh * 60 + sm
   const end   = eh * 60 + em
-
   while (current + 20 <= end) {
     const s = `${String(Math.floor(current / 60)).padStart(2, '0')}:${String(current % 60).padStart(2, '0')}`
     current += 20
@@ -52,7 +50,8 @@ export async function GET(req: NextRequest) {
       include: { teacher: true },
     })
 
-    const teacherIds = teacherSubjects.map(ts => ts.teacherId)
+    // ✅ FIX: deduplica teacherIds (evita professores duplicados)
+    const teacherIds = [...new Set(teacherSubjects.map(ts => ts.teacherId))]
     if (teacherIds.length === 0) return NextResponse.json([])
 
     const availabilities = await prisma.availability.findMany({
@@ -68,36 +67,42 @@ export async function GET(req: NextRequest) {
     const to = new Date(from)
     to.setUTCDate(from.getUTCDate() + 30)
 
-    // ✅ FIX: busca só agendamentos CONFIRMADOS — cancelados liberam o slot
     const bookedAppts = await prisma.appointment.findMany({
       where: {
         availabilityId: { in: availabilities.map(a => a.id) },
-        status: 'confirmed', // cancelados NÃO bloqueiam mais
+        status: 'confirmed',
         date:   { gte: from, lte: to },
       },
       select: { availabilityId: true, date: true, startTime: true },
     })
 
-    // Momento atual em Brasília para filtrar slots passados
     const nowBrasilia = new Date(Date.now() - 3 * 60 * 60 * 1000)
 
     const result: any[] = []
 
+    // ✅ FIX: chave de deduplicação por data + horário + professor
+    // Impede que o mesmo professor apareça duas vezes no mesmo slot
+    const seen = new Set<string>()
+
     for (const avail of availabilities) {
       const dates = getNextOccurrences(avail.dayOfWeek, 4)
-      const slots = generateSlots20(avail.startTime, avail.endTime) // ✅ 20min
+      const slots = generateSlots20(avail.startTime, avail.endTime)
 
       for (const date of dates) {
         for (const slot of slots) {
 
-          // ✅ FIX: filtra slots que já passaram
-          // Combina a data do slot com o horário para comparar com agora
+          // Filtra slots passados
           const [slotH, slotM] = slot.startTime.split(':').map(Number)
           const slotDateBrasilia = new Date(date.getTime() - 3 * 60 * 60 * 1000)
           slotDateBrasilia.setUTCHours(slotH, slotM, 0, 0)
-
-          // Pula slots no passado
           if (slotDateBrasilia <= nowBrasilia) continue
+
+          // ✅ Chave única: availabilityId + dateISO + startTime
+          // Garante que cada disponibilidade só aparece uma vez por slot
+          const dateISO = date.toISOString().split('T')[0]
+          const key = `${avail.id}|${dateISO}|${slot.startTime}`
+          if (seen.has(key)) continue
+          seen.add(key)
 
           const isBooked = bookedAppts.some(b =>
             b.availabilityId === avail.id &&
