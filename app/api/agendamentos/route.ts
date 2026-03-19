@@ -2,7 +2,6 @@
 // ARQUIVO: app/api/agendamentos/route.ts
 // CAMINHO: app/api/agendamentos/route.ts
 
-// ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
@@ -92,8 +91,8 @@ export async function POST(req: NextRequest) {
       include: { availability: { include: { teacher: true } } },
     })
 
-    // E-mails em paralelo
-    Promise.all([
+    // E-mails em paralelo — await garante envio antes da função encerrar
+    await Promise.all([
       sendConfirmationToParent({
         parentName, parentEmail, studentName, studentGrade,
         teacherName:  avail.teacher.name,
