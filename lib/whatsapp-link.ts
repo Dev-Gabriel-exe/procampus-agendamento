@@ -27,9 +27,9 @@ export function generateWhatsAppLink({
     `Disciplina: ${subject}\n` +
     `Serie: ${grade}\n` +
     `Data: ${date}\n` +
-    `Horario: ${startTime} (30 minutos)\n` +
+    `Horario: ${startTime} (20 minutos)\n` +
     `Motivo: ${reason}\n\n` +
-    `_Sistema de Agendamento Pro Campus_`
+    `_Sistema de Plantão Escolar_`
  
   const cleaned = phone.replace(/\D/g, '')
   return `https://wa.me/${cleaned}?text=${encodeURIComponent(message)}`

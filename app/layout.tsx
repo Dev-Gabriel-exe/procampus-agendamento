@@ -26,7 +26,7 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: 'Pro Campus — Agendamento de Reuniões',
   description: 'Agende reuniões pedagógicas com os professores do Grupo Educacional Pro Campus.',
-  keywords: 'Pro Campus, agendamento pedagógico, reunião, escola, Teresina, Piauí',
+  keywords: 'Pro Campus, plantão escolar, reunião, escola, Teresina, Piauí',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

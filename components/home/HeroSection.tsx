@@ -328,7 +328,7 @@ export default function HeroSection() {
             >
               {[
                 { value: '100%', label: 'Online' },
-                { value: '30min', label: 'Por reunião' },
+                { value: '20min', label: 'Por reunião' },
                 { value: '24h', label: 'Disponível' },
               ].map((s, i) => (
                 <motion.div

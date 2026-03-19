@@ -11,7 +11,7 @@ import { CalendarDays, Clock, Mail, Smartphone, Shield, Zap } from 'lucide-react
  
 const features = [
   { icon: CalendarDays, title: 'Agendamento Online',     desc: 'Marque reuniões a qualquer hora pelo celular ou computador.',                bg: '#e8f9eb', color: '#23A455' },
-  { icon: Clock,        title: 'Horários em Tempo Real', desc: 'Veja os slots de 30 minutos disponíveis de cada professor sem conflitos.',                  bg: '#eef1fb', color: '#4054B2' },
+  { icon: Clock,        title: 'Horários em Tempo Real', desc: 'Veja os slots de 20 minutos disponíveis de cada professor sem conflitos.',                  bg: '#eef1fb', color: '#4054B2' },
   { icon: Mail,         title: 'Confirmação por E-mail', desc: 'Receba confirmação imediata com todos os detalhes da reunião.',               bg: '#e6f7f0', color: '#0f766e' },
   { icon: CalendarDays, title: 'Google Agenda',          desc: 'Adicione ao calendário com 1 clique e receba lembrete automático.',           bg: '#fef3e2', color: '#c2410c' },
   { icon: Shield,       title: 'Exclusivo Pro Campus',   desc: 'Desenvolvido especialmente para o Grupo Educacional Pro Campus.',             bg: '#e8f9eb', color: '#23A455' },

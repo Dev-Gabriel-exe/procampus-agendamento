@@ -63,7 +63,7 @@ export default function Navbar() {
                   lineHeight: 1.1, letterSpacing: '-0.3px', margin: 0,
                 }}>Pro Campus</p>
                 <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, margin: 0, letterSpacing: '0.05em' }}>
-                  Agendamento Pedagógico
+                  Plantão Escolar
                 </p>
               </div>
             </div>

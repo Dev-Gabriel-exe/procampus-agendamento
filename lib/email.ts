@@ -191,7 +191,7 @@ function buildTeacherEmail(data: AppointmentEmailData, dateFormatted: string): s
 
   <tr><td style="background:linear-gradient(135deg,#0D2818,#1a7a2e,#23A455);padding:32px 40px;text-align:center;">
     <h1 style="color:#ffffff;font-size:22px;font-weight:800;margin:0;">Pro Campus</h1>
-    <p style="color:rgba(255,255,255,0.6);margin:6px 0 0;font-size:13px;">Sistema de Agendamento Pedagógico</p>
+    <p style="color:rgba(255,255,255,0.6);margin:6px 0 0;font-size:13px;">Sistema de Plantão Escolar</p>
   </td></tr>
 
   <tr><td style="padding:28px 40px 0;">
