@@ -3,13 +3,12 @@
 // CAMINHO: procampus-agendamento/app/layout.tsx
 
 // ============================================================
-
 import type { Metadata } from 'next'
 import React from 'react'
 import { Roboto_Slab, DM_Sans } from 'next/font/google'
+import Providers from '@/components/Providers'
 import './globals.css'
 
-// Display font — títulos premium
 const robotoSlab = Roboto_Slab({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700', '800', '900'],
@@ -17,7 +16,6 @@ const robotoSlab = Roboto_Slab({
   display: 'swap',
 })
 
-// Body font — DM Sans, mais elegante que Roboto puro
 const dmSans = DM_Sans({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
@@ -35,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className={`${robotoSlab.variable} ${dmSans.variable}`}>
       <body className={dmSans.className}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )
