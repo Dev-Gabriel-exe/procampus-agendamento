@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Users, CalendarDays, LogOut, Plus } from 'lucide-react'
+import { Users, CalendarDays, LogOut, Plus, BookOpen } from 'lucide-react'
 import ProfessorModal      from '@/components/secretaria/ProfessorModal'
 import ProfessorTable      from '@/components/secretaria/ProfessorTable'
 import DisponibilidadeForm from '@/components/secretaria/DisponibilidadeForm'
@@ -125,6 +125,13 @@ export default function ProfessoresPage() {
             <Link href="/secretaria/professores">
               <button style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: 'white' }}>
                 <Users style={{ width: 15, height: 15 }} />Professores
+              </button>
+            </Link>
+            <Link href="/secretaria/disciplinas">
+              <button style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'transparent', color: 'rgba(255,255,255,0.6)', transition: 'all 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}>
+                <BookOpen style={{ width: 15, height: 15 }} />Disciplinas
               </button>
             </Link>
             <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.12)', margin: '0 4px' }} />

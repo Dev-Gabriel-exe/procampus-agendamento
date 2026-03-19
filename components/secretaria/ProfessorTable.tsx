@@ -61,14 +61,6 @@ function groupByDay(availabilities: AvailabilityItem[]) {
   return sorted
 }
 
-// ✅ FIX: calcula slots de 20min
-function countSlots20(startTime: string, endTime: string): number {
-  const [sh, sm] = startTime.split(':').map(Number)
-  const [eh, em] = endTime.split(':').map(Number)
-  const totalMin = (eh * 60 + em) - (sh * 60 + sm)
-  return Math.floor(totalMin / 20)
-}
-
 export default function ProfessorTable({
   teachers, expanded, onToggleExpand,
   onEdit, onDelete, onAddDisponibilidade, onDeleteAvailability,
@@ -93,6 +85,7 @@ export default function ProfessorTable({
           <motion.div key={teacher.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
             style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.12)', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}
           >
+            {/* Linha principal */}
             <div style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 }}>
 
@@ -114,7 +107,7 @@ export default function ProfessorTable({
                     </span>
                   </div>
 
-                  {/* Tags disciplinas — deduplicadas */}
+                  {/* Tags disciplinas */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
                     {teacher.subjects.slice(0, 3).map(s => (
                       <span key={s.subject!.id} style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: '#f0faf2', color: '#23A455', border: '1px solid rgba(97,206,112,0.2)' }}>
@@ -126,7 +119,7 @@ export default function ProfessorTable({
                     )}
                   </div>
 
-                  {/* Dias disponíveis */}
+                  {/* Resumo dias */}
                   {totalSlots > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
                       {groupedAvails.map(({ day, items }) => {
@@ -135,11 +128,9 @@ export default function ProfessorTable({
                           <span key={day} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: c.bg, color: c.color, border: `1px solid ${c.border}` }}>
                             <Calendar style={{ width: 10, height: 10 }} />
                             {DAYS_SHORT[day]}
-                            {items.length > 1 && (
-                              <span style={{ background: c.color, color: 'white', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
-                                {items.length}
-                              </span>
-                            )}
+                            <span style={{ background: c.color, color: 'white', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
+                              {items.length}
+                            </span>
                           </span>
                         )
                       })}
@@ -156,20 +147,17 @@ export default function ProfessorTable({
                   onMouseLeave={e => { e.currentTarget.style.background = '#f0faf2'; e.currentTarget.style.borderColor = 'rgba(97,206,112,0.3)' }}>
                   <Plus style={{ width: 13, height: 13 }} />Disponibilidade
                 </button>
-                <button onClick={() => onEdit(teacher)}
-                  style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#23A455', transition: 'background 0.15s' }}
+                <button onClick={() => onEdit(teacher)} style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#23A455', transition: 'background 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#f0faf2'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <Pencil style={{ width: 15, height: 15 }} />
                 </button>
-                <button onClick={() => onDelete(teacher.id)}
-                  style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444', transition: 'background 0.15s' }}
+                <button onClick={() => onDelete(teacher.id)} style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444', transition: 'background 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <Trash2 style={{ width: 15, height: 15 }} />
                 </button>
-                <button onClick={() => onToggleExpand(teacher.id)}
-                  style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#6b8f72' }}>
+                <button onClick={() => onToggleExpand(teacher.id)} style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#6b8f72' }}>
                   <motion.div animate={{ rotate: expanded === teacher.id ? 180 : 0 }} transition={{ duration: 0.2 }}>
                     <ChevronDown style={{ width: 15, height: 15 }} />
                   </motion.div>
@@ -177,61 +165,76 @@ export default function ProfessorTable({
               </div>
             </div>
 
-            {/* Disponibilidades expandidas */}
+            {/* Disponibilidades expandidas — slots individuais */}
             <AnimatePresence>
               {expanded === teacher.id && (
                 <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
                   <div style={{ borderTop: '1px solid rgba(97,206,112,0.1)', padding: '20px 24px', background: '#fafdfb' }}>
                     <h4 style={{ fontSize: 13, fontWeight: 700, color: '#3d5c42', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Clock style={{ width: 14, height: 14, color: '#23A455' }} />
-                      Disponibilidades ({totalSlots} bloco{totalSlots !== 1 ? 's' : ''})
+                      Slots disponíveis ({totalSlots} de 20min)
                     </h4>
 
                     {totalSlots === 0 ? (
                       <p style={{ fontSize: 13, color: '#6b8f72' }}>
-                        Nenhuma disponibilidade ainda.{' '}
+                        Nenhum slot ainda.{' '}
                         <button onClick={() => onAddDisponibilidade(teacher)} style={{ color: '#23A455', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>
                           Adicionar agora →
                         </button>
                       </p>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                         {groupedAvails.map(({ day, items }) => {
                           const c = DAY_COLORS[day]
                           return (
                             <div key={day}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                              {/* Cabeçalho do dia */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, background: c.bg, color: c.color, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 700 }}>
                                   <Calendar style={{ width: 12, height: 12 }} />
                                   {DAYS_FULL[day]}
                                 </div>
-                                {items.length > 1 && <span style={{ fontSize: 11, color: '#6b8f72' }}>{items.length} blocos neste dia</span>}
+                                <span style={{ fontSize: 11, color: '#6b8f72' }}>{items.length} slot{items.length !== 1 ? 's' : ''}</span>
                               </div>
 
+                              {/* ✅ Slots individuais de 20min */}
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 8 }}>
                                 {items.map(avail => {
-                                  const futureAppts = avail.appointments?.filter(a => new Date(a.date) >= new Date()).length ?? 0
-                                  // ✅ FIX: usa 20min
-                                  const slotCount = countSlots20(avail.startTime, avail.endTime)
+                                  const futureAppts = avail.appointments?.filter(
+                                    a => new Date(a.date) >= new Date()
+                                  ).length ?? 0
+                                  const isBooked = futureAppts > 0
 
                                   return (
-                                    <div key={avail.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', borderRadius: 12, padding: '10px 14px', border: `1px solid ${c.border}`, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-                                      <Clock style={{ width: 13, height: 13, color: c.color, flexShrink: 0 }} />
+                                    <div key={avail.id} style={{
+                                      display: 'flex', alignItems: 'center', gap: 8,
+                                      background: isBooked ? '#fff7ed' : 'white',
+                                      borderRadius: 10, padding: '8px 12px',
+                                      border: `1.5px solid ${isBooked ? '#fed7aa' : c.border}`,
+                                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                                    }}>
+                                      <Clock style={{ width: 12, height: 12, color: isBooked ? '#c2410c' : c.color, flexShrink: 0 }} />
                                       <div>
-                                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>
-                                          {avail.startTime} – {avail.endTime}
+                                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d', margin: 0 }}>
+                                          {avail.startTime}
+                                          <span style={{ color: '#6b8f72', fontWeight: 400 }}> – {avail.endTime}</span>
                                         </p>
-                                        <p style={{ fontSize: 11, color: '#6b8f72', marginTop: 1 }}>
-                                          {slotCount} slot{slotCount !== 1 ? 's' : ''} de 20min
-                                          {futureAppts > 0 && ` · ${futureAppts} agendado(s)`}
-                                        </p>
+                                        {isBooked && (
+                                          <p style={{ fontSize: 10, color: '#c2410c', margin: 0, marginTop: 1 }}>
+                                            {futureAppts} agendado(s)
+                                          </p>
+                                        )}
                                       </div>
-                                      {futureAppts === 0 && (
-                                        <button onClick={() => onDeleteAvailability(avail.id)} title="Remover disponibilidade"
-                                          style={{ marginLeft: 4, padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#ef4444', transition: 'background 0.15s' }}
+                                      {/* Botão apagar — só se não tiver agendamentos futuros */}
+                                      {!isBooked && (
+                                        <button
+                                          onClick={() => onDeleteAvailability(avail.id)}
+                                          title="Remover slot"
+                                          style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#ef4444', transition: 'background 0.15s', marginLeft: 2 }}
                                           onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                          <Trash2 style={{ width: 13, height: 13 }} />
+                                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                          <Trash2 style={{ width: 12, height: 12 }} />
                                         </button>
                                       )}
                                     </div>

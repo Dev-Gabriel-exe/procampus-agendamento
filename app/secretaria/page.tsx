@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { CalendarDays, Users, LogOut, CheckCircle, XCircle, Clock, Menu, X } from 'lucide-react'
+import { CalendarDays, Users, LogOut, CheckCircle, XCircle, Clock, Menu, X, BookOpen } from 'lucide-react'
 import AgendamentoCard from '@/components/secretaria/AgendamentoCard'
 import FiltrosSemana, { type Filtros } from '@/components/secretaria/FiltrosSemana'
 import PrintView from '@/components/secretaria/PrintView'
@@ -62,6 +62,11 @@ function SecretariaNav({ active }: { active: 'dashboard' | 'professores' }) {
                 <Users style={{ width: 15, height: 15 }} />Professores
               </button>
             </Link>
+            <Link href="/secretaria/disciplinas" style={{ textDecoration: 'none' }}>
+              <button style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'transparent', color: 'rgba(255,255,255,0.6)' }}>
+                <BookOpen style={{ width: 15, height: 15 }} />Disciplinas
+              </button>
+            </Link>
             <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.12)', margin: '0 4px' }} />
             <RoleBadge />
             <button onClick={() => signOut({ callbackUrl: '/secretaria/login' })} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, background: 'transparent', color: 'rgba(255,255,255,0.5)' }}>
@@ -84,6 +89,11 @@ function SecretariaNav({ active }: { active: 'dashboard' | 'professores' }) {
             <Link href="/secretaria/professores" style={{ textDecoration: 'none' }} onClick={() => setMenuOpen(false)}>
               <button style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 600, background: active === 'professores' ? 'rgba(97,206,112,0.2)' : 'transparent', color: active === 'professores' ? '#61CE70' : 'rgba(255,255,255,0.8)' }}>
                 <Users style={{ width: 18, height: 18 }} />Professores
+              </button>
+            </Link>
+            <Link href="/secretaria/disciplinas" style={{ textDecoration: 'none' }} onClick={() => setMenuOpen(false)}>
+              <button style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 600, background: 'transparent', color: 'rgba(255,255,255,0.8)' }}>
+                <BookOpen style={{ width: 18, height: 18 }} />Disciplinas
               </button>
             </Link>
             <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
