@@ -9,6 +9,7 @@ import AgendamentoCard from '@/components/secretaria/AgendamentoCard'
 import FiltrosSemana, { type Filtros } from '@/components/secretaria/FiltrosSemana'
 import PrintView from '@/components/secretaria/PrintView'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import RoleBadge from '@/components/secretaria/RoleBadge'
 
 type AppointmentFull = {
   id: string
@@ -61,6 +62,7 @@ function SecretariaNav({ active }: { active: 'dashboard' | 'professores' }) {
               </button>
             </Link>
             <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.12)', margin: '0 4px' }} />
+            <RoleBadge />
             <button onClick={() => signOut({ callbackUrl: '/secretaria/login' })} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, background: 'transparent', color: 'rgba(255,255,255,0.5)' }}>
               <LogOut style={{ width: 15, height: 15 }} />Sair
             </button>
@@ -84,6 +86,9 @@ function SecretariaNav({ active }: { active: 'dashboard' | 'professores' }) {
               </button>
             </Link>
             <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px' }}>
+              <RoleBadge />
+            </div>
             <button onClick={() => signOut({ callbackUrl: '/secretaria/login' })} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 600, background: 'transparent', color: 'rgba(255,255,255,0.5)' }}>
               <LogOut style={{ width: 18, height: 18 }} />Sair
             </button>

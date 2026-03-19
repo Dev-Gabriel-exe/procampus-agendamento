@@ -1,190 +1,74 @@
-// ============================================================
-// ARQUIVO: prisma/seed.ts
-// CAMINHO: procampus-agendamento/prisma/seed.ts
-// ============================================================
-
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 async function main() {
-  const hashedPassword = await bcrypt.hash('procampus2025', 12)
+  const hash = (pw: string) => bcrypt.hash(pw, 12)
 
+  // ── 3 logins de secretaria ──────────────────────────────
   await prisma.secretary.upsert({
-    where: { username: 'admin' },
+    where:  { username: 'admin' },
     update: {},
-    create: { username: 'admin', password: hashedPassword },
+    create: { username: 'admin', password: await hash('procampus2025'), role: 'geral' },
   })
-  console.log('✅ Admin criado: admin / procampus2025')
+  await prisma.secretary.upsert({
+    where:  { username: 'fund1' },
+    update: {},
+    create: { username: 'fund1', password: await hash('fund1_2025'), role: 'fund1' },
+  })
+  await prisma.secretary.upsert({
+    where:  { username: 'fund2' },
+    update: {},
+    create: { username: 'fund2', password: await hash('fund2_2025'), role: 'fund2' },
+  })
 
+  console.log('✅ Secretarias criadas:')
+  console.log('   admin / procampus2025  → acesso geral')
+  console.log('   fund1 / fund1_2025     → Educação Infantil + 1º ao 5º ano')
+  console.log('   fund2 / fund2_2025     → 6º ao 9º ano + Ensino Médio')
+
+  // ── Disciplinas ─────────────────────────────────────────
   const disciplinas = [
-   // -----------------------------------------------------------------
-  // 1º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '1º Ano Fundamental' },
-  { name: 'Matemática', grade: '1º Ano Fundamental' },
-  { name: 'História', grade: '1º Ano Fundamental' },
-  { name: 'Geografia', grade: '1º Ano Fundamental' },
-  { name: 'Ciências', grade: '1º Ano Fundamental' },
-  { name: 'Inglês', grade: '1º Ano Fundamental' },
-  { name: 'Artes', grade: '1º Ano Fundamental' },
-  { name: 'Educação Física', grade: '1º Ano Fundamental' },
-
-  // -----------------------------------------------------------------
-  // 2º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '2º Ano Fundamental' },
-  { name: 'Matemática', grade: '2º Ano Fundamental' },
-  { name: 'História', grade: '2º Ano Fundamental' },
-  { name: 'Geografia', grade: '2º Ano Fundamental' },
-  { name: 'Ciências', grade: '2º Ano Fundamental' },
-  { name: 'Inglês', grade: '2º Ano Fundamental' },
-  { name: 'Artes', grade: '2º Ano Fundamental' },
-  { name: 'Educação Física', grade: '2º Ano Fundamental' },
-
-  // -----------------------------------------------------------------
-  // 3º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '3º Ano Fundamental' },
-  { name: 'Matemática', grade: '3º Ano Fundamental' },
-  { name: 'História', grade: '3º Ano Fundamental' },
-  { name: 'Geografia', grade: '3º Ano Fundamental' },
-  { name: 'Ciências', grade: '3º Ano Fundamental' },
-  { name: 'Inglês', grade: '3º Ano Fundamental' },
-  { name: 'Artes', grade: '3º Ano Fundamental' },
-  { name: 'Educação Física', grade: '3º Ano Fundamental' },
-
-  // -----------------------------------------------------------------
-  // 4º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '4º Ano Fundamental' },
-  { name: 'Matemática', grade: '4º Ano Fundamental' },
-  { name: 'História', grade: '4º Ano Fundamental' },
-  { name: 'Geografia', grade: '4º Ano Fundamental' },
-  { name: 'Ciências', grade: '4º Ano Fundamental' },
-  { name: 'Inglês', grade: '4º Ano Fundamental' },
-  { name: 'Artes', grade: '4º Ano Fundamental' },
-  { name: 'Educação Física', grade: '4º Ano Fundamental' },
-  { name: 'Programação', grade: '4º Ano Fundamental' },
-
-  // -----------------------------------------------------------------
-  // 5º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '5º Ano Fundamental' },
-  { name: 'Matemática', grade: '5º Ano Fundamental' },
-  { name: 'História', grade: '5º Ano Fundamental' },
-  { name: 'Geografia', grade: '5º Ano Fundamental' },
-  { name: 'Ciências', grade: '5º Ano Fundamental' },
-  { name: 'Inglês', grade: '5º Ano Fundamental' },
-  { name: 'Artes', grade: '5º Ano Fundamental' },
-  { name: 'Educação Física', grade: '5º Ano Fundamental' },
-  { name: 'Programação', grade: '5º Ano Fundamental' },
-
-  // -----------------------------------------------------------------
-  // 6º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '6º Ano Fundamental' },
-  { name: 'Matemática', grade: '6º Ano Fundamental' },
-  { name: 'História', grade: '6º Ano Fundamental' },
-  { name: 'Geografia', grade: '6º Ano Fundamental' },
-  { name: 'Ciências', grade: '6º Ano Fundamental' },
-  { name: 'Inglês', grade: '6º Ano Fundamental' },
-  { name: 'Artes', grade: '6º Ano Fundamental' },
-  { name: 'Educação Física', grade: '6º Ano Fundamental' },
-  { name: 'Programação', grade: '6º Ano Fundamental' },
-
-  // -----------------------------------------------------------------
-  // 7º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '7º Ano Fundamental' },
-  { name: 'Matemática', grade: '7º Ano Fundamental' },
-  { name: 'História', grade: '7º Ano Fundamental' },
-  { name: 'Geografia', grade: '7º Ano Fundamental' },
-  { name: 'Ciências', grade: '7º Ano Fundamental' },
-  { name: 'Inglês', grade: '7º Ano Fundamental' },
-  { name: 'Artes', grade: '7º Ano Fundamental' },
-  { name: 'Educação Física', grade: '7º Ano Fundamental' },
-  { name: 'Programação', grade: '7º Ano Fundamental' },
-  // -----------------------------------------------------------------
-  // 8º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '8º Ano Fundamental' },
-  { name: 'Matemática', grade: '8º Ano Fundamental' },
-  { name: 'História', grade: '8º Ano Fundamental' },
-  { name: 'Geografia', grade: '8º Ano Fundamental' },
-  { name: 'Ciências', grade: '8º Ano Fundamental' },
-  { name: 'Inglês', grade: '8º Ano Fundamental' },
-  { name: 'Artes', grade: '8º Ano Fundamental' },
-  { name: 'Educação Física', grade: '8º Ano Fundamental' },
-  { name: 'Programação', grade: '8º Ano Fundamental' },
-  // -----------------------------------------------------------------
-  // 9º Ano Fundamental
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '9º Ano Fundamental' },
-  { name: 'Matemática', grade: '9º Ano Fundamental' },
-  { name: 'História', grade: '9º Ano Fundamental' },
-  { name: 'Geografia', grade: '9º Ano Fundamental' },
-  { name: 'Ciências', grade: '9º Ano Fundamental' },
-  { name: 'Inglês', grade: '9º Ano Fundamental' },
-  { name: 'Artes', grade: '9º Ano Fundamental' },
-  { name: 'Educação Física', grade: '9º Ano Fundamental' },
-  { name: 'Física', grade: '9º Ano Fundamental' },
-  { name: 'Química', grade: '9º Ano Fundamental' },
-  { name: 'Programação', grade: '9º Ano Fundamental' },
-  // -----------------------------------------------------------------
-  // 1ª Série do Ensino Médio
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '1ª Série Médio' },
-  { name: 'Matemática', grade: '1ª Série Médio' },
-  { name: 'História', grade: '1ª Série Médio' },
-  { name: 'Geografia', grade: '1ª Série Médio' },
-  { name: 'Biologia', grade: '1ª Série Médio' },
-  { name: 'Física', grade: '1ª Série Médio' },
-  { name: 'Química', grade: '1ª Série Médio' },
-  { name: 'Inglês', grade: '1ª Série Médio' },
-  { name: 'Artes', grade: '1ª Série Médio' },
-  { name: 'Educação Física', grade: '1ª Série Médio' },
-  { name: 'Filosofia', grade: '1ª Série Médio' },
-  { name: 'Sociologia', grade: '1ª Série Médio' },
-
-  // -----------------------------------------------------------------
-  // 2ª Série do Ensino Médio
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '2ª Série Médio' },
-  { name: 'Matemática', grade: '2ª Série Médio' },
-  { name: 'História', grade: '2ª Série Médio' },
-  { name: 'Geografia', grade: '2ª Série Médio' },
-  { name: 'Biologia', grade: '2ª Série Médio' },
-  { name: 'Física', grade: '2ª Série Médio' },
-  { name: 'Química', grade: '2ª Série Médio' },
-  { name: 'Inglês', grade: '2ª Série Médio' },
-  { name: 'Artes', grade: '2ª Série Médio' },
-  { name: 'Educação Física', grade: '2ª Série Médio' },
-  { name: 'Filosofia', grade: '2ª Série Médio' },
-  { name: 'Sociologia', grade: '2ª Série Médio' },
-
-  // -----------------------------------------------------------------
-  // 3ª Série do Ensino Médio
-  // -----------------------------------------------------------------
-  { name: 'Português', grade: '3ª Série Médio' },
-  { name: 'Matemática', grade: '3ª Série Médio' },
-  { name: 'História', grade: '3ª Série Médio' },
-  { name: 'Geografia', grade: '3ª Série Médio' },
-  { name: 'Biologia', grade: '3ª Série Médio' },
-  { name: 'Física', grade: '3ª Série Médio' },
-  { name: 'Química', grade: '3ª Série Médio' },
-  { name: 'Inglês', grade: '3ª Série Médio' },
-  { name: 'Artes', grade: '3ª Série Médio' },
-  { name: 'Educação Física', grade: '3ª Série Médio' },
-  { name: 'Filosofia', grade: '3ª Série Médio' },
-  { name: 'Sociologia', grade: '3ª Série Médio' },
+    // Fund I
+    ...(['1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental'] as const).flatMap(grade => [
+      { name: 'Português', grade }, { name: 'Matemática', grade },
+      { name: 'História', grade },  { name: 'Geografia', grade },
+      { name: 'Ciências', grade },  { name: 'Inglês', grade },
+      { name: 'Artes', grade },     { name: 'Educação Física', grade },
+      ...(['4º Ano Fundamental','5º Ano Fundamental'].includes(grade) ? [{ name: 'Programação', grade }] : []),
+    ]),
+    // Fund II
+    ...(['6º Ano Fundamental','7º Ano Fundamental','8º Ano Fundamental','9º Ano Fundamental'] as const).flatMap(grade => [
+      { name: 'Português', grade }, { name: 'Matemática', grade },
+      { name: 'História', grade },  { name: 'Geografia', grade },
+      { name: 'Ciências', grade },  { name: 'Inglês', grade },
+      { name: 'Artes', grade },     { name: 'Educação Física', grade },
+      { name: 'Programação', grade },
+      ...(['8º Ano Fundamental','9º Ano Fundamental'].includes(grade) ? [{ name: 'Física', grade }, { name: 'Química', grade }] : []),
+    ]),
+    // Médio
+    ...(['1ª Série Médio','2ª Série Médio','3ª Série Médio'] as const).flatMap(grade => [
+      { name: 'Português', grade }, { name: 'Matemática', grade },
+      { name: 'História', grade },  { name: 'Geografia', grade },
+      { name: 'Biologia', grade },  { name: 'Física', grade },
+      { name: 'Química', grade },   { name: 'Inglês', grade },
+      { name: 'Artes', grade },     { name: 'Educação Física', grade },
+      { name: 'Filosofia', grade }, { name: 'Sociologia', grade },
+    ]),
+    // Educação Infantil
+    ...[
+      { name: 'Português', grade: 'Educação Infantil' },
+      { name: 'Matemática', grade: 'Educação Infantil' },
+      { name: 'Artes', grade: 'Educação Infantil' },
+      { name: 'Educação Física', grade: 'Educação Infantil' },
+    ],
   ]
 
   for (const d of disciplinas) {
-    const id = `${d.name}-${d.grade}`.toLowerCase().replace(/[\s\/]/g, '-')
+    const id = `${d.name}-${d.grade}`.toLowerCase().replace(/[\sºªç\/]/g, '-').replace(/-+/g, '-')
     await prisma.subject.upsert({
-      where: { id },
+      where:  { id },
       update: {},
       create: { id, name: d.name, grade: d.grade },
     })

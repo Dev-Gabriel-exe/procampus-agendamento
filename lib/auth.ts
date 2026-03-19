@@ -2,7 +2,6 @@
 // ARQUIVO: src/lib/auth.ts
 // CAMINHO: procampus-agendamento/src/lib/auth.ts
 // ============================================================
- 
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { prisma } from './prisma'
@@ -15,7 +14,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       name: 'credentials',
       credentials: {
         username: { label: 'Usuário', type: 'text' },
-        password: { label: 'Senha', type: 'password' },
+        password: { label: 'Senha',   type: 'password' },
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) return null
@@ -25,7 +24,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!secretary) return null
         const isValid = await bcrypt.compare(credentials.password as string, secretary.password)
         if (!isValid) return null
-        return { id: secretary.id, name: secretary.username, email: `${secretary.username}@procampus.com.br` }
+        // ✅ inclui role no objeto retornado
+        return {
+          id:   secretary.id,
+          name: secretary.username,
+          email: `${secretary.username}@procampus.com.br`,
+          role: secretary.role,
+        }
       },
     }),
   ],
@@ -33,11 +38,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: { signIn: '/secretaria/login' },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id
+      if (user) {
+        token.id   = user.id
+        token.role = (user as any).role ?? 'geral'
+      }
       return token
     },
     async session({ session, token }) {
-      if (token) session.user.id = token.id as string
+      if (token) {
+        session.user.id   = token.id as string
+        ;(session.user as any).role = token.role as string
+      }
       return session
     },
   },
