@@ -10,7 +10,7 @@ import FiltrosSemana, { type Filtros } from '@/components/secretaria/FiltrosSema
 import PrintView from '@/components/secretaria/PrintView'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
-
+export const dynamic = 'force-dynamic'
 type AppointmentFull = {
   id: string
   date: Date | string

@@ -10,9 +10,13 @@ const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> 
 }
 
 export default function RoleBadge() {
-  const { data: session } = useSession()
-  const role  = (session?.user as any)?.role ?? 'geral'
-  const info  = ROLE_LABELS[role] ?? ROLE_LABELS.geral
+  const { data: session, status } = useSession()
+
+  // Não renderiza nada enquanto carrega ou se não há sessão
+  if (status === 'loading' || !session) return null
+
+  const role = (session?.user as any)?.role ?? 'geral'
+  const info = ROLE_LABELS[role] ?? ROLE_LABELS.geral
 
   return (
     <span style={{
