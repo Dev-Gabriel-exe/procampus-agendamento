@@ -76,5 +76,5 @@ model Appointment {
   status         String       @default("confirmed")
   createdAt      DateTime     @default(now())
 
-  @@unique([availabilityId, date, startTime])
+ 
 }
