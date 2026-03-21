@@ -66,6 +66,7 @@ export default function SegundaChamadaPage() {
   const [allSubjects,  setAllSubjects]  = useState<string[]>([])
   const [exams,        setExams]        = useState<ExamSchedule[]>([])
   const [loadingExams, setLoadingExams] = useState(false)
+  const [hasSearched,  setHasSearched]  = useState(false) // ← só mostra "vazio" após busca
   const [selectedExam, setSelectedExam] = useState<ExamSchedule | null>(null)
 
   // Step 2
@@ -78,18 +79,19 @@ export default function SegundaChamadaPage() {
 
   // Carrega disciplinas da série
   useEffect(() => {
-    if (!selGrade) { setAllSubjects([]); setSelSubject(''); setExams([]); setSelectedExam(null); return }
+    if (!selGrade) { setAllSubjects([]); setSelSubject(''); setExams([]); setSelectedExam(null); setHasSearched(false); return }
     fetch(`/api/disciplinas?grade=${encodeURIComponent(selGrade)}`)
       .then(r => r.json())
       .then(data => setAllSubjects([...new Set(data.map((s: any) => s.name) as string[])]))
   }, [selGrade])
 
-  // Reset subject quando muda
-  useEffect(() => { setSelSubject(''); setExams([]); setSelectedExam(null) }, [selGrade])
+  // Reset subject quando muda série
+  useEffect(() => { setSelSubject(''); setExams([]); setSelectedExam(null); setHasSearched(false) }, [selGrade])
 
   async function loadExams() {
     if (!selGrade || !selSubject) return
     setLoadingExams(true)
+    setHasSearched(true) // ← marca que o usuário já clicou em buscar
     try {
       const res = await fetch(`/api/segunda-chamada?public=true&grade=${encodeURIComponent(selGrade)}&subject=${encodeURIComponent(selSubject)}`)
       const data = await res.json()
@@ -179,7 +181,7 @@ export default function SegundaChamadaPage() {
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>Disciplina</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {allSubjects.map(s => (
-                      <button key={s} onClick={() => { setSelSubject(s); setExams([]); setSelectedExam(null) }}
+                      <button key={s} onClick={() => { setSelSubject(s); setExams([]); setSelectedExam(null); setHasSearched(false) }}
                         style={{ padding: '10px 16px', borderRadius: 100, fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: selSubject === s ? 'linear-gradient(135deg,#4054B2,#6b7fe8)' : 'rgba(255,255,255,0.06)', color: selSubject === s ? 'white' : 'rgba(255,255,255,0.7)', border: selSubject === s ? '2px solid transparent' : '1.5px solid rgba(64,84,178,0.25)', boxShadow: selSubject === s ? '0 4px 20px rgba(64,84,178,0.35)' : 'none' }}>
                         {s}
                       </button>
@@ -240,10 +242,12 @@ export default function SegundaChamadaPage() {
                 </motion.div>
               )}
 
-              {!loadingExams && exams.length === 0 && selGrade && selSubject && (
-                <div style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>
+              {/* Só exibe "nenhum horário" APÓS clicar em buscar */}
+              {!loadingExams && hasSearched && exams.length === 0 && (
+                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>
                   Nenhum horário disponível para esta disciplina.
-                </div>
+                </motion.div>
               )}
 
               <button disabled={!selectedExam} onClick={() => goTo(2)}
@@ -259,7 +263,6 @@ export default function SegundaChamadaPage() {
               transition={{ duration: 0.3, ease: [0.22,1,0.36,1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
             >
-              {/* Resumo */}
               {selectedExam && (
                 <div style={{ background: 'rgba(64,84,178,0.12)', border: '1px solid rgba(64,84,178,0.3)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(64,84,178,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -274,7 +277,6 @@ export default function SegundaChamadaPage() {
                 </div>
               )}
 
-              {/* Formulário */}
               <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(64,84,178,0.15)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {[
                   { label: 'Seu nome completo', value: parentName, onChange: setParentName, placeholder: 'Nome do responsável', icon: User },

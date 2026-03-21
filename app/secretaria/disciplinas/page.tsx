@@ -5,19 +5,24 @@ import { useState, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { BookOpen, Plus, Trash2, CalendarDays, Users, LogOut, ChevronDown, AlertCircle, X } from 'lucide-react'
+import { BookOpen, Plus, Trash2, CalendarDays, Users, LogOut, ChevronDown, AlertCircle, X, ClipboardList } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 import type { Subject } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
-// Séries por role
 const GRADES_FUND1 = ['Educação Infantil','1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental']
 const GRADES_FUND2 = ['6º Ano Fundamental','7º Ano Fundamental','8º Ano Fundamental','9º Ano Fundamental','1ª Série Médio','2ª Série Médio','3ª Série Médio']
 const GRADES_ALL   = [...GRADES_FUND1, ...GRADES_FUND2]
 
-// Modal de confirmação de exclusão
+const NAV_ITEMS = [
+  { href: '/secretaria',                 icon: CalendarDays,  label: 'Agendamentos',    key: 'dashboard' },
+  { href: '/secretaria/professores',     icon: Users,         label: 'Professores',     key: 'professores' },
+  { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
+  { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
+]
+
 function DeleteModal({ open, name, onConfirm, onCancel }: { open: boolean; name: string; onConfirm: () => void; onCancel: () => void }) {
   return (
     <AnimatePresence>
@@ -106,7 +111,6 @@ export default function DisciplinasPage() {
     } catch { alert('Erro de conexão') }
   }
 
-  // Agrupa disciplinas por série
   const grouped = grades.reduce((acc, grade) => {
     acc[grade] = subjects.filter(s => s.grade === grade)
     return acc
@@ -119,7 +123,7 @@ export default function DisciplinasPage() {
 
       {/* Header */}
       <header style={{ background: 'linear-gradient(135deg,#0D2818 0%,#1a7a2e 100%)', borderBottom: '1px solid rgba(97,206,112,0.15)', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -131,22 +135,14 @@ export default function DisciplinasPage() {
             </div>
           </Link>
 
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Link href="/secretaria" style={{ textDecoration: 'none' }}>
-              <button style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'transparent', color: 'rgba(255,255,255,0.6)' }}>
-                <CalendarDays style={{ width: 15, height: 15 }} />Agendamentos
-              </button>
-            </Link>
-            <Link href="/secretaria/professores" style={{ textDecoration: 'none' }}>
-              <button style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'transparent', color: 'rgba(255,255,255,0.6)' }}>
-                <Users style={{ width: 15, height: 15 }} />Professores
-              </button>
-            </Link>
-            <Link href="/secretaria/disciplinas" style={{ textDecoration: 'none' }}>
-              <button style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: 'white' }}>
-                <BookOpen style={{ width: 15, height: 15 }} />Disciplinas
-              </button>
-            </Link>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {NAV_ITEMS.map(item => (
+              <Link key={item.key} href={item.href} style={{ textDecoration: 'none' }}>
+                <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: item.key === 'disciplinas' ? 'rgba(255,255,255,0.15)' : 'transparent', color: item.key === 'disciplinas' ? 'white' : 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap' }}>
+                  <item.icon style={{ width: 14, height: 14 }} />{item.label}
+                </button>
+              </Link>
+            ))}
             <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.12)', margin: '0 4px' }} />
             <RoleBadge />
             <button onClick={() => signOut({ callbackUrl: '/secretaria/login' })} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, background: 'transparent', color: 'rgba(255,255,255,0.5)' }}>
@@ -158,7 +154,6 @@ export default function DisciplinasPage() {
 
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 24px' }}>
 
-        {/* Page header */}
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d', margin: 0 }}>Disciplinas</h2>
           <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>
@@ -243,7 +238,6 @@ export default function DisciplinasPage() {
 
               return (
                 <div key={grade} style={{ background: 'white', borderRadius: 14, border: '1.5px solid rgba(97,206,112,0.12)', overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
-                  {/* Cabeçalho da série */}
                   <button
                     onClick={() => setExpanded(isOpen ? null : grade)}
                     style={{ width: '100%', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
@@ -260,7 +254,6 @@ export default function DisciplinasPage() {
                     </motion.div>
                   </button>
 
-                  {/* Disciplinas da série */}
                   <AnimatePresence>
                     {isOpen && (
                       <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
