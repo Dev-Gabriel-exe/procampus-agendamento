@@ -1,5 +1,6 @@
 // app/api/segunda-chamada/route.ts
 
+// app/api/segunda-chamada/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
@@ -17,17 +18,25 @@ export async function GET(req: NextRequest) {
     const where: any = { active: true }
 
     if (isPublic) {
-      // ✅ Rota pública — sem autenticação, só provas futuras
+      // ✅ Rota pública — sem auth, só provas futuras
       where.date = { gte: new Date() }
       if (grade)       where.grade       = grade
       if (subjectName) where.subjectName = subjectName
     } else {
-      // Rota da secretaria — requer autenticação
+      // Rota da secretaria — requer auth
       const session = await auth()
       if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
       const role = (session.user as any)?.role ?? 'geral'
-      if (!isGeral(role)) where.role = role
-      // Filtros opcionais da secretaria
+
+      // ✅ FIX: filtra por série (grade) e não por role
+      // fund1/fund2 veem provas das suas séries independente de quem criou
+      if (!isGeral(role)) {
+        const allowedGrades = getGradesForRole(role)
+        where.grade = { in: allowedGrades }
+      }
+      // geral vê tudo — sem filtro adicional
+
       if (grade)       where.grade       = grade
       if (subjectName) where.subjectName = subjectName
     }
@@ -63,20 +72,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Campos obrigatórios faltando' }, { status: 400 })
     }
 
+    // Valida série pelo role
     if (!isGeral(role)) {
-      const { getGradesForRole } = await import('@/lib/roles')
-      const allowed = getGradesForRole(role)
-      if (!allowed.includes(grade)) {
+      const allowedGrades = getGradesForRole(role)
+      if (!allowedGrades.includes(grade)) {
         return NextResponse.json({ error: 'Série fora do seu nível de acesso.' }, { status: 403 })
       }
     }
 
-    // Salva data ao meio-dia UTC para evitar bug de fuso
     const raw = date.split('T')[0]
     const [year, month, day] = raw.split('-').map(Number)
     const examDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0))
 
-    // Verifica duplicata exata
     const existing = await prisma.examSchedule.findFirst({
       where: { subjectId, grade, date: examDate, startTime, endTime, active: true },
     })
