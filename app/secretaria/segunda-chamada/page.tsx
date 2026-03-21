@@ -1,10 +1,14 @@
+// app/secretaria/segunda-chamada/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { CalendarDays, Users, LogOut, BookOpen, ClipboardList, Plus, Trash2, ChevronDown, AlertCircle, X, Users2 } from 'lucide-react'
+import {
+  CalendarDays, Users, LogOut, BookOpen, ClipboardList,
+  Plus, Trash2, ChevronDown, AlertCircle, X, Users2
+} from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 
@@ -14,19 +18,19 @@ const GRADES_FUND1 = ['Educação Infantil','1º Ano Fundamental','2º Ano Funda
 const GRADES_FUND2 = ['6º Ano Fundamental','7º Ano Fundamental','8º Ano Fundamental','9º Ano Fundamental','1ª Série Médio','2ª Série Médio','3ª Série Médio']
 const GRADES_ALL   = [...GRADES_FUND1, ...GRADES_FUND2]
 
+const NAV_ITEMS = [
+  { href: '/secretaria',                 icon: CalendarDays,  label: 'Agendamentos',    key: 'dashboard' },
+  { href: '/secretaria/professores',     icon: Users,         label: 'Professores',     key: 'professores' },
+  { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
+  { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
+]
+
 type Subject = { id: string; name: string; grade: string }
-type ExamBooking = { id: string; studentName: string; parentName: string; parentEmail: string; createdAt: string }
-type ExamSchedule = {
-  id: string; subjectName: string; grade: string
-  date: string; startTime: string; endTime: string
-  active: boolean; bookings: ExamBooking[]
-}
+type ExamBooking = { id: string; studentName: string; parentName: string; parentEmail: string; parentPhone: string; createdAt: string }
+type ExamSchedule = { id: string; subjectName: string; grade: string; date: string; startTime: string; endTime: string; active: boolean; bookings: ExamBooking[] }
 
 function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('pt-BR', {
-    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-    timeZone: 'America/Fortaleza',
-  })
+  return new Date(date).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Fortaleza' })
 }
 
 export default function SegundaChamadaSecretariaPage() {
@@ -39,16 +43,15 @@ export default function SegundaChamadaSecretariaPage() {
   const [loading,  setLoading]  = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  // Form
-  const [selSubject,  setSelSubject]  = useState('')
-  const [selGrade,    setSelGrade]    = useState('')
-  const [examDate,    setExamDate]    = useState('')
-  const [startTime,   setStartTime]   = useState('')
-  const [endTime,     setEndTime]     = useState('')
-  const [saving,      setSaving]      = useState(false)
-  const [error,       setError]       = useState('')
+  // Formulário
+  const [selGrade,   setSelGrade]   = useState('')
+  const [selSubject, setSelSubject] = useState('')
+  const [examDate,   setExamDate]   = useState('')
+  const [startTime,  setStartTime]  = useState('')
+  const [endTime,    setEndTime]    = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState('')
 
-  // Subjects filtradas pela série selecionada
   const availableSubjects = subjects.filter(s => s.grade === selGrade)
 
   async function loadData() {
@@ -65,16 +68,15 @@ export default function SegundaChamadaSecretariaPage() {
   }
 
   useEffect(() => { loadData() }, [])
-
-  // Reset subject when grade changes
   useEffect(() => { setSelSubject('') }, [selGrade])
 
   async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
+    e.preventDefault(); setError('')
     if (!selSubject || !selGrade || !examDate || !startTime || !endTime) {
       setError('Preencha todos os campos.'); return
     }
+    if (startTime >= endTime) { setError('O horário de fim deve ser após o início.'); return }
+
     const subject = subjects.find(s => s.id === selSubject)
     if (!subject) { setError('Disciplina inválida.'); return }
 
@@ -87,17 +89,26 @@ export default function SegundaChamadaSecretariaPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Erro ao criar'); return }
-      setSelSubject(''); setSelGrade(''); setExamDate(''); setStartTime(''); setEndTime('')
+      // Mantém os filtros para facilitar criação de múltiplos slots
+      setExamDate(''); setStartTime(''); setEndTime('')
       loadData()
     } catch { setError('Erro de conexão') }
     finally { setSaving(false) }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Cancelar esta prova? Os inscritos não serão notificados automaticamente.')) return
+    if (!confirm('Remover este slot?')) return
     await fetch(`/api/segunda-chamada/${id}`, { method: 'DELETE' })
     loadData()
   }
+
+  // Agrupa por disciplina+série
+  const grouped = exams.reduce((acc, e) => {
+    const key = `${e.subjectName}|${e.grade}`
+    if (!acc[key]) acc[key] = { subjectName: e.subjectName, grade: e.grade, slots: [] }
+    acc[key].slots.push(e)
+    return acc
+  }, {} as Record<string, { subjectName: string; grade: string; slots: ExamSchedule[] }>)
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 14px', borderRadius: 10,
@@ -109,17 +120,8 @@ export default function SegundaChamadaSecretariaPage() {
     textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5,
   }
 
-  // Agrupa provas por data
-  const grouped = exams.reduce((acc, e) => {
-    const key = formatDate(e.date)
-    if (!acc[key]) acc[key] = []
-    acc[key].push(e)
-    return acc
-  }, {} as Record<string, ExamSchedule[]>)
-
   return (
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
-      {/* Header */}
       <header style={{ background: 'linear-gradient(135deg,#0D2818 0%,#1a7a2e 100%)', borderBottom: '1px solid rgba(97,206,112,0.15)', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
@@ -132,16 +134,11 @@ export default function SegundaChamadaSecretariaPage() {
               </div>
             </div>
           </Link>
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {[
-              { href: '/secretaria',              icon: CalendarDays,  label: 'Agendamentos' },
-              { href: '/secretaria/professores',  icon: Users,         label: 'Professores' },
-              { href: '/secretaria/disciplinas',  icon: BookOpen,      label: 'Disciplinas' },
-              { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', active: true },
-            ].map(item => (
-              <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
-                <button style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: item.active ? 'rgba(255,255,255,0.15)' : 'transparent', color: item.active ? 'white' : 'rgba(255,255,255,0.6)' }}>
-                  <item.icon style={{ width: 15, height: 15 }} />{item.label}
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {NAV_ITEMS.map(item => (
+              <Link key={item.key} href={item.href} style={{ textDecoration: 'none' }}>
+                <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: item.key === 'segunda-chamada' ? 'rgba(255,255,255,0.15)' : 'transparent', color: item.key === 'segunda-chamada' ? 'white' : 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap' }}>
+                  <item.icon style={{ width: 14, height: 14 }} />{item.label}
                 </button>
               </Link>
             ))}
@@ -157,24 +154,25 @@ export default function SegundaChamadaSecretariaPage() {
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 16px 60px' }}>
         <div style={{ marginBottom: 24 }}>
           <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d', margin: 0 }}>Segunda Chamada</h2>
-          <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Agende datas de provas — os responsáveis poderão se inscrever pelo site</p>
+          <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Crie slots de prova — os responsáveis escolhem o horário e se inscrevem</p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,2fr)', gap: 24, alignItems: 'start' }}>
 
           {/* ── Formulário ── */}
           <div style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.15)', padding: 24, boxShadow: '0 2px 16px rgba(0,0,0,0.04)', position: 'sticky', top: 76 }}>
-            <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 700, fontSize: 16, color: '#0a1a0d', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Plus style={{ width: 16, height: 16, color: '#23A455' }} />
-              Nova Prova
+            <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 700, fontSize: 16, color: '#0a1a0d', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Plus style={{ width: 16, height: 16, color: '#4054B2' }} />Novo Slot de Prova
             </h3>
+            <p style={{ fontSize: 12, color: '#6b8f72', marginBottom: 18 }}>Crie quantos slots quiser para a mesma disciplina</p>
 
             <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Série */}
               <div>
                 <label style={labelStyle}>Série</label>
                 <div style={{ position: 'relative' }}>
-                  <select value={selGrade} onChange={e => setSelGrade(e.target.value)} style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: 'pointer', color: selGrade ? '#0a1a0d' : '#9ca3af' }}>
+                  <select value={selGrade} onChange={e => setSelGrade(e.target.value)}
+                    style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: 'pointer', color: selGrade ? '#0a1a0d' : '#9ca3af' }}>
                     <option value="">Selecione a série</option>
                     {grades.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
@@ -186,7 +184,8 @@ export default function SegundaChamadaSecretariaPage() {
               <div>
                 <label style={labelStyle}>Disciplina</label>
                 <div style={{ position: 'relative' }}>
-                  <select value={selSubject} onChange={e => setSelSubject(e.target.value)} disabled={!selGrade} style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: selGrade ? 'pointer' : 'not-allowed', color: selSubject ? '#0a1a0d' : '#9ca3af', opacity: selGrade ? 1 : 0.5 }}>
+                  <select value={selSubject} onChange={e => setSelSubject(e.target.value)} disabled={!selGrade}
+                    style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: selGrade ? 'pointer' : 'not-allowed', color: selSubject ? '#0a1a0d' : '#9ca3af', opacity: selGrade ? 1 : 0.5 }}>
                     <option value="">Selecione a disciplina</option>
                     {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -198,7 +197,7 @@ export default function SegundaChamadaSecretariaPage() {
               <div>
                 <label style={labelStyle}>Data da prova</label>
                 <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#23A455'; e.target.style.boxShadow = '0 0 0 3px rgba(97,206,112,0.1)' }}
+                  onFocus={e => { e.target.style.borderColor = '#4054B2'; e.target.style.boxShadow = '0 0 0 3px rgba(64,84,178,0.1)' }}
                   onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
@@ -208,14 +207,14 @@ export default function SegundaChamadaSecretariaPage() {
                 <div>
                   <label style={labelStyle}>Início</label>
                   <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle}
-                    onFocus={e => { e.target.style.borderColor = '#23A455'; e.target.style.boxShadow = '0 0 0 3px rgba(97,206,112,0.1)' }}
+                    onFocus={e => { e.target.style.borderColor = '#4054B2'; e.target.style.boxShadow = '0 0 0 3px rgba(64,84,178,0.1)' }}
                     onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
                   />
                 </div>
                 <div>
                   <label style={labelStyle}>Fim</label>
                   <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle}
-                    onFocus={e => { e.target.style.borderColor = '#23A455'; e.target.style.boxShadow = '0 0 0 3px rgba(97,206,112,0.1)' }}
+                    onFocus={e => { e.target.style.borderColor = '#4054B2'; e.target.style.boxShadow = '0 0 0 3px rgba(64,84,178,0.1)' }}
                     onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
                   />
                 </div>
@@ -223,91 +222,95 @@ export default function SegundaChamadaSecretariaPage() {
 
               {error && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef2f2', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: 13 }}>
-                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }} />
-                  {error}
+                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }} />{error}
                   <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}><X style={{ width: 13, height: 13 }} /></button>
                 </div>
               )}
 
               <button type="submit" disabled={saving}
-                style={{ padding: '12px', borderRadius: 10, border: 'none', background: saving ? 'rgba(97,206,112,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)', color: saving ? 'rgba(255,255,255,0.5)' : 'white', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: '"Roboto Slab",serif', boxShadow: saving ? 'none' : '0 4px 16px rgba(97,206,112,0.3)' }}>
-                {saving ? 'Salvando...' : <><Plus style={{ width: 15, height: 15 }} />Adicionar Prova</>}
+                style={{ padding: '12px', borderRadius: 10, border: 'none', background: saving ? 'rgba(64,84,178,0.2)' : 'linear-gradient(135deg,#4054B2,#6b7fe8)', color: saving ? 'rgba(255,255,255,0.5)' : 'white', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: '"Roboto Slab",serif', boxShadow: saving ? 'none' : '0 4px 16px rgba(64,84,178,0.3)' }}>
+                {saving ? 'Salvando...' : <><Plus style={{ width: 15, height: 15 }} />Adicionar Slot</>}
               </button>
             </form>
           </div>
 
-          {/* ── Lista de provas ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {loading ? <LoadingSpinner /> : exams.length === 0 ? (
+          {/* ── Lista agrupada por disciplina ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {loading ? <LoadingSpinner /> : Object.keys(grouped).length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 24px', background: 'white', borderRadius: 20, border: '1.5px dashed rgba(97,206,112,0.3)' }}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-                <p style={{ fontWeight: 600, color: '#3d5c42', fontSize: 16 }}>Nenhuma prova agendada</p>
-                <p style={{ color: '#6b8f72', fontSize: 14, marginTop: 6 }}>Use o formulário ao lado para adicionar.</p>
+                <p style={{ fontWeight: 600, color: '#3d5c42', fontSize: 16 }}>Nenhum slot cadastrado</p>
+                <p style={{ color: '#6b8f72', fontSize: 14, marginTop: 6 }}>Use o formulário ao lado para adicionar slots de prova.</p>
               </div>
-            ) : Object.entries(grouped).map(([dateLabel, dayExams]) => (
-              <div key={dateLabel}>
-                {/* Separador de data */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                  <div style={{ height: 1, flex: 1, background: 'rgba(97,206,112,0.15)' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1.5px solid rgba(97,206,112,0.2)', borderRadius: 999, padding: '5px 14px' }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#23A455' }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#3d5c42', textTransform: 'capitalize' }}>{dateLabel}</span>
+            ) : Object.entries(grouped).map(([key, group]) => (
+              <motion.div key={key} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                style={{ background: 'white', borderRadius: 16, border: '1.5px solid rgba(64,84,178,0.15)', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+
+                {/* Cabeçalho da disciplina */}
+                <button onClick={() => setExpanded(expanded === key ? null : key)}
+                  style={{ width: '100%', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#4054B2,#6b7fe8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <ClipboardList style={{ width: 18, height: 18, color: 'white' }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 700, fontSize: 15, color: '#0a1a0d', margin: 0 }}>{group.subjectName}</p>
+                      <p style={{ fontSize: 12, color: '#6b8f72', margin: 0, marginTop: 2 }}>{group.grade}</p>
+                    </div>
                   </div>
-                  <div style={{ height: 1, flex: 1, background: 'rgba(97,206,112,0.15)' }} />
-                </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#4054B2', background: '#eef1fb', borderRadius: 999, padding: '4px 10px' }}>
+                      {group.slots.length} slot{group.slots.length !== 1 ? 's' : ''}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#23A455', background: '#e8f9eb', borderRadius: 999, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Users2 style={{ width: 12, height: 12 }} />
+                      {group.slots.reduce((sum, s) => sum + s.bookings.length, 0)} inscrito(s)
+                    </span>
+                    <motion.div animate={{ rotate: expanded === key ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                      <ChevronDown style={{ width: 15, height: 15, color: '#6b8f72' }} />
+                    </motion.div>
+                  </div>
+                </button>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {dayExams.map(exam => (
-                    <motion.div key={exam.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                      style={{ background: 'white', borderRadius: 16, border: '1.5px solid rgba(97,206,112,0.12)', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+                {/* Slots expandidos */}
+                <AnimatePresence>
+                  {expanded === key && (
+                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
+                      <div style={{ borderTop: '1px solid rgba(64,84,178,0.1)', padding: '16px 20px', background: '#fafafe', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {group.slots.map(slot => (
+                          <div key={slot.id} style={{ background: 'white', borderRadius: 12, border: '1px solid rgba(64,84,178,0.12)', overflow: 'hidden' }}>
+                            {/* Linha do slot */}
+                            <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                              <div>
+                                <p style={{ fontWeight: 700, fontSize: 14, color: '#0a1a0d', margin: 0, textTransform: 'capitalize' }}>
+                                  {formatDate(slot.date)}
+                                </p>
+                                <p style={{ fontSize: 13, color: '#4054B2', fontWeight: 600, margin: 0, marginTop: 2 }}>
+                                  {slot.startTime} – {slot.endTime}
+                                </p>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                <span style={{ fontSize: 12, color: '#23A455', background: '#e8f9eb', borderRadius: 999, padding: '3px 10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Users2 style={{ width: 11, height: 11 }} />{slot.bookings.length}
+                                </span>
+                                <button onClick={() => handleDelete(slot.id)}
+                                  style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                  <Trash2 style={{ width: 14, height: 14 }} />
+                                </button>
+                              </div>
+                            </div>
 
-                      {/* Header do card */}
-                      <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-                          <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg,#4054B2,#6b7fe8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <ClipboardList style={{ width: 18, height: 18, color: 'white' }} />
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <p style={{ fontWeight: 700, fontSize: 15, color: '#0a1a0d', margin: 0 }}>{exam.subjectName}</p>
-                            <p style={{ fontSize: 12, color: '#6b8f72', margin: 0, marginTop: 2 }}>
-                              {exam.grade} · {exam.startTime} – {exam.endTime}
-                            </p>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: '#4054B2', background: '#eef1fb', borderRadius: 999, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <Users2 style={{ width: 12, height: 12 }} />
-                            {exam.bookings.length} inscrito{exam.bookings.length !== 1 ? 's' : ''}
-                          </span>
-                          <button onClick={() => setExpanded(expanded === exam.id ? null : exam.id)}
-                            style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#6b8f72' }}>
-                            <motion.div animate={{ rotate: expanded === exam.id ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                              <ChevronDown style={{ width: 15, height: 15 }} />
-                            </motion.div>
-                          </button>
-                          <button onClick={() => handleDelete(exam.id)}
-                            style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444', transition: 'background 0.15s' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <Trash2 style={{ width: 15, height: 15 }} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Lista de inscritos */}
-                      <AnimatePresence>
-                        {expanded === exam.id && (
-                          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
-                            <div style={{ borderTop: '1px solid rgba(97,206,112,0.1)', padding: '14px 18px', background: '#fafdfb' }}>
-                              <p style={{ fontSize: 12, fontWeight: 700, color: '#3d5c42', marginBottom: 10 }}>
-                                Inscritos ({exam.bookings.length})
-                              </p>
-                              {exam.bookings.length === 0 ? (
-                                <p style={{ fontSize: 13, color: '#6b8f72' }}>Nenhum inscrito ainda.</p>
-                              ) : (
+                            {/* Lista de inscritos */}
+                            {slot.bookings.length > 0 && (
+                              <div style={{ borderTop: '1px solid rgba(64,84,178,0.08)', padding: '10px 16px', background: '#f7f9fe' }}>
+                                <p style={{ fontSize: 11, fontWeight: 700, color: '#4054B2', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                                  Inscritos
+                                </p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                  {exam.bookings.map((b, i) => (
-                                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'white', borderRadius: 10, border: '1px solid rgba(97,206,112,0.1)' }}>
+                                  {slot.bookings.map((b, i) => (
+                                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'white', borderRadius: 8, border: '1px solid rgba(64,84,178,0.08)' }}>
                                       <div>
                                         <p style={{ fontSize: 13, fontWeight: 600, color: '#0a1a0d', margin: 0 }}>{b.studentName}</p>
                                         <p style={{ fontSize: 11, color: '#6b8f72', margin: 0 }}>Resp: {b.parentName} · {b.parentEmail}</p>
@@ -316,20 +319,19 @@ export default function SegundaChamadaSecretariaPage() {
                                     </div>
                                   ))}
                                 </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </motion.div>
-                  ))}
-                </div>
-              </div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             ))}
           </div>
         </div>
       </main>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

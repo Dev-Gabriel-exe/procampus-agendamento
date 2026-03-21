@@ -14,7 +14,7 @@ function createTransport() {
   })
 }
 
-// DELETE — cancela/desativa a prova
+// DELETE — secretaria cancela/desativa um slot
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -29,11 +29,11 @@ export async function DELETE(
     })
     return NextResponse.json({ success: true })
   } catch {
-    return NextResponse.json({ error: 'Erro ao cancelar prova' }, { status: 500 })
+    return NextResponse.json({ error: 'Erro ao cancelar slot' }, { status: 500 })
   }
 }
 
-// POST — agendamento do pai para a prova (rota pública)
+// POST — pai faz inscrição num slot (rota pública)
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -45,29 +45,19 @@ export async function POST(
       return NextResponse.json({ error: 'Campos obrigatórios faltando' }, { status: 400 })
     }
 
-    const exam = await prisma.examSchedule.findUnique({
-      where: { id: params.id },
-    })
+    const exam = await prisma.examSchedule.findUnique({ where: { id: params.id } })
     if (!exam || !exam.active) {
-      return NextResponse.json({ error: 'Prova não encontrada ou inativa.' }, { status: 404 })
+      return NextResponse.json({ error: 'Slot não encontrado ou inativo.' }, { status: 404 })
     }
     if (new Date(exam.date) < new Date()) {
-      return NextResponse.json({ error: 'Esta prova já ocorreu.' }, { status: 400 })
-    }
-
-    // Verifica se o aluno já agendou esta prova
-    const existing = await prisma.examBooking.findFirst({
-      where: { examScheduleId: params.id, studentName, status: 'confirmed' },
-    })
-    if (existing) {
-      return NextResponse.json({ error: 'Este aluno já está inscrito nesta prova.' }, { status: 409 })
+      return NextResponse.json({ error: 'Este slot já ocorreu.' }, { status: 400 })
     }
 
     const booking = await prisma.examBooking.create({
       data: { examScheduleId: params.id, parentName, parentEmail, parentPhone, studentName, studentGrade },
     })
 
-    // Email de confirmação
+    // Email de confirmação (não bloqueia a resposta se falhar)
     try {
       const transporter = createTransport()
       const dateFormatted = formatDateShort(exam.date)
@@ -75,7 +65,7 @@ export async function POST(
         from:    `"Pro Campus" <${process.env.GMAIL_USER}>`,
         to:      parentEmail,
         subject: `✅ Segunda Chamada confirmada — ${exam.subjectName} | Pro Campus`,
-        html: buildConfirmationEmail({ parentName, studentName, studentGrade, subjectName: exam.subjectName, grade: exam.grade, date: dateFormatted, startTime: exam.startTime, endTime: exam.endTime }),
+        html:    buildConfirmationEmail({ parentName, studentName, studentGrade, subjectName: exam.subjectName, grade: exam.grade, date: dateFormatted, startTime: exam.startTime, endTime: exam.endTime }),
       })
     } catch (err) {
       console.error('Erro ao enviar email:', err)
@@ -104,28 +94,24 @@ function buildConfirmationEmail(data: {
     <p style="color:rgba(255,255,255,0.6);margin:6px 0 0;font-size:13px;">Segunda Chamada — Grupo Educacional</p>
   </td></tr>
   <tr><td style="padding:28px 40px 0;text-align:center;">
-    <div style="display:inline-block;background:#eef1fb;color:#4054B2;padding:8px 20px;border-radius:100px;font-size:13px;font-weight:700;">
-      ✅ Inscrição Confirmada
-    </div>
+    <div style="display:inline-block;background:#eef1fb;color:#4054B2;padding:8px 20px;border-radius:100px;font-size:13px;font-weight:700;">✅ Inscrição Confirmada</div>
   </td></tr>
   <tr><td style="padding:20px 40px 0;">
     <h2 style="color:#1a2060;font-size:18px;font-weight:700;margin:0;">Olá, ${data.parentName}!</h2>
-    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:10px 0 0;">
-      A inscrição na prova de segunda chamada foi confirmada com sucesso.
-    </p>
+    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:10px 0 0;">A inscrição na prova de segunda chamada foi confirmada.</p>
   </td></tr>
   <tr><td style="padding:20px 40px 32px;">
     <table width="100%" style="background:#f7f9fe;border-radius:14px;border:1px solid rgba(64,84,178,0.12);overflow:hidden;">
       <tr><td style="padding:14px 20px;border-bottom:1px solid rgba(64,84,178,0.08);">
-        <span style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Aluno</span>
+        <span style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;">Aluno</span>
         <p style="color:#1a1a1a;font-size:15px;font-weight:700;margin:4px 0 0;">${data.studentName}</p>
       </td></tr>
       <tr><td style="padding:14px 20px;border-bottom:1px solid rgba(64,84,178,0.08);">
-        <span style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Disciplina / Série</span>
+        <span style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;">Disciplina / Série</span>
         <p style="color:#1a1a1a;font-size:15px;font-weight:700;margin:4px 0 0;">${data.subjectName} — ${data.grade}</p>
       </td></tr>
       <tr><td style="padding:14px 20px;">
-        <span style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Data e Horário</span>
+        <span style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;">Data e Horário</span>
         <p style="color:#4054B2;font-size:20px;font-weight:800;margin:4px 0 0;">📅 ${data.date} às ${data.startTime}</p>
         <p style="color:#6b7280;font-size:12px;margin:4px 0 0;">Término previsto: ${data.endTime}</p>
       </td></tr>
