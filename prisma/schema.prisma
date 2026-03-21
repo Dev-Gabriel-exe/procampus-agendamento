@@ -1,8 +1,3 @@
-// ============================================================
-// ARQUIVO: prisma/schema.prisma
-// CAMINHO: procampus-agendamento/prisma/schema.prisma
-// SUBSTITUA o arquivo inteiro
-// ============================================================
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,7 +12,7 @@ model Secretary {
   id       String @id @default(cuid())
   username String @unique
   password String
-  role     String @default("geral") // "geral" | "fund1" | "fund2"
+  role     String @default("geral")
 }
 
 model Teacher {
@@ -25,7 +20,7 @@ model Teacher {
   name           String
   email          String
   phone          String
-  role           String           @default("geral") // qual secretaria criou: "geral" | "fund1" | "fund2"
+  role           String           @default("geral")
   subjects       TeacherSubject[]
   availabilities Availability[]
   createdAt      DateTime         @default(now())
@@ -33,10 +28,11 @@ model Teacher {
 }
 
 model Subject {
-  id       String           @id @default(cuid())
-  name     String
-  grade    String
-  teachers TeacherSubject[]
+  id            String           @id @default(cuid())
+  name          String
+  grade         String
+  teachers      TeacherSubject[]
+  examSchedules ExamSchedule[]
 }
 
 model TeacherSubject {
@@ -75,6 +71,36 @@ model Appointment {
   subjectName    String       @default("")
   status         String       @default("confirmed")
   createdAt      DateTime     @default(now())
+}
 
- 
+// ── Segunda Chamada ──────────────────────────────────────
+
+// Prova agendada pela secretaria
+model ExamSchedule {
+  id          String        @id @default(cuid())
+  subject     Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId   String
+  subjectName String        // denormalizado para facilitar queries
+  grade       String
+  date        DateTime      // data da prova
+  startTime   String        // "14:00"
+  endTime     String        // "16:00"
+  role        String        @default("geral") // qual secretaria criou
+  active      Boolean       @default(true)
+  bookings    ExamBooking[]
+  createdAt   DateTime      @default(now())
+}
+
+// Agendamento do pai para a prova
+model ExamBooking {
+  id             String       @id @default(cuid())
+  examSchedule   ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
+  examScheduleId String
+  parentName     String
+  parentEmail    String
+  parentPhone    String
+  studentName    String
+  studentGrade   String
+  status         String       @default("confirmed") // confirmed | cancelled
+  createdAt      DateTime     @default(now())
 }
