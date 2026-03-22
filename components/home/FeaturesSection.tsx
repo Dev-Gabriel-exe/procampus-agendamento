@@ -2,97 +2,163 @@
 // ARQUIVO: src/components/home/FeaturesSection.tsx
 // CAMINHO: procampus-agendamento/src/components/home/FeaturesSection.tsx
 // ============================================================
- 
-'use client'
- 
+ 'use client'
+
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
-import { CalendarDays, Clock, Mail, Smartphone, Shield, Zap } from 'lucide-react'
- 
-const features = [
-  { icon: CalendarDays, title: 'Agendamento Online',     desc: 'Marque reuniões a qualquer hora pelo celular ou computador.',                bg: '#e8f9eb', color: '#23A455' },
-  { icon: Clock,        title: 'Horários em Tempo Real', desc: 'Veja os slots de 20 minutos disponíveis de cada professor sem conflitos.',                  bg: '#eef1fb', color: '#4054B2' },
-  { icon: Mail,         title: 'Confirmação por E-mail', desc: 'Receba confirmação imediata com todos os detalhes da reunião.',               bg: '#e6f7f0', color: '#0f766e' },
-  { icon: CalendarDays, title: 'Google Agenda',          desc: 'Adicione ao calendário com 1 clique e receba lembrete automático.',           bg: '#fef3e2', color: '#c2410c' },
-  { icon: Shield,       title: 'Exclusivo Pro Campus',   desc: 'Desenvolvido especialmente para o Grupo Educacional Pro Campus.',             bg: '#e8f9eb', color: '#23A455' },
-  { icon: Smartphone,   title: '100% Responsivo',        desc: 'Interface otimizada para celular, tablet e computador.',                     bg: '#e8f4fd', color: '#2980b9' },
+import { CalendarDays, Clock, Mail, Smartphone, Shield, ClipboardList, FileCheck, BellRing } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
+
+// ── Serviços em destaque ──────────────────────────────────
+const services = [
+  {
+    key: 'reuniao',
+    href: '/agendamento',
+    icon: CalendarDays,
+    tag: 'Plantão Escolar',
+    tagColor: '#23A455',
+    tagBg: '#e8f9eb',
+    title: 'Reuniões com Professores',
+    desc: 'Escolha o professor, o horário disponível e confirme em menos de 2 minutos. Tudo online, sem precisar ligar para a escola.',
+    accentColor: '#23A455',
+    borderColor: 'rgba(97,206,112,0.25)',
+    glowColor: 'rgba(97,206,112,0.08)',
+  },
+  {
+    key: 'segunda',
+    href: '/segunda-chamada',
+    icon: ClipboardList,
+    tag: 'Segunda Chamada',
+    tagColor: '#4054B2',
+    tagBg: '#eef1fb',
+    title: 'Inscrição em Prova',
+    desc: 'Inscreva seu filho na prova de segunda chamada pelo celular. Horários definidos pela secretaria, confirmação imediata por e-mail.',
+    accentColor: '#4054B2',
+    borderColor: 'rgba(64,84,178,0.25)',
+    glowColor: 'rgba(64,84,178,0.06)',
+  },
 ]
- 
+
+// ── Features gerais ────────────────────────────────────────
+const features = [
+  { icon: Clock,        title: 'Horários em Tempo Real',  desc: 'Slots atualizados automaticamente — nada de horários já ocupados.', bg: '#eef1fb', color: '#4054B2' },
+  { icon: Mail,         title: 'Confirmação por E-mail',  desc: 'Receba um e-mail instantâneo com todos os detalhes após agendar.', bg: '#e6f7f0', color: '#0f766e' },
+  { icon: CalendarDays, title: 'Google Agenda',           desc: 'Adicione ao calendário com 1 clique e receba lembrete automático.', bg: '#fef3e2', color: '#c2410c' },
+  { icon: FileCheck,    title: 'Sem Cadastro',            desc: 'Nenhum login ou senha necessário. Preencha e pronto.', bg: '#e8f9eb', color: '#23A455' },
+  { icon: BellRing,     title: 'Aviso por WhatsApp',      desc: 'Receba lembretes no WhatsApp antes da reunião ou prova.', bg: '#f0fdf4', color: '#15803d' },
+  { icon: Smartphone,   title: '100% Responsivo',         desc: 'Interface otimizada para celular, tablet e computador.', bg: '#e8f4fd', color: '#2980b9' },
+  { icon: Shield,       title: 'Exclusivo Pro Campus',    desc: 'Desenvolvido especialmente para o Grupo Educacional Pro Campus.', bg: '#e8f9eb', color: '#23A455' },
+]
+
 export default function FeaturesSection() {
   const ref    = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-60px' })
- 
+
   return (
     <section style={{ padding: '120px 24px', background: '#f7fdf8' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
- 
+
+        {/* Header */}
         <motion.div ref={ref}
-          initial={{ opacity: 0, y: 40 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
+          initial={{ opacity: 0, y: 40 }} animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.7 }}
-          style={{ textAlign: 'center', marginBottom: 72 }}
+          style={{ textAlign: 'center', marginBottom: 56 }}
         >
-          <span style={{
-            display: 'inline-block',
-            background: 'white', color: '#23A455',
-            fontWeight: 700, fontSize: 12, padding: '6px 16px',
-            borderRadius: 999, textTransform: 'uppercase', letterSpacing: 2,
-            marginBottom: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
-          }}>
-            Por que usar
+          <span style={{ display: 'inline-block', background: 'white', color: '#23A455', fontWeight: 700, fontSize: 12, padding: '6px 16px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+            Nossos serviços
           </span>
-          <h2 style={{
-            fontFamily: 'var(--font-display),"Roboto Slab",serif',
-            fontWeight: 800, fontSize: 'clamp(32px,5vw,52px)',
-            color: '#0a1a0d', lineHeight: 1.1, letterSpacing: '-1px', margin: 0,
-          }}>
+          <h2 style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', fontWeight: 800, fontSize: 'clamp(32px,5vw,52px)', color: '#0a1a0d', lineHeight: 1.1, letterSpacing: '-1px', margin: 0 }}>
             Tudo que você precisa
           </h2>
         </motion.div>
- 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 20,
-        }}>
-          {features.map((f, i) => {
+
+        {/* Service cards — prominent */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 56 }}>
+          {services.map((s, i) => {
             const ref2   = useRef(null)
             const inView2 = useInView(ref2, { once: true, margin: '-40px' })
-            const Icon   = f.icon
+            const Icon   = s.icon
             return (
-              <motion.div key={i} ref={ref2}
-                initial={{ opacity: 0, y: 40 }}
-                animate={inView2 ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.6, delay: i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+              <motion.div key={s.key} ref={ref2}
+                initial={{ opacity: 0, y: 40 }} animate={inView2 ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
               >
                 <motion.div
-                  whileHover={{ y: -6, boxShadow: '0 20px 60px rgba(97,206,112,0.12)' }}
-                  style={{
-                    background: 'white', borderRadius: 20, padding: 28,
-                    border: '1px solid rgba(97,206,112,0.1)',
-                    boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
-                    transition: 'all 0.3s',
-                  }}
+                  whileHover={{ y: -6, boxShadow: `0 28px 70px ${s.glowColor.replace('0.06', '0.2')}` }}
+                  style={{ background: 'white', borderRadius: 24, padding: 32, border: `1.5px solid ${s.borderColor}`, boxShadow: `0 4px 24px ${s.glowColor}`, transition: 'all 0.3s', height: '100%' }}
                 >
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 14, marginBottom: 18,
-                    background: f.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Icon style={{ width: 22, height: 22, color: f.color }} />
+                  {/* Tag */}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: s.tagBg, borderRadius: 999, padding: '5px 12px', marginBottom: 20 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: s.tagColor }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: s.tagColor, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.tag}</span>
                   </div>
-                  <h3 style={{
-                    fontFamily: 'var(--font-display),"Roboto Slab",serif',
-                    fontWeight: 700, fontSize: 17, color: '#0a1a0d', marginBottom: 8, lineHeight: 1.2,
-                  }}>
-                    {f.title}
+
+                  {/* Icon */}
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: s.tagBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, border: `1.5px solid ${s.borderColor}` }}>
+                    <Icon style={{ width: 26, height: 26, color: s.accentColor }} />
+                  </div>
+
+                  <h3 style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', fontWeight: 800, fontSize: 22, color: '#0a1a0d', marginBottom: 12, lineHeight: 1.2 }}>
+                    {s.title}
                   </h3>
-                  <p style={{ color: '#6b8f72', fontSize: 14, lineHeight: 1.7 }}>{f.desc}</p>
+                  <p style={{ color: '#6b8f72', fontSize: 15, lineHeight: 1.75, marginBottom: 24 }}>
+                    {s.desc}
+                  </p>
+
+                  <Link href={s.href} style={{ textDecoration: 'none' }}>
+                    <motion.button
+                      whileHover={{ gap: 12 }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: `1.5px solid ${s.borderColor}`, background: s.tagBg, color: s.accentColor, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: '"Roboto Slab",serif', transition: 'all 0.2s' }}
+                    >
+                      Acessar <ArrowRight style={{ width: 14, height: 14 }} />
+                    </motion.button>
+                  </Link>
                 </motion.div>
               </motion.div>
             )
           })}
         </div>
- 
+
+        {/* Divider */}
+        <motion.div
+          initial={{ opacity: 0 }} animate={inView ? { opacity: 1 } : {}}
+          transition={{ delay: 0.3 }}
+          style={{ textAlign: 'center', marginBottom: 48 }}
+        >
+          <span style={{ display: 'inline-block', background: 'white', color: '#6b8f72', fontWeight: 700, fontSize: 11, padding: '5px 14px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            Recursos inclusos
+          </span>
+        </motion.div>
+
+        {/* Features grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {features.map((f, i) => {
+            const ref2    = useRef(null)
+            const inView2 = useInView(ref2, { once: true, margin: '-40px' })
+            const Icon    = f.icon
+            return (
+              <motion.div key={i} ref={ref2}
+                initial={{ opacity: 0, y: 30 }} animate={inView2 ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <motion.div
+                  whileHover={{ y: -4, boxShadow: '0 16px 48px rgba(97,206,112,0.1)' }}
+                  style={{ background: 'white', borderRadius: 16, padding: '22px 24px', border: '1px solid rgba(97,206,112,0.1)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', transition: 'all 0.3s', display: 'flex', alignItems: 'flex-start', gap: 16 }}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: f.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon style={{ width: 18, height: 18, color: f.color }} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', fontWeight: 700, fontSize: 15, color: '#0a1a0d', marginBottom: 6, lineHeight: 1.2 }}>{f.title}</h3>
+                    <p style={{ color: '#6b8f72', fontSize: 13, lineHeight: 1.65, margin: 0 }}>{f.desc}</p>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )
+          })}
+        </div>
+
       </div>
     </section>
   )
