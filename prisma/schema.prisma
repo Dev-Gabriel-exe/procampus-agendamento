@@ -96,11 +96,20 @@ model ExamBooking {
   id             String       @id @default(cuid())
   examSchedule   ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
   examScheduleId String
+
   parentName     String
   parentEmail    String
   parentPhone    String
   studentName    String
   studentGrade   String
-  status         String       @default("confirmed") // confirmed | cancelled
+
+  status         String       @default("PENDING") // 🔥 ALTERADO
+                             // 🔥 NOVO
+  justificativa String?
+  justified      Boolean?
+  reason         String?
+  lutoText       String?
+  fileUrl        String?
+
   createdAt      DateTime     @default(now())
 }

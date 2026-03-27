@@ -1,6 +1,6 @@
 // ============================================================
-// ARQUIVO: src/lib/auth.ts
-// CAMINHO: procampus-agendamento/src/lib/auth.ts
+// ARQUIVO: lib/auth.ts
+// CAMINHO: procampus-agendamento/lib/auth.ts
 // ============================================================
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'

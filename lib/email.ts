@@ -316,3 +316,136 @@ function buildCancellationEmail(data: {
 </body>
 </html>`
 }
+
+// ============================================================
+// Segunda chamada - Templates padronizados
+// ============================================================
+
+interface SegundaChamadaData {
+  parentName: string
+  studentName: string
+  studentGrade: string
+  subject: string
+  date: string
+  startTime: string
+}
+
+// 🔹 BASE (reutilizável)
+function baseEmailLayout(title: string, badge: string, content: string) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f0faf2;font-family:'Segoe UI',Arial,sans-serif;">
+
+<table width="100%" style="padding:40px 20px;">
+<tr><td align="center">
+
+<table width="600" style="background:#ffffff;border-radius:20px;overflow:hidden;">
+
+<tr>
+<td style="background:linear-gradient(135deg,#0D2818,#1a7a2e,#23A455);padding:40px;text-align:center;">
+<h1 style="color:#fff;margin:0;">Pro Campus</h1>
+</td>
+</tr>
+
+<tr>
+<td style="padding:24px;text-align:center;">
+${badge}
+</td>
+</tr>
+
+<tr>
+<td style="padding:20px 40px;">
+${content}
+</td>
+</tr>
+
+<tr>
+<td style="background:#f7fdf8;padding:20px;text-align:center;">
+<p style="font-size:12px;color:#6b8f72;margin:0;">
+© ${new Date().getFullYear()} Pro Campus
+</p>
+</td>
+</tr>
+
+</table>
+
+</td></tr>
+</table>
+</body>
+</html>`
+}
+
+// 🟡 RECEBIDO
+export function buildSegundaChamadaEmail(data: SegundaChamadaData, dateFormatted: string) {
+  return baseEmailLayout(
+    'Solicitação recebida',
+    `<div style="background:#dcfce7;color:#166534;padding:8px 18px;border-radius:999px;font-weight:700;">
+      📄 Solicitação recebida
+    </div>`,
+    `
+    <h2>Olá, ${data.parentName}!</h2>
+    <p>Sua solicitação de segunda chamada foi registrada.</p>
+
+    <table width="100%" style="background:#f7fdf8;border-radius:12px;margin-top:20px;">
+      <tr><td style="padding:12px;"><b>Aluno:</b> ${data.studentName}</td></tr>
+      <tr><td style="padding:12px;"><b>Série:</b> ${data.studentGrade}</td></tr>
+      <tr><td style="padding:12px;"><b>Disciplina:</b> ${data.subject}</td></tr>
+      <tr><td style="padding:12px;"><b>Data:</b> ${dateFormatted}</td></tr>
+      <tr><td style="padding:12px;"><b>Horário:</b> ${data.startTime}</td></tr>
+    </table>
+
+    <p style="margin-top:20px;">
+      A secretaria irá analisar sua solicitação.
+    </p>
+    `
+  )
+}
+
+// 🟢 APROVADO
+export function buildSegundaChamadaAprovadoEmail(data: SegundaChamadaData, dateFormatted: string) {
+  return baseEmailLayout(
+    'Solicitação aprovada',
+    `<div style="background:#dcfce7;color:#166534;padding:8px 18px;border-radius:999px;font-weight:700;">
+      ✅ Solicitação aprovada
+    </div>`,
+    `
+    <h2>Olá, ${data.parentName}!</h2>
+    <p>Sua solicitação foi <b>aprovada</b>.</p>
+
+    <table width="100%" style="background:#f7fdf8;border-radius:12px;margin-top:20px;">
+      <tr><td style="padding:12px;"><b>Aluno:</b> ${data.studentName}</td></tr>
+      <tr><td style="padding:12px;"><b>Disciplina:</b> ${data.subject}</td></tr>
+      <tr><td style="padding:12px;"><b>Data:</b> ${dateFormatted}</td></tr>
+      <tr><td style="padding:12px;"><b>Horário:</b> ${data.startTime}</td></tr>
+    </table>
+
+    <p style="margin-top:20px;">
+      Compareça com antecedência.
+    </p>
+    `
+  )
+}
+
+// 🔴 REJEITADO
+export function buildSegundaChamadaRejeitadoEmail(
+  data: SegundaChamadaData,
+  reason: string
+) {
+  return baseEmailLayout(
+    'Solicitação rejeitada',
+    `<div style="background:#fef2f2;color:#dc2626;padding:8px 18px;border-radius:999px;font-weight:700;">
+      ❌ Solicitação rejeitada
+    </div>`,
+    `
+    <h2>Olá, ${data.parentName}!</h2>
+    <p>Sua solicitação foi <b style="color:#dc2626;">rejeitada</b>.</p>
+
+    <p><b>Motivo:</b> ${reason}</p>
+
+    <p style="margin-top:20px;">
+      Para mais informações, entre em contato com a secretaria.
+    </p>
+    `
+  )
+}
