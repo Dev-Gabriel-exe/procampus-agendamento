@@ -67,6 +67,8 @@ function formatDateTime(date: string) {
 
 // ✅ FIX: isJustified derivado dos campos reais — não do booleano do backend
 function computeJustified(b: ExamBooking) {
+  // Prioriza o campo do banco — só usa fallback se vier null/undefined
+  if (b.justified !== null && b.justified !== undefined) return b.justified
   return !!(b.reason || b.lutoText || b.fileUrl)
 }
 
@@ -309,24 +311,19 @@ export default function SegundaChamadaSecretariaPage() {
 
   // ✅ Aprovar → auto-envia e-mail de aprovação
   async function handleApprove(id: string) {
-    setActing(id)
-    updateBookingLocally(id, { status: 'APPROVED' })
-    try {
-      const res = await fetch(`/api/segunda-chamada/booking/${id}/approve`, { method: 'POST' })
-      if (!res.ok) throw new Error()
-      // auto e-mail
-      await fetch(`/api/segunda-chamada/booking/${id}/email`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'APPROVED' }),
-      })
-      toast.success('✅ Inscrição aprovada e e-mail enviado!')
-    } catch {
-      updateBookingLocally(id, { status: 'PENDING' })
-      toast.error('Falha ao aprovar. Tente novamente.')
-    } finally {
-      setActing(null)
-    }
+  setActing(id)
+  updateBookingLocally(id, { status: 'APPROVED' })
+  try {
+    const res = await fetch(`/api/segunda-chamada/booking/${id}/approve`, { method: 'POST' })
+    if (!res.ok) throw new Error()
+    toast.success('✅ Inscrição aprovada e e-mail enviado!')
+  } catch {
+    updateBookingLocally(id, { status: 'PENDING' })
+    toast.error('Falha ao aprovar. Tente novamente.')
+  } finally {
+    setActing(null)
   }
+}
 
   // ✅ Abre modal → secretaria adiciona motivo opcional → reprova + envia e-mail
   function openRejectModal(id: string, studentName: string) {
@@ -334,30 +331,25 @@ export default function SegundaChamadaSecretariaPage() {
   }
 
   async function confirmReject(secretariaReason: string) {
-    if (!rejectTarget) return
-    const { id } = rejectTarget
-    setRejectTarget(null)
-    setActing(id)
-    updateBookingLocally(id, { status: 'REJECTED' })
-    try {
-      const res = await fetch(`/api/segunda-chamada/booking/${id}/reject`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secretariaReason }),
-      })
-      if (!res.ok) throw new Error()
-      // auto e-mail com motivo opcional
-      await fetch(`/api/segunda-chamada/booking/${id}/email`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'REJECTED', secretariaReason }),
-      })
-      toast.success('❌ Inscrição reprovada e e-mail enviado.')
-    } catch {
-      updateBookingLocally(id, { status: 'PENDING' })
-      toast.error('Falha ao reprovar. Tente novamente.')
-    } finally {
-      setActing(null)
-    }
+  if (!rejectTarget) return
+  const { id } = rejectTarget
+  setRejectTarget(null)
+  setActing(id)
+  updateBookingLocally(id, { status: 'REJECTED' })
+  try {
+    const res = await fetch(`/api/segunda-chamada/booking/${id}/reject`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secretariaReason }),
+    })
+    if (!res.ok) throw new Error()
+    toast.success('❌ Inscrição reprovada e e-mail enviado.')
+  } catch {
+    updateBookingLocally(id, { status: 'PENDING' })
+    toast.error('Falha ao reprovar. Tente novamente.')
+  } finally {
+    setActing(null)
   }
+}
 
   // ── Agrupamento e contadores ──────────────────────────────────────────────
   const grouped = exams.reduce((acc, e) => {
