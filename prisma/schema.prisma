@@ -75,41 +75,40 @@ model Appointment {
 
 // ── Segunda Chamada ──────────────────────────────────────
 
-// Prova agendada pela secretaria
 model ExamSchedule {
   id          String        @id @default(cuid())
   subject     Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   subjectId   String
-  subjectName String        // denormalizado para facilitar queries
+  subjectName String
   grade       String
-  date        DateTime      // data da prova
-  startTime   String        // "14:00"
-  endTime     String        // "16:00"
-  role        String        @default("geral") // qual secretaria criou
+  date        DateTime
+  startTime   String
+  endTime     String
+  role        String        @default("geral")
   active      Boolean       @default(true)
   bookings    ExamBooking[]
   createdAt   DateTime      @default(now())
 }
 
-// Agendamento do pai para a prova
 model ExamBooking {
   id             String       @id @default(cuid())
   examSchedule   ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
   examScheduleId String
 
-  parentName     String
-  parentEmail    String
-  parentPhone    String
-  studentName    String
-  studentGrade   String
+  parentName   String
+  parentEmail  String
+  parentPhone  String
+  studentName  String
+  studentGrade String
 
-  status         String       @default("PENDING") // 🔥 ALTERADO
-                             // 🔥 NOVO
-  justificativa String?
-  justified      Boolean?
-  reason         String?
-  lutoText       String?
-  fileUrl        String?
+  // Status: PENDING | APPROVED | REJECTED
+  status   String  @default("PENDING")
 
-  createdAt      DateTime     @default(now())
+  // Justificativa
+  justified Boolean?
+  reason    String?   // "doenca" | "luto" | null
+  lutoText  String?   // só quando reason === "luto"
+  fileUrl   String?   // URL Cloudinary do comprovante/atestado
+
+  createdAt DateTime @default(now())
 }
