@@ -8,7 +8,7 @@ import {
   ArrowLeft, ArrowRight, Check, ClipboardList,
   User, Mail, Phone, GraduationCap, CheckCircle,
   ChevronDown, MapPin, CalendarDays, Clock,
-  AlertCircle, FileText, Heart, Upload, QrCode,
+  AlertCircle, FileText, Heart, Upload, Copy,
 } from 'lucide-react'
 
 const ALL_GRADES = [
@@ -17,6 +17,11 @@ const ALL_GRADES = [
   '6º Ano Fundamental','7º Ano Fundamental','8º Ano Fundamental','9º Ano Fundamental',
   '1ª Série Médio','2ª Série Médio','3ª Série Médio',
 ]
+
+// ── Mude aqui as informações de PIX da escola ──────────────────────────────
+const PIX_KEY   = 'procampus@email.com'
+const PIX_VALUE = 'R$ 50,00'
+const PIX_NAME  = 'Grupo Educacional Pro Campus'
 
 type ExamSchedule = {
   id: string
@@ -34,6 +39,11 @@ function formatDate(date: string) {
     timeZone: 'America/Fortaleza',
   })
 }
+function formatDateShort(date: string) {
+  return new Date(date).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'short', timeZone: 'America/Fortaleza',
+  })
+}
 
 function maskPhoneBr(v: string) {
   const d = v.replace(/\D/g, '').slice(0, 11)
@@ -43,52 +53,105 @@ function maskPhoneBr(v: string) {
 }
 
 const slide = {
-  enter:  (d: number) => ({ opacity: 0, x: d > 0 ? 32 : -32 }),
+  enter:  (d: number) => ({ opacity: 0, x: d > 0 ? 40 : -40 }),
   center: { opacity: 1, x: 0 },
-  exit:   (d: number) => ({ opacity: 0, x: d > 0 ? -32 : 32 }),
+  exit:   (d: number) => ({ opacity: 0, x: d > 0 ? -40 : 40 }),
 }
 
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 12, fontWeight: 600,
-  color: 'rgba(255,255,255,0.45)', letterSpacing: '0.08em',
-  textTransform: 'uppercase', marginBottom: 6,
+// ── Botão de cópia PIX ────────────────────────────────────────────────────
+function CopyPixButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch {
+      // Fallback para dispositivos mais antigos
+      const el = document.createElement('textarea')
+      el.value = value
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    }
+  }
+
+  return (
+    <motion.button
+      onClick={handleCopy}
+      whileTap={{ scale: 0.96 }}
+      style={{
+        width: '100%', padding: '14px 16px',
+        borderRadius: 14,
+        border: copied ? '2px solid #22c55e' : '2px dashed rgba(255,255,255,0.25)',
+        background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.07)',
+        color: 'white', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        transition: 'all 0.2s', gap: 12, fontFamily: 'inherit',
+      }}
+    >
+      <div style={{ textAlign: 'left', minWidth: 0 }}>
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: 0, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Chave PIX
+        </p>
+        <p style={{ fontSize: 15, color: 'white', margin: '3px 0 0', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {value}
+        </p>
+      </div>
+      <div style={{
+        flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+        background: copied ? '#22c55e' : 'rgba(255,255,255,0.1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'all 0.2s',
+      }}>
+        <AnimatePresence mode="wait">
+          {copied
+            ? <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                <Check style={{ width: 16, height: 16, color: 'white' }} />
+              </motion.div>
+            : <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                <Copy style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.7)' }} />
+              </motion.div>
+          }
+        </AnimatePresence>
+      </div>
+    </motion.button>
+  )
 }
 
-const inputBase: React.CSSProperties = {
-  width: '100%', paddingTop: 12, paddingBottom: 12,
-  paddingRight: 16, borderRadius: 12,
-  border: '1.5px solid rgba(64,84,178,0.2)',
-  background: 'rgba(255,255,255,0.06)', color: 'white',
-  fontSize: 14, outline: 'none', fontFamily: 'inherit',
-  transition: 'all 0.2s', boxSizing: 'border-box' as const,
-}
-
-// Steps: 1=Prova, 2=Justificativa, 3=Dados, 4=Sucesso
+// ── Steps ────────────────────────────────────────────────────────────────
 function Steps({ current }: { current: number }) {
   const labels = ['Prova', 'Justificativa', 'Dados']
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 24 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
       {labels.map((label, i) => {
         const n = i + 1; const done = current > n; const active = current === n
         return (
           <div key={n} style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{
-                width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700,
                 background: done || active ? '#4054B2' : 'rgba(255,255,255,0.08)',
-                color: done || active ? 'white' : 'rgba(255,255,255,0.35)',
-                border: done || active ? 'none' : '1.5px solid rgba(255,255,255,0.15)',
+                color: done || active ? 'white' : 'rgba(255,255,255,0.3)',
+                border: done || active ? 'none' : '1.5px solid rgba(255,255,255,0.12)',
               }}>
-                {done ? <Check style={{ width: 13, height: 13 }} /> : n}
+                {done ? <Check style={{ width: 12, height: 12 }} /> : n}
               </div>
-              <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, whiteSpace: 'nowrap',
-                color: active ? 'white' : done ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.3)' }}>
+              <span style={{
+                fontSize: 12, fontWeight: active ? 700 : 500, whiteSpace: 'nowrap',
+                color: active ? 'white' : done ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.28)',
+              }}>
                 {label}
               </span>
             </div>
             {i < labels.length - 1 && (
-              <div style={{ width: 20, height: 1, background: 'rgba(255,255,255,0.12)', margin: '0 8px', flexShrink: 0 }} />
+              <div style={{ width: 16, height: 1, background: 'rgba(255,255,255,0.1)', margin: '0 6px', flexShrink: 0 }} />
             )}
           </div>
         )
@@ -97,12 +160,11 @@ function Steps({ current }: { current: number }) {
   )
 }
 
-// Upload para Cloudinary direto do front
+// ── Upload do Cloudinary ──────────────────────────────────────────────────
 async function uploadToCloudinary(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? 'ml_default')
-
   const res = await fetch(
     `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/upload`,
     { method: 'POST', body: formData }
@@ -113,12 +175,13 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url
 }
 
+// ════════════════════════════════════════════════════════════════════════════
 export default function SegundaChamadaPage() {
   const [step, setStep] = useState(1)
   const [dir,  setDir]  = useState(1)
   function goTo(next: number) { setDir(next > step ? 1 : -1); setStep(next) }
 
-  // ── Step 1: escolha da prova ──────────────────────────────────────────────
+  // Step 1
   const [selGrade,     setSelGrade]     = useState('')
   const [selSubject,   setSelSubject]   = useState('')
   const [allSubjects,  setAllSubjects]  = useState<string[]>([])
@@ -127,23 +190,21 @@ export default function SegundaChamadaPage() {
   const [hasSearched,  setHasSearched]  = useState(false)
   const [selectedExam, setSelectedExam] = useState<ExamSchedule | null>(null)
 
-  // ── Step 2: justificativa ─────────────────────────────────────────────────
-  const [isJustified,  setIsJustified]  = useState<boolean | null>(null)  // null = não escolheu ainda
-  const [justReason,   setJustReason]   = useState<'doenca' | 'luto' | null>(null)
-  const [lutoText,     setLutoText]     = useState('')
-  const [attachFile,   setAttachFile]   = useState<File | null>(null)       // atestado ou comprovante PIX
+  // Step 2
+  const [isJustified,   setIsJustified]   = useState<boolean | null>(null)
+  const [justReason,    setJustReason]    = useState<'doenca' | 'luto' | null>(null)
+  const [lutoText,      setLutoText]      = useState('')
+  const [attachFile,    setAttachFile]    = useState<File | null>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
-  const [uploadError,  setUploadError]  = useState('')
 
-  // ── Step 3: dados pessoais ────────────────────────────────────────────────
-  const [parentName,    setParentName]    = useState('')
-  const [parentEmail,   setParentEmail]   = useState('')
-  const [parentPhone,   setParentPhone]   = useState('')
-  const [studentName,   setStudentName]   = useState('')
-  const [submitting,    setSubmitting]    = useState(false)
-  const [submitError,   setSubmitError]   = useState('')
+  // Step 3
+  const [parentName,   setParentName]   = useState('')
+  const [parentEmail,  setParentEmail]  = useState('')
+  const [parentPhone,  setParentPhone]  = useState('')
+  const [studentName,  setStudentName]  = useState('')
+  const [submitting,   setSubmitting]   = useState(false)
+  const [submitError,  setSubmitError]  = useState('')
 
-  // Carrega disciplinas ao mudar série
   useEffect(() => {
     setSelSubject(''); setExams([]); setSelectedExam(null); setHasSearched(false); setAllSubjects([])
     if (!selGrade) return
@@ -167,24 +228,18 @@ export default function SegundaChamadaPage() {
       const data = await res.json()
       setExams(Array.isArray(data) ? data : [])
     } catch { setExams([]) }
-    finally { setLoadingExams(false) }
+    finally   { setLoadingExams(false) }
   }
 
-  // Validação do step 2
   function step2Ok(): boolean {
     if (isJustified === null) return false
-    if (!isJustified) {
-      // Não justificada: precisa do comprovante de pagamento (PIX)
-      return !!attachFile
-    }
-    // Justificada: precisa do motivo
-    if (!justReason) return false
-    if (justReason === 'doenca') return !!attachFile // atestado obrigatório
-    if (justReason === 'luto')  return lutoText.trim().length > 10
+    if (!isJustified) return !!attachFile
+    if (!justReason)  return false
+    if (justReason === 'doenca') return !!attachFile
+    if (justReason === 'luto')   return lutoText.trim().length > 10
     return false
   }
 
-  // Validação do step 3
   const formOk =
     parentName.trim().length > 3 &&
     parentEmail.includes('@') &&
@@ -194,105 +249,126 @@ export default function SegundaChamadaPage() {
   async function handleSubmit() {
     if (!selectedExam) return
     setSubmitting(true); setSubmitError('')
-
     try {
-      // Faz upload do arquivo (se houver) antes de enviar para API
       let fileUrl: string | null = null
-      if (attachFile) {
-        setUploadingFile(true)
-        fileUrl = await uploadToCloudinary(attachFile)
-        setUploadingFile(false)
-      }
+      if (attachFile) { setUploadingFile(true); fileUrl = await uploadToCloudinary(attachFile); setUploadingFile(false) }
 
       const res = await fetch(`/api/segunda-chamada/${selectedExam.id}`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parentName,
-          parentEmail,
-          parentPhone,
-          studentName,
+          parentName, parentEmail, parentPhone, studentName,
           studentGrade: selGrade,
-          justified:    isJustified ?? false,
-          reason:       justReason,
-          lutoText:     justReason === 'luto' ? lutoText : null,
+          justified: isJustified ?? false,
+          reason:    justReason,
+          lutoText:  justReason === 'luto' ? lutoText : null,
           fileUrl,
         }),
       })
-
-      if (!res.ok) {
-        const data = await res.json()
-        setSubmitError(data.error || 'Erro ao inscrever.')
-        return
-      }
-
+      if (!res.ok) { const d = await res.json(); setSubmitError(d.error || 'Erro ao inscrever.'); return }
       goTo(4)
     } catch (err: any) {
       setSubmitError(err?.message || 'Erro de conexão.')
     } finally {
-      setSubmitting(false)
-      setUploadingFile(false)
+      setSubmitting(false); setUploadingFile(false)
     }
   }
 
-  // Estilos reutilizáveis
+  // ── Estilos base mobile-first ─────────────────────────────────────────────
   const card: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(64,84,178,0.2)',
-    borderRadius: 16, padding: 20,
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(64,84,178,0.2)',
+    borderRadius: 18, padding: '18px 16px',
+  }
+
+  const inputBase: React.CSSProperties = {
+    width: '100%', padding: '14px 16px',
+    borderRadius: 14, border: '1.5px solid rgba(64,84,178,0.2)',
+    background: 'rgba(255,255,255,0.06)', color: 'white',
+    fontSize: 16, // 16px evita zoom no iOS ao focar input
+    outline: 'none', fontFamily: 'inherit', transition: 'all 0.2s',
+    boxSizing: 'border-box' as const, WebkitAppearance: 'none',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 11, fontWeight: 700,
+    color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em',
+    textTransform: 'uppercase', marginBottom: 8,
   }
 
   const btnPrimary = (disabled = false): React.CSSProperties => ({
-    width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+    width: '100%', padding: '17px 16px', borderRadius: 14, border: 'none',
     background: disabled ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#4054B2,#6b7fe8)',
     color: disabled ? 'rgba(255,255,255,0.2)' : 'white',
     fontSize: 16, fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
     fontFamily: '"Roboto Slab",serif',
     boxShadow: disabled ? 'none' : '0 8px 30px rgba(64,84,178,0.35)',
-    transition: 'all 0.3s',
+    transition: 'all 0.3s', WebkitAppearance: 'none',
+    minHeight: 54, // toque fácil no mobile
   })
 
   const choiceBtn = (active: boolean, color = '#4054B2'): React.CSSProperties => ({
-    flex: 1, padding: '16px', borderRadius: 14, border: `2px solid ${active ? color : 'rgba(64,84,178,0.2)'}`,
+    flex: 1, padding: '16px 12px', borderRadius: 14,
+    border: `2px solid ${active ? color : 'rgba(64,84,178,0.2)'}`,
     background: active ? `${color}22` : 'rgba(255,255,255,0.04)',
-    color: active ? 'white' : 'rgba(255,255,255,0.6)',
+    color: active ? 'white' : 'rgba(255,255,255,0.55)',
     fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+    minHeight: 80, justifyContent: 'center',
   })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#08091a' }}>
-      {/* Header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(8,9,26,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(64,84,178,0.2)' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ minHeight: '100vh', background: '#08091a', overscrollBehavior: 'none' }}>
+
+      {/* Header fixo */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
+        background: 'rgba(8,9,26,0.96)', backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(64,84,178,0.15)',
+        // Padding top para safe area (notch)
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+      }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
-            <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 12px', color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-              <ArrowLeft style={{ width: 14, height: 14 }} />Voltar
+            <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 38 }}>
+              <ArrowLeft style={{ width: 15, height: 15 }} />Voltar
             </button>
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Pro Campus" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+            <img src="/logo.png" alt="Pro Campus" style={{ width: 26, height: 26, objectFit: 'contain' }} />
             <span style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, color: 'white', fontSize: 14 }}>Pro Campus</span>
           </div>
           <div style={{ width: 72 }} />
         </div>
+
+        {/* Steps — abaixo do header */}
         {step < 4 && (
-          <div style={{ padding: '10px 20px 14px', maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ padding: '10px 16px 12px', maxWidth: 520, margin: '0 auto' }}>
             <Steps current={step} />
           </div>
         )}
       </div>
 
-      <main style={{ maxWidth: 640, margin: '0 auto', padding: '24px 16px 60px' }}>
+      {/* Espaço para o header fixo */}
+      <div style={{ height: step < 4 ? 100 : 52 }} />
+
+      <main style={{
+        maxWidth: 520, margin: '0 auto',
+        padding: '20px 16px 40px',
+        // Padding bottom para safe area (home bar iOS)
+        paddingBottom: 'max(40px, calc(env(safe-area-inset-bottom, 0px) + 24px))',
+      }}>
+
         {step < 4 && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 20, textAlign: 'center' }}>
-            <h1 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 900, fontSize: 'clamp(22px,5vw,28px)', color: 'white', margin: 0 }}>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            style={{ marginBottom: 20, textAlign: 'center' }}>
+            <h1 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 900, fontSize: 24, color: 'white', margin: 0 }}>
               {step === 1 ? 'Segunda Chamada' : step === 2 ? 'Justificativa' : 'Seus dados'}
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.38)', marginTop: 6, fontSize: 14 }}>
-              {step === 1 ? 'Escolha a disciplina e o horário da prova'
-                : step === 2 ? 'Informe o motivo da ausência na prova'
+            <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6, fontSize: 14, lineHeight: 1.4 }}>
+              {step === 1 ? 'Escolha a disciplina e o horário'
+                : step === 2 ? 'Informe o motivo da ausência'
                 : 'Preencha para confirmar a inscrição'}
             </p>
           </motion.div>
@@ -300,196 +376,221 @@ export default function SegundaChamadaPage() {
 
         <AnimatePresence mode="wait" custom={dir}>
 
-          {/* ═══════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════
               STEP 1 — Escolha da prova
-          ═══════════════════════════════════════════════════════ */}
+          ══════════════════════════════════════════ */}
           {step === 1 && (
             <motion.div key="s1" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
-              transition={{ duration: 0.3, ease: [0.22,1,0.36,1] }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Série */}
               <div style={card}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-                  Série do aluno
-                </label>
+                <label style={labelStyle}>Série do aluno</label>
                 <div style={{ position: 'relative' }}>
                   <select value={selGrade} onChange={e => setSelGrade(e.target.value)}
-                    style={{ width: '100%', padding: '13px 44px 13px 16px', borderRadius: 12, border: '1.5px solid rgba(64,84,178,0.3)', background: 'rgba(255,255,255,0.06)', color: selGrade ? 'white' : 'rgba(255,255,255,0.35)', fontSize: 15, outline: 'none', appearance: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
+                    style={{ ...inputBase, paddingRight: 44, appearance: 'none', cursor: 'pointer',
+                      color: selGrade ? 'white' : 'rgba(255,255,255,0.3)' }}>
                     <option value="" style={{ background: '#08091a' }}>Selecione a série</option>
                     {ALL_GRADES.map(g => <option key={g} value={g} style={{ background: '#08091a' }}>{g}</option>)}
                   </select>
-                  <ChevronDown style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }} />
+                  <ChevronDown style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }} />
                 </div>
               </div>
 
               {/* Disciplina */}
-              {selGrade && allSubjects.length > 0 && (
-                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} style={card}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
-                    Disciplina
-                  </label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {allSubjects.map(s => (
-                      <button key={s} onClick={() => { setSelSubject(s); setExams([]); setSelectedExam(null); setHasSearched(false) }}
-                        style={{ padding: '10px 16px', borderRadius: 100, fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: selSubject === s ? 'linear-gradient(135deg,#4054B2,#6b7fe8)' : 'rgba(255,255,255,0.06)', color: selSubject === s ? 'white' : 'rgba(255,255,255,0.7)', border: selSubject === s ? '2px solid transparent' : '1.5px solid rgba(64,84,178,0.25)', boxShadow: selSubject === s ? '0 4px 20px rgba(64,84,178,0.35)' : 'none' }}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
+              <AnimatePresence>
+                {selGrade && allSubjects.length > 0 && (
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
+                    <label style={labelStyle}>Disciplina</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {allSubjects.map(s => (
+                        <button key={s}
+                          onClick={() => { setSelSubject(s); setExams([]); setSelectedExam(null); setHasSearched(false) }}
+                          style={{ padding: '11px 16px', borderRadius: 100, fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44,
+                            background: selSubject === s ? 'linear-gradient(135deg,#4054B2,#6b7fe8)' : 'rgba(255,255,255,0.06)',
+                            color: selSubject === s ? 'white' : 'rgba(255,255,255,0.65)',
+                            border: selSubject === s ? '2px solid transparent' : '1.5px solid rgba(64,84,178,0.2)',
+                            boxShadow: selSubject === s ? '0 4px 20px rgba(64,84,178,0.35)' : 'none' }}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {selGrade && allSubjects.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '20px 0', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>
+                <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>
                   Nenhuma disciplina disponível para esta série.
-                </div>
+                </p>
               )}
 
               {/* Buscar horários */}
-              {selGrade && selSubject && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <button onClick={loadExams} style={{ ...btnPrimary(false), fontFamily: '"Roboto Slab",serif' }}>
-                    <ClipboardList style={{ width: 17, height: 17 }} />Ver horários disponíveis
-                  </button>
-                </motion.div>
-              )}
+              <AnimatePresence>
+                {selGrade && selSubject && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <button onClick={loadExams} style={btnPrimary(false)}>
+                      <ClipboardList style={{ width: 18, height: 18 }} />Ver horários disponíveis
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Loading */}
               {loadingExams && (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid rgba(64,84,178,0.2)', borderTopColor: '#4054B2', animation: 'spin .7s linear infinite' }} />
                 </div>
               )}
 
-              {/* Lista de slots */}
+              {/* Slots disponíveis */}
               {!loadingExams && exams.length > 0 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
-                    {exams.length} horário{exams.length !== 1 ? 's' : ''} disponível{exams.length !== 1 ? 'is' : ''}:
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
+                    {exams.length} horário{exams.length !== 1 ? 's' : ''} disponível{exams.length !== 1 ? 'is' : ''}
                   </p>
                   {exams.map((exam, idx) => {
-                    const isSelected = selectedExam?.id === exam.id
+                    const isSel = selectedExam?.id === exam.id
                     return (
-                      <button key={`${exam.id}-${idx}`} onClick={() => setSelectedExam(exam)}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s', background: isSelected ? 'rgba(64,84,178,0.2)' : 'rgba(255,255,255,0.04)', border: isSelected ? '1.5px solid rgba(64,84,178,0.6)' : '1.5px solid rgba(64,84,178,0.12)' }}>
+                      <motion.button key={`${exam.id}-${idx}`} onClick={() => setSelectedExam(exam)}
+                        whileTap={{ scale: 0.98 }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s', minHeight: 72,
+                          background: isSel ? 'rgba(64,84,178,0.2)' : 'rgba(255,255,255,0.04)',
+                          border: isSel ? '2px solid rgba(64,84,178,0.6)' : '1.5px solid rgba(64,84,178,0.12)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
-                          <div style={{ width: 40, height: 40, borderRadius: 10, background: isSelected ? 'rgba(64,84,178,0.3)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <CalendarDays style={{ width: 17, height: 17, color: isSelected ? '#6b7fe8' : 'rgba(255,255,255,0.4)' }} />
+                          <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                            background: isSel ? 'rgba(64,84,178,0.35)' : 'rgba(255,255,255,0.06)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <CalendarDays style={{ width: 18, height: 18, color: isSel ? '#6b7fe8' : 'rgba(255,255,255,0.35)' }} />
                           </div>
                           <div>
                             <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0, textTransform: 'capitalize' }}>{formatDate(exam.date)}</p>
-                            <p style={{ fontSize: 13, color: isSelected ? '#a0aff8' : 'rgba(255,255,255,0.4)', margin: 0, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <p style={{ fontSize: 13, margin: '3px 0 0', display: 'flex', alignItems: 'center', gap: 4, color: isSel ? '#a0aff8' : 'rgba(255,255,255,0.38)' }}>
                               <Clock style={{ width: 12, height: 12 }} />{exam.startTime} – {exam.endTime}
                             </p>
                           </div>
                         </div>
-                        {isSelected ? <Check style={{ width: 18, height: 18, color: '#6b7fe8' }} /> : <ArrowRight style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.2)' }} />}
-                      </button>
+                        {isSel
+                          ? <Check style={{ width: 20, height: 20, color: '#6b7fe8', flexShrink: 0 }} />
+                          : <ArrowRight style={{ width: 18, height: 18, color: 'rgba(255,255,255,0.18)', flexShrink: 0 }} />
+                        }
+                      </motion.button>
                     )
                   })}
                 </motion.div>
               )}
 
               {!loadingExams && hasSearched && exams.length === 0 && (
-                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
-                  style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>
+                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 14, padding: '16px 0' }}>
                   Nenhum horário disponível para esta disciplina.
-                </motion.div>
+                </motion.p>
               )}
 
-              <button disabled={!selectedExam} onClick={() => goTo(2)} style={btnPrimary(!selectedExam)}>
+              <motion.button disabled={!selectedExam} onClick={() => goTo(2)}
+                whileTap={{ scale: selectedExam ? 0.98 : 1 }}
+                style={btnPrimary(!selectedExam)}>
                 Continuar <ArrowRight style={{ width: 18, height: 18 }} />
-              </button>
+              </motion.button>
             </motion.div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════
               STEP 2 — Justificativa
-          ═══════════════════════════════════════════════════════ */}
+          ══════════════════════════════════════════ */}
           {step === 2 && (
             <motion.div key="s2" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
-              transition={{ duration: 0.3, ease: [0.22,1,0.36,1] }}
+              transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              {/* Resumo da prova selecionada */}
+              {/* Prova selecionada */}
               {selectedExam && (
-                <div style={{ background: 'rgba(64,84,178,0.12)', border: '1px solid rgba(64,84,178,0.3)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: 'rgba(64,84,178,0.12)', border: '1px solid rgba(64,84,178,0.25)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(64,84,178,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <ClipboardList style={{ width: 17, height: 17, color: '#6b7fe8' }} />
+                    <ClipboardList style={{ width: 16, height: 16, color: '#6b7fe8' }} />
                   </div>
                   <div>
-                    <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selectedExam.subjectName} — {selGrade}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: 0, marginTop: 2, textTransform: 'capitalize' }}>
-                      {formatDate(selectedExam.date)} · {selectedExam.startTime} – {selectedExam.endTime}
+                    <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selectedExam.subjectName}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: '2px 0 0', textTransform: 'capitalize' }}>
+                      {formatDateShort(selectedExam.date)} · {selectedExam.startTime}–{selectedExam.endTime}
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Pergunta principal */}
+              {/* Pergunta */}
               <div style={card}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: 'white', marginTop: 0, marginBottom: 16 }}>
-                  A falta na prova foi justificada?
+                <p style={{ fontSize: 15, fontWeight: 700, color: 'white', margin: '0 0 14px' }}>
+                  A falta foi justificada?
                 </p>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <button onClick={() => { setIsJustified(true); setAttachFile(null) }}
-                    style={choiceBtn(isJustified === true, '#22c55e')}>
-                    <CheckCircle style={{ width: 22, height: 22, color: isJustified === true ? '#22c55e' : 'rgba(255,255,255,0.3)' }} />
-                    <span>Sim, justificada</span>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => { setIsJustified(true); setAttachFile(null) }} style={choiceBtn(isJustified === true, '#22c55e')}>
+                    <CheckCircle style={{ width: 24, height: 24, color: isJustified === true ? '#22c55e' : 'rgba(255,255,255,0.25)' }} />
+                    <span>Sim</span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>justificada</span>
                   </button>
-                  <button onClick={() => { setIsJustified(false); setJustReason(null); setLutoText(''); setAttachFile(null) }}
-                    style={choiceBtn(isJustified === false, '#ef4444')}>
-                    <AlertCircle style={{ width: 22, height: 22, color: isJustified === false ? '#ef4444' : 'rgba(255,255,255,0.3)' }} />
-                    <span>Não justificada</span>
+                  <button onClick={() => { setIsJustified(false); setJustReason(null); setLutoText(''); setAttachFile(null) }} style={choiceBtn(isJustified === false, '#ef4444')}>
+                    <AlertCircle style={{ width: 24, height: 24, color: isJustified === false ? '#ef4444' : 'rgba(255,255,255,0.25)' }} />
+                    <span>Não</span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>sem motivo</span>
                   </button>
                 </div>
               </div>
 
-              {/* ── Falta NÃO justificada → PIX ── */}
+              {/* ── Não justificada → PIX ── */}
               <AnimatePresence>
                 {isJustified === false && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                     style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-                    <div style={{ ...card, borderColor: 'rgba(239,68,68,0.3)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                        <QrCode style={{ width: 20, height: 20, color: '#f97316' }} />
-                        <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>
-                          Taxa de segunda chamada
-                        </p>
-                      </div>
-                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginBottom: 14 }}>
-                        Para faltas não justificadas é necessário o pagamento da taxa. Realize o PIX e anexe o comprovante abaixo.
+                    <div style={{ ...card, borderColor: 'rgba(249,115,22,0.3)', background: 'rgba(249,115,22,0.06)' }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#fb923c', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        💸 Taxa de segunda chamada
+                      </p>
+                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                        Para faltas não justificadas é necessário o pagamento antes da prova.
                       </p>
 
-                      {/* QR Code / Chave PIX da escola */}
-                      <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '16px', textAlign: 'center', marginBottom: 16 }}>
-                        {/* Substitua pelo QR Code real da escola */}
-                        <div style={{ width: 120, height: 120, background: 'rgba(255,255,255,0.1)', borderRadius: 8, margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <QrCode style={{ width: 60, height: 60, color: 'rgba(255,255,255,0.3)' }} />
+                      {/* Valor */}
+                      <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valor</p>
+                          <p style={{ fontSize: 22, fontWeight: 900, color: '#4ade80', margin: '2px 0 0', fontFamily: '"Roboto Slab",serif' }}>{PIX_VALUE}</p>
                         </div>
-                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0 }}>Chave PIX:</p>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: 'white', margin: '4px 0 0', letterSpacing: '0.05em' }}>
-                          procampus@email.com
-                        </p>
-                        <p style={{ fontSize: 12, color: '#f97316', marginTop: 8, fontWeight: 600 }}>
-                          Valor: R$ 30,00
-                        </p>
+                        <div style={{ textAlign: 'right' }}>
+                          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0 }}>Favorecido</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', margin: '2px 0 0', fontWeight: 600 }}>{PIX_NAME}</p>
+                        </div>
                       </div>
 
-                      {/* Upload comprovante */}
-                      <label style={labelStyle}>Anexar comprovante de pagamento</label>
+                      {/* Botão copiar chave PIX */}
+                      <CopyPixButton value={PIX_KEY} />
+
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8, textAlign: 'center' }}>
+                        Toque na chave para copiar e colar no seu app de pagamento
+                      </p>
+                    </div>
+
+                    {/* Upload comprovante */}
+                    <div style={card}>
+                      <label style={labelStyle}>Comprovante de pagamento</label>
                       <label style={{
-                        display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
                         background: attachFile ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)',
-                        border: `1.5px dashed ${attachFile ? '#22c55e' : 'rgba(64,84,178,0.3)'}`,
-                        borderRadius: 12, padding: '14px 16px', transition: 'all 0.2s',
+                        border: `2px dashed ${attachFile ? '#22c55e' : 'rgba(64,84,178,0.3)'}`,
+                        borderRadius: 14, padding: '16px', transition: 'all 0.2s', minHeight: 60,
                       }}>
-                        <Upload style={{ width: 18, height: 18, color: attachFile ? '#22c55e' : 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
-                        <span style={{ fontSize: 13, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.4)' }}>
-                          {attachFile ? attachFile.name : 'Clique para selecionar o comprovante'}
-                        </span>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: attachFile ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Upload style={{ width: 18, height: 18, color: attachFile ? '#4ade80' : 'rgba(255,255,255,0.35)' }} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.5)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {attachFile ? attachFile.name : 'Anexar comprovante'}
+                          </p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>
+                            {attachFile ? 'Toque para trocar o arquivo' : 'PDF ou imagem da tela de pagamento'}
+                          </p>
+                        </div>
                         <input type="file" accept="image/*,.pdf" onChange={e => setAttachFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
                       </label>
                     </div>
@@ -497,53 +598,49 @@ export default function SegundaChamadaPage() {
                 )}
               </AnimatePresence>
 
-              {/* ── Falta JUSTIFICADA → motivo ── */}
+              {/* ── Justificada → motivo ── */}
               <AnimatePresence>
                 {isJustified === true && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                     style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
                     <div style={card}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: 'white', marginTop: 0, marginBottom: 14 }}>
-                        Qual o motivo da justificativa?
+                      <p style={{ fontSize: 14, fontWeight: 700, color: 'white', margin: '0 0 14px' }}>
+                        Qual o motivo?
                       </p>
-                      <div style={{ display: 'flex', gap: 12 }}>
-                        <button onClick={() => { setJustReason('doenca'); setLutoText(''); setAttachFile(null) }}
-                          style={choiceBtn(justReason === 'doenca', '#4054B2')}>
-                          <FileText style={{ width: 22, height: 22, color: justReason === 'doenca' ? '#6b7fe8' : 'rgba(255,255,255,0.3)' }} />
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={() => { setJustReason('doenca'); setLutoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'doenca', '#3b82f6')}>
+                          <FileText style={{ width: 22, height: 22, color: justReason === 'doenca' ? '#60a5fa' : 'rgba(255,255,255,0.25)' }} />
                           <span>Doença</span>
-                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>Atestado médico</span>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>atestado médico</span>
                         </button>
-                        <button onClick={() => { setJustReason('luto'); setAttachFile(null) }}
-                          style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
-                          <Heart style={{ width: 22, height: 22, color: justReason === 'luto' ? '#a78bfa' : 'rgba(255,255,255,0.3)' }} />
+                        <button onClick={() => { setJustReason('luto'); setAttachFile(null) }} style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
+                          <Heart style={{ width: 22, height: 22, color: justReason === 'luto' ? '#a78bfa' : 'rgba(255,255,255,0.25)' }} />
                           <span>Luto</span>
-                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>Perda familiar</span>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>perda familiar</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Doença → upload atestado */}
+                    {/* Doença → upload */}
                     <AnimatePresence>
                       {justReason === 'doenca' && (
-                        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                          style={card}>
-                          <label style={labelStyle}>Anexar atestado médico</label>
-                          <label style={{
-                            display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                            background: attachFile ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)',
-                            border: `1.5px dashed ${attachFile ? '#22c55e' : 'rgba(64,84,178,0.3)'}`,
-                            borderRadius: 12, padding: '14px 16px', transition: 'all 0.2s',
-                          }}>
-                            <Upload style={{ width: 18, height: 18, color: attachFile ? '#22c55e' : 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
-                            <span style={{ fontSize: 13, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.4)' }}>
-                              {attachFile ? attachFile.name : 'Clique para selecionar o atestado (PDF ou imagem)'}
-                            </span>
+                        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
+                          <label style={labelStyle}>Atestado médico</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: attachFile ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)', border: `2px dashed ${attachFile ? '#22c55e' : 'rgba(59,130,246,0.3)'}`, borderRadius: 14, padding: '16px', transition: 'all 0.2s', minHeight: 60 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 10, background: attachFile ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Upload style={{ width: 18, height: 18, color: attachFile ? '#4ade80' : 'rgba(255,255,255,0.35)' }} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ fontSize: 14, fontWeight: 600, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.5)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {attachFile ? attachFile.name : 'Anexar atestado'}
+                              </p>
+                              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>PDF ou foto do atestado médico</p>
+                            </div>
                             <input type="file" accept="image/*,.pdf" onChange={e => setAttachFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
                           </label>
                           {!attachFile && (
-                            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>
-                              O atestado médico é obrigatório para justificativas por doença.
+                            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)', marginTop: 8 }}>
+                              Obrigatório para justificativas por doença.
                             </p>
                           )}
                         </motion.div>
@@ -553,23 +650,21 @@ export default function SegundaChamadaPage() {
                     {/* Luto → texto */}
                     <AnimatePresence>
                       {justReason === 'luto' && (
-                        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                          style={card}>
+                        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
                           <label style={labelStyle}>Descreva o que aconteceu</label>
-                          <textarea
-                            value={lutoText}
-                            onChange={e => setLutoText(e.target.value)}
-                            placeholder="Explique brevemente a situação de luto que impediu o aluno de comparecer à prova..."
-                            rows={5}
-                            style={{
-                              ...inputBase, paddingLeft: 16, resize: 'vertical',
-                            }}
+                          <textarea value={lutoText} onChange={e => setLutoText(e.target.value)}
+                            placeholder="Explique brevemente a situação que impediu o aluno de comparecer..."
+                            rows={4}
+                            style={{ ...inputBase, padding: '14px 16px', fontSize: 15, resize: 'none' }}
                             onFocus={e => { e.target.style.borderColor = '#8b5cf6'; e.target.style.boxShadow = '0 0 0 3px rgba(139,92,246,0.15)' }}
                             onBlur={e  => { e.target.style.borderColor = 'rgba(64,84,178,0.2)'; e.target.style.boxShadow = 'none' }}
                           />
-                          <p style={{ fontSize: 12, color: lutoText.trim().length > 10 ? '#86efac' : 'rgba(255,255,255,0.3)', marginTop: 6 }}>
-                            {lutoText.trim().length}/10 caracteres mínimos
-                          </p>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                            <p style={{ fontSize: 12, color: lutoText.trim().length > 10 ? '#4ade80' : 'rgba(255,255,255,0.25)', margin: 0 }}>
+                              {lutoText.trim().length > 10 ? '✓ Descrição suficiente' : 'Mínimo de 10 caracteres'}
+                            </p>
+                            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0 }}>{lutoText.length}</p>
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -577,84 +672,72 @@ export default function SegundaChamadaPage() {
                 )}
               </AnimatePresence>
 
-              {uploadError && (
-                <div style={{ background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.2)', color: '#fca5a5', padding: '12px 16px', borderRadius: 10, fontSize: 13 }}>
-                  {uploadError}
-                </div>
-              )}
-
+              {/* Botões de navegação */}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button onClick={() => goTo(1)}
-                  style={{ flex: 1, padding: '14px', borderRadius: 12, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <motion.button onClick={() => goTo(1)} whileTap={{ scale: 0.97 }}
+                  style={{ flex: 1, padding: '16px', borderRadius: 14, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54 }}>
                   <ArrowLeft style={{ width: 16, height: 16 }} />Voltar
-                </button>
-                <button disabled={!step2Ok()} onClick={() => goTo(3)}
+                </motion.button>
+                <motion.button disabled={!step2Ok()} onClick={() => goTo(3)} whileTap={{ scale: step2Ok() ? 0.97 : 1 }}
                   style={{ ...btnPrimary(!step2Ok()), flex: 2 }}>
                   Continuar <ArrowRight style={{ width: 18, height: 18 }} />
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════
               STEP 3 — Dados pessoais
-          ═══════════════════════════════════════════════════════ */}
+          ══════════════════════════════════════════ */}
           {step === 3 && (
             <motion.div key="s3" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
-              transition={{ duration: 0.3, ease: [0.22,1,0.36,1] }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              {/* Resumo da prova + justificativa */}
+              {/* Resumo */}
               {selectedExam && (
-                <div style={{ background: 'rgba(64,84,178,0.12)', border: '1px solid rgba(64,84,178,0.3)', borderRadius: 12, padding: '12px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(64,84,178,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <ClipboardList style={{ width: 17, height: 17, color: '#6b7fe8' }} />
-                    </div>
-                    <div>
-                      <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selectedExam.subjectName} — {selGrade}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: 0, marginTop: 2, textTransform: 'capitalize' }}>
-                        {formatDate(selectedExam.date)} · {selectedExam.startTime} – {selectedExam.endTime}
-                      </p>
-                    </div>
+                <div style={{ background: 'rgba(64,84,178,0.1)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 14, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <ClipboardList style={{ width: 15, height: 15, color: '#6b7fe8', flexShrink: 0 }} />
+                    <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selectedExam.subjectName} — {selGrade}</p>
                   </div>
-                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(64,84,178,0.2)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
-                      background: isJustified ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-                      color: isJustified ? '#86efac' : '#fca5a5',
-                    }}>
-                      {isJustified
-                        ? `✔ Justificada${justReason === 'doenca' ? ' — Doença' : justReason === 'luto' ? ' — Luto' : ''}`
-                        : '✘ Não justificada — Taxa PIX'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
+                      {formatDateShort(selectedExam.date)} · {selectedExam.startTime}–{selectedExam.endTime}
                     </span>
-                    {attachFile && (
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>· {attachFile.name}</span>
-                    )}
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5,
+                      background: isJustified ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                      color: isJustified ? '#86efac' : '#fca5a5' }}>
+                      {isJustified
+                        ? (justReason === 'doenca' ? '✔ Doença' : '✔ Luto')
+                        : '✘ Não justificada'}
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* Formulário */}
+              {/* Campos */}
               <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {[
-                  { label: 'Seu nome completo',  value: parentName,  onChange: setParentName,  placeholder: 'Nome do responsável',    icon: User },
-                  { label: 'E-mail',             value: parentEmail, onChange: setParentEmail, placeholder: 'seu@email.com',          icon: Mail, type: 'email' },
-                  { label: 'WhatsApp',           value: parentPhone, onChange: (v: string) => setParentPhone(maskPhoneBr(v)), placeholder: '(86) 99999-9999', icon: Phone },
-                  { label: 'Nome do aluno',      value: studentName, onChange: setStudentName, placeholder: 'Nome do seu filho(a)',    icon: GraduationCap },
+                  { label: 'Seu nome completo',  value: parentName,  set: setParentName,  icon: User,         placeholder: 'Nome do responsável',    type: 'text' },
+                  { label: 'E-mail',             value: parentEmail, set: setParentEmail, icon: Mail,         placeholder: 'seu@email.com',          type: 'email' },
+                  { label: 'WhatsApp',           value: parentPhone, set: (v: string) => setParentPhone(maskPhoneBr(v)), icon: Phone, placeholder: '(86) 99999-9999', type: 'tel' },
+                  { label: 'Nome do aluno',      value: studentName, set: setStudentName, icon: GraduationCap, placeholder: 'Nome do seu filho(a)',   type: 'text' },
                 ].map(field => (
                   <div key={field.label}>
                     <label style={labelStyle}>{field.label}</label>
                     <div style={{ position: 'relative' }}>
-                      <field.icon style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />
+                      <field.icon style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 17, height: 17, color: 'rgba(255,255,255,0.28)', pointerEvents: 'none' }} />
                       <input
-                        type={(field as any).type || 'text'}
+                        type={field.type}
+                        inputMode={field.type === 'tel' ? 'numeric' : field.type === 'email' ? 'email' : 'text'}
+                        autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'name'}
                         value={field.value}
-                        onChange={e => field.onChange(e.target.value)}
+                        onChange={e => field.set(e.target.value)}
                         placeholder={field.placeholder}
-                        style={{ ...inputBase, paddingLeft: 42 }}
-                        onFocus={e => { e.target.style.borderColor = '#4054B2'; e.target.style.boxShadow = '0 0 0 3px rgba(64,84,178,0.15)' }}
-                        onBlur={e  => { e.target.style.borderColor = 'rgba(64,84,178,0.2)'; e.target.style.boxShadow = 'none' }}
+                        style={{ ...inputBase, paddingLeft: 46 }}
+                        onFocus={e => { e.target.style.borderColor = '#4054B2'; e.target.style.boxShadow = '0 0 0 3px rgba(64,84,178,0.15)'; e.target.style.background = 'rgba(255,255,255,0.09)' }}
+                        onBlur={e  => { e.target.style.borderColor = 'rgba(64,84,178,0.2)'; e.target.style.boxShadow = 'none'; e.target.style.background = 'rgba(255,255,255,0.06)' }}
                       />
                     </div>
                   </div>
@@ -662,77 +745,88 @@ export default function SegundaChamadaPage() {
               </div>
 
               {submitError && (
-                <div style={{ background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.2)', color: '#fca5a5', padding: '12px 16px', borderRadius: 10, fontSize: 13 }}>
+                <div style={{ background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)', color: '#fca5a5', padding: '14px 16px', borderRadius: 12, fontSize: 14 }}>
                   {submitError}
                 </div>
               )}
 
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => goTo(2)}
-                  style={{ flex: 1, padding: '14px', borderRadius: 12, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <motion.button onClick={() => goTo(2)} whileTap={{ scale: 0.97 }}
+                  style={{ flex: 1, padding: '16px', borderRadius: 14, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54 }}>
                   <ArrowLeft style={{ width: 16, height: 16 }} />Voltar
-                </button>
-                <button disabled={submitting || !formOk} onClick={handleSubmit}
+                </motion.button>
+                <motion.button disabled={submitting || !formOk} onClick={handleSubmit}
+                  whileTap={{ scale: formOk && !submitting ? 0.97 : 1 }}
                   style={{ ...btnPrimary(!formOk || submitting), flex: 2 }}>
                   {submitting
-                    ? <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} />{uploadingFile ? 'Enviando arquivo...' : 'Confirmando...'}</>
-                    : <><Check style={{ width: 16, height: 16 }} />Confirmar inscrição</>
+                    ? <><div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} />
+                        {uploadingFile ? 'Enviando arquivo...' : 'Confirmando...'}
+                      </>
+                    : <><Check style={{ width: 18, height: 18 }} />Confirmar inscrição</>
                   }
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════
               STEP 4 — Sucesso
-          ═══════════════════════════════════════════════════════ */}
+          ══════════════════════════════════════════ */}
           {step === 4 && (
-            <motion.div key="s4" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center' }}>
+            <motion.div key="s4" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', paddingTop: 16 }}>
 
-              <motion.div initial={{ scale: 0, rotate: -15 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 180, delay: 0.2 }}
-                style={{ width: 88, height: 88, borderRadius: '50%', background: 'linear-gradient(135deg,#4054B2,#6b7fe8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 60px rgba(64,84,178,0.45)', marginTop: 20 }}>
-                <CheckCircle style={{ width: 44, height: 44, color: 'white' }} />
+              <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 200, delay: 0.15 }}
+                style={{ width: 90, height: 90, borderRadius: '50%', background: 'linear-gradient(135deg,#4054B2,#6b7fe8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 60px rgba(64,84,178,0.45)' }}>
+                <CheckCircle style={{ width: 46, height: 46, color: 'white' }} />
               </motion.div>
 
-              <div>
-                <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 900, fontSize: 32, color: 'white', margin: 0 }}>Inscrito!</h2>
-                <p style={{ color: 'rgba(255,255,255,0.45)', marginTop: 8, fontSize: 14 }}>
-                  Confirmação enviada para <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{parentEmail}</strong>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 900, fontSize: 30, color: 'white', margin: 0 }}>Inscrito!</h2>
+                <p style={{ color: 'rgba(255,255,255,0.42)', marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>
+                  Confirmação enviada para<br />
+                  <strong style={{ color: 'rgba(255,255,255,0.75)' }}>{parentEmail}</strong>
                 </p>
-              </div>
+              </motion.div>
 
               {selectedExam && (
-                <div style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 16, padding: 20, textAlign: 'left' }}>
+                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 18, padding: '18px 16px' }}>
                   {[
                     { label: 'Aluno',        value: studentName },
                     { label: 'Disciplina',   value: `${selectedExam.subjectName} — ${selGrade}` },
-                    { label: 'Data',         value: formatDate(selectedExam.date), hl: true },
-                    { label: 'Horário',      value: `${selectedExam.startTime} – ${selectedExam.endTime}`, hl: true },
-                    { label: 'Justificativa',value: isJustified
-                        ? (justReason === 'doenca' ? 'Doença (atestado anexado)' : 'Luto')
-                        : 'Não justificada (PIX anexado)' },
+                    { label: 'Data',         value: formatDate(selectedExam.date), highlight: true },
+                    { label: 'Horário',      value: `${selectedExam.startTime} – ${selectedExam.endTime}`, highlight: true },
+                    { label: 'Situação',     value: isJustified ? (justReason === 'doenca' ? 'Justificada — Doença' : 'Justificada — Luto') : 'Não justificada (PIX enviado)' },
                   ].map((item, i, arr) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, paddingBottom: i < arr.length-1 ? 12 : 0, marginBottom: i < arr.length-1 ? 12 : 0, borderBottom: i < arr.length-1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>{item.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: item.hl ? 700 : 500, color: item.hl ? '#6b7fe8' : 'rgba(255,255,255,0.8)', textAlign: 'right' }}>{item.value}</span>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
+                      paddingBottom: i < arr.length - 1 ? 12 : 0, marginBottom: i < arr.length - 1 ? 12 : 0,
+                      borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: item.highlight ? 700 : 500, textAlign: 'right',
+                        color: item.highlight ? '#6b7fe8' : 'rgba(255,255,255,0.75)',
+                        textTransform: item.highlight ? 'capitalize' : 'none' as any }}>
+                        {item.value}
+                      </span>
                     </div>
                   ))}
-                </div>
+                </motion.div>
               )}
 
-              <div style={{ width: '100%', background: 'rgba(64,84,178,0.08)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-                <MapPin style={{ width: 15, height: 15, color: '#6b7fe8', flexShrink: 0 }} />
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+                style={{ width: '100%', background: 'rgba(64,84,178,0.08)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left' }}>
+                <MapPin style={{ width: 16, height: 16, color: '#6b7fe8', flexShrink: 0, marginTop: 1 }} />
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'white', margin: 0 }}>Grupo Educacional Pro Campus</p>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', margin: 0, marginTop: 2 }}>
-                    Apresente-se com documento com foto e 10 min de antecedência.
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'white', margin: 0 }}>Grupo Educacional Pro Campus</p>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', margin: '4px 0 0', lineHeight: 1.4 }}>
+                    Apresente-se com documento com foto e 10 minutos de antecedência.
                   </p>
                 </div>
-              </div>
+              </motion.div>
 
               <Link href="/" style={{ textDecoration: 'none' }}>
-                <button style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontWeight: 500, fontSize: 14, cursor: 'pointer' }}>
+                <button style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontWeight: 500, fontSize: 14, cursor: 'pointer', padding: '8px 16px' }}>
                   ← Voltar para o início
                 </button>
               </Link>
@@ -741,7 +835,14 @@ export default function SegundaChamadaPage() {
 
         </AnimatePresence>
       </main>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        * { -webkit-tap-highlight-color: transparent; }
+        input, select, textarea, button { font-family: inherit; }
+        ::placeholder { color: rgba(255,255,255,0.25); }
+        select option { background: #08091a; }
+      `}</style>
     </div>
   )
 }
