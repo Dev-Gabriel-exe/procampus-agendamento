@@ -22,11 +22,11 @@ export async function POST(
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   try {
-    // Aceita motivo opcional de rejeição no body
-    let rejectReason: string | null = null
+    // ✅ Campo renomeado para secretariaReason (alinhado com o frontend)
+    let secretariaReason: string | null = null
     try {
       const body = await req.json()
-      rejectReason = body?.rejectReason ?? null
+      secretariaReason = body?.secretariaReason ?? null
     } catch { /* body vazio é ok */ }
 
     const booking = await prisma.examBooking.update({
@@ -35,7 +35,7 @@ export async function POST(
       include: { examSchedule: true },
     })
 
-    // ✅ Envia email de rejeição automaticamente
+    // Envia e-mail de rejeição automaticamente
     try {
       const transporter = createTransport()
       const dateFormatted = formatDateShort(booking.examSchedule.date.toISOString())
@@ -44,12 +44,12 @@ export async function POST(
         to:      booking.parentEmail,
         subject: '❌ Segunda Chamada não aprovada — Pro Campus',
         html:    buildRejectionEmail({
-          parentName:   booking.parentName,
-          studentName:  booking.studentName,
-          subjectName:  booking.examSchedule.subjectName,
-          grade:        booking.examSchedule.grade,
-          date:         dateFormatted,
-          rejectReason,
+          parentName:       booking.parentName,
+          studentName:      booking.studentName,
+          subjectName:      booking.examSchedule.subjectName,
+          grade:            booking.examSchedule.grade,
+          date:             dateFormatted,
+          secretariaReason,
         }),
       })
     } catch (err) {
@@ -65,7 +65,7 @@ export async function POST(
 
 function buildRejectionEmail(d: {
   parentName: string; studentName: string; subjectName: string
-  grade: string; date: string; rejectReason: string | null
+  grade: string; date: string; secretariaReason: string | null
 }) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -84,10 +84,10 @@ function buildRejectionEmail(d: {
   <tr><td style="padding:20px 36px;">
     <h2 style="color:#1a2060;font-size:18px;margin-top:0;">Olá, ${d.parentName}!</h2>
     <p style="color:#6b7280;font-size:14px;">Infelizmente a solicitação de segunda chamada para <strong>${d.studentName}</strong> na disciplina <strong>${d.subjectName} — ${d.grade}</strong> referente ao dia <strong>${d.date}</strong> não foi aprovada.</p>
-    ${d.rejectReason ? `
+    ${d.secretariaReason ? `
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;margin-top:16px;">
       <p style="margin:0;font-weight:700;font-size:13px;color:#991b1b;">Motivo:</p>
-      <p style="margin:6px 0 0;color:#7f1d1d;font-size:14px;">${d.rejectReason}</p>
+      <p style="margin:6px 0 0;color:#7f1d1d;font-size:14px;">${d.secretariaReason}</p>
     </div>` : ''}
     <div style="margin-top:20px;background:#f0f4ff;border:1px solid #c7d2fb;border-radius:10px;padding:14px 16px;">
       <p style="margin:0;color:#3730a3;font-size:14px;">📞 Para mais informações, entre em contato com a secretaria: <strong>(86) 2106-0606</strong></p>

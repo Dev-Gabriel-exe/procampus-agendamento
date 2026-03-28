@@ -9,7 +9,7 @@ import Link from 'next/link'
 import {
   CalendarDays, Users, LogOut, BookOpen, ClipboardList,
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
-  CheckCircle, XCircle, Mail, Paperclip, Clock, Filter,
+  CheckCircle, XCircle, Paperclip, Clock, Filter,
   FolderOpen, FileText, Heart, Download, ExternalLink,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -48,7 +48,6 @@ type ExamBooking = {
 type Subject      = { id: string; name: string; grade: string }
 type ExamSchedule = { id: string; subjectName: string; grade: string; date: string; startTime: string; endTime: string; active: boolean; bookings: ExamBooking[] }
 
-// Booking enriquecido para a aba de comprovantes
 type ComprovanteBooking = ExamBooking & {
   examSchedule: {
     subjectName: string
@@ -66,16 +65,16 @@ function formatDateTime(date: string) {
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })
 }
 
-// FIX — isJustified derivado dos dados reais
+// ✅ FIX: isJustified derivado dos campos reais — não do booleano do backend
 function computeJustified(b: ExamBooking) {
   return !!(b.reason || b.lutoText || b.fileUrl)
 }
 
-// Badge de status
+// ── Badge de status ──────────────────────────────────────────────────────────
 const STATUS_META: Record<BookingStatus, { label: string; bg: string; color: string; icon: React.ReactNode }> = {
-  PENDING:  { label: 'Pendente',  bg: '#fef3c7', color: '#b45309', icon: <Clock     style={{ width: 10, height: 10 }} /> },
+  PENDING:  { label: 'Pendente',  bg: '#fef3c7', color: '#b45309', icon: <Clock      style={{ width: 10, height: 10 }} /> },
   APPROVED: { label: 'Aprovado',  bg: '#dcfce7', color: '#166534', icon: <CheckCircle style={{ width: 10, height: 10 }} /> },
-  REJECTED: { label: 'Reprovado', bg: '#fee2e2', color: '#991b1b', icon: <XCircle   style={{ width: 10, height: 10 }} /> },
+  REJECTED: { label: 'Reprovado', bg: '#fee2e2', color: '#991b1b', icon: <XCircle    style={{ width: 10, height: 10 }} /> },
 }
 
 function StatusBadge({ status }: { status?: BookingStatus }) {
@@ -97,22 +96,85 @@ function sortBookings(bookings: ExamBooking[]) {
   })
 }
 
-// Rótulo legível para o campo reason
 function reasonLabel(reason?: string | null) {
   if (reason === 'doenca') return '🩺 Doença'
   if (reason === 'luto')   return '🕊️ Luto'
   return '—'
 }
 
+// ── Modal de reprovação ──────────────────────────────────────────────────────
+function RejectModal({
+  studentName,
+  onConfirm,
+  onCancel,
+}: {
+  studentName: string
+  onConfirm: (reason: string) => void
+  onCancel: () => void
+}) {
+  const [reason, setReason] = useState('')
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      {/* Backdrop */}
+      <div onClick={onCancel} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }} />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+        style={{ position: 'relative', background: 'white', borderRadius: 20, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+      >
+        {/* Ícone */}
+        <div style={{ width: 52, height: 52, borderRadius: 16, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
+          <XCircle style={{ width: 26, height: 26, color: '#ef4444' }} />
+        </div>
+
+        <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 18, color: '#0a1a0d', margin: '0 0 6px' }}>
+          Reprovar inscrição
+        </h3>
+        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px' }}>
+          Aluno: <strong style={{ color: '#374151' }}>{studentName}</strong>
+          <br />
+          Um e-mail de reprovação será enviado automaticamente ao responsável.
+        </p>
+
+        {/* Campo opcional de motivo */}
+        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          Motivo da reprovação <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11 }}>(opcional)</span>
+        </label>
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Ex: documentação insuficiente, prazo expirado..."
+          rows={3}
+          style={{ width: '100%', borderRadius: 10, border: '1.5px solid rgba(239,68,68,0.25)', background: '#fff5f5', color: '#0a1a0d', padding: '10px 12px', fontFamily: 'inherit', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 20 }}
+          onFocus={e  => { e.target.style.borderColor = '#ef4444'; e.target.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.1)' }}
+          onBlur={e   => { e.target.style.borderColor = 'rgba(239,68,68,0.25)'; e.target.style.boxShadow = 'none' }}
+        />
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel}
+            style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)', background: 'white', color: '#6b7280', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Cancelar
+          </button>
+          <button onClick={() => onConfirm(reason)}
+            style={{ flex: 2, padding: '11px', borderRadius: 10, border: 'none', background: '#ef4444', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: '"Roboto Slab",serif', boxShadow: '0 4px 14px rgba(239,68,68,0.3)' }}>
+            <XCircle style={{ width: 14, height: 14 }} />Reprovar e enviar e-mail
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 export default function SegundaChamadaSecretariaPage() {
   const { data: session } = useSession()
   const role   = (session?.user as any)?.role ?? 'geral'
   const grades = role === 'fund1' ? GRADES_FUND1 : role === 'fund2' ? GRADES_FUND2 : GRADES_ALL
 
-  // ── Tabs ──────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<ActiveTab>('slots')
 
-  // ── Aba: Slots ────────────────────────────────────────────────────────────
+  // Slots
   const [exams,    setExams]    = useState<ExamSchedule[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -120,7 +182,10 @@ export default function SegundaChamadaSecretariaPage() {
   const [acting,   setActing]   = useState<string | null>(null)
   const [filterPending, setFilterPending] = useState(false)
 
-  // Formulário novo slot
+  // Modal reprovação
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; studentName: string } | null>(null)
+
+  // Formulário
   const [selGrade,   setSelGrade]   = useState('')
   const [selSubject, setSelSubject] = useState('')
   const [examDate,   setExamDate]   = useState('')
@@ -129,7 +194,7 @@ export default function SegundaChamadaSecretariaPage() {
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
 
-  // ── Aba: Comprovantes ─────────────────────────────────────────────────────
+  // Comprovantes
   const [comprovantes,        setComprovantes]        = useState<ComprovanteBooking[]>([])
   const [loadingComprovantes, setLoadingComprovantes] = useState(false)
   const [expandedComp,        setExpandedComp]        = useState<string | null>(null)
@@ -183,7 +248,16 @@ export default function SegundaChamadaSecretariaPage() {
     )
   }
 
-  // ── Handlers: Slots ───────────────────────────────────────────────────────
+  function removeBookingLocally(bookingId: string) {
+    setExams(prev =>
+      prev.map(exam => ({
+        ...exam,
+        bookings: exam.bookings.filter(b => b.id !== bookingId),
+      }))
+    )
+  }
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!selSubject || !selGrade || !examDate || !startTime || !endTime) {
@@ -211,21 +285,41 @@ export default function SegundaChamadaSecretariaPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Remover este slot?')) return
+  async function handleDeleteSlot(id: string) {
+    if (!confirm('Remover este slot? Todas as inscrições vinculadas também serão removidas.')) return
     const res = await fetch(`/api/segunda-chamada/${id}`, { method: 'DELETE' })
     if (!res.ok) { toast.error('Falha ao remover slot.'); return }
     toast.success('Slot removido.')
     loadData()
   }
 
+  // ✅ Apagar inscrição individual
+  async function handleDeleteBooking(id: string, studentName: string) {
+    if (!confirm(`Remover a inscrição de ${studentName}?`)) return
+    removeBookingLocally(id) // otimista
+    try {
+      const res = await fetch(`/api/segunda-chamada/booking/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success('Inscrição removida.')
+    } catch {
+      toast.error('Falha ao remover inscrição.')
+      loadData() // reverte
+    }
+  }
+
+  // ✅ Aprovar → auto-envia e-mail de aprovação
   async function handleApprove(id: string) {
     setActing(id)
     updateBookingLocally(id, { status: 'APPROVED' })
     try {
       const res = await fetch(`/api/segunda-chamada/booking/${id}/approve`, { method: 'POST' })
       if (!res.ok) throw new Error()
-      toast.success('✅ Inscrição aprovada!')
+      // auto e-mail
+      await fetch(`/api/segunda-chamada/booking/${id}/email`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'APPROVED' }),
+      })
+      toast.success('✅ Inscrição aprovada e e-mail enviado!')
     } catch {
       updateBookingLocally(id, { status: 'PENDING' })
       toast.error('Falha ao aprovar. Tente novamente.')
@@ -234,32 +328,32 @@ export default function SegundaChamadaSecretariaPage() {
     }
   }
 
-  async function handleReject(id: string) {
+  // ✅ Abre modal → secretaria adiciona motivo opcional → reprova + envia e-mail
+  function openRejectModal(id: string, studentName: string) {
+    setRejectTarget({ id, studentName })
+  }
+
+  async function confirmReject(secretariaReason: string) {
+    if (!rejectTarget) return
+    const { id } = rejectTarget
+    setRejectTarget(null)
     setActing(id)
     updateBookingLocally(id, { status: 'REJECTED' })
     try {
-      const res = await fetch(`/api/segunda-chamada/booking/${id}/reject`, { method: 'POST' })
+      const res = await fetch(`/api/segunda-chamada/booking/${id}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secretariaReason }),
+      })
       if (!res.ok) throw new Error()
-      toast.success('❌ Inscrição reprovada.')
+      // auto e-mail com motivo opcional
+      await fetch(`/api/segunda-chamada/booking/${id}/email`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'REJECTED', secretariaReason }),
+      })
+      toast.success('❌ Inscrição reprovada e e-mail enviado.')
     } catch {
       updateBookingLocally(id, { status: 'PENDING' })
       toast.error('Falha ao reprovar. Tente novamente.')
-    } finally {
-      setActing(null)
-    }
-  }
-
-  async function handleSendEmail(id: string, status: BookingStatus) {
-    setActing(id)
-    try {
-      const res = await fetch(`/api/segunda-chamada/booking/${id}/email`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('📧 E-mail enviado com sucesso!')
-    } catch {
-      toast.error('Falha ao enviar e-mail.')
     } finally {
       setActing(null)
     }
@@ -296,6 +390,17 @@ export default function SegundaChamadaSecretariaPage() {
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
       <Toaster position="top-right" richColors closeButton />
 
+      {/* ── Modal reprovação ── */}
+      <AnimatePresence>
+        {rejectTarget && (
+          <RejectModal
+            studentName={rejectTarget.studentName}
+            onConfirm={confirmReject}
+            onCancel={() => setRejectTarget(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header style={{ background: 'linear-gradient(135deg,#0D2818 0%,#1a7a2e 100%)', borderBottom: '1px solid rgba(97,206,112,0.15)', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
@@ -328,34 +433,23 @@ export default function SegundaChamadaSecretariaPage() {
 
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 16px 60px' }}>
 
-        {/* Título + tabs */}
+        {/* Título + tabs + contadores */}
         <div style={{ marginBottom: 24 }}>
           <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d', margin: 0 }}>Segunda Chamada</h2>
           <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Gerencie slots, analise justificativas e aprove ou reprove inscrições</p>
 
-          {/* ── Tabs ── */}
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {([
               { key: 'slots',        label: 'Slots & Inscrições', icon: ClipboardList },
               { key: 'comprovantes', label: 'Comprovantes',        icon: FolderOpen },
             ] as const).map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: '9px 18px', borderRadius: 10, cursor: 'pointer',
-                  fontSize: 13, fontWeight: 700,
-                  background: activeTab === tab.key ? '#4054B2' : 'white',
-                  color: activeTab === tab.key ? 'white' : '#6b8f72',
-                  boxShadow: activeTab === tab.key ? '0 4px 16px rgba(64,84,178,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
-                  border: activeTab === tab.key ? 'none' : '1px solid rgba(97,206,112,0.15)',
-                  transition: 'all 0.15s',
-                }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, background: activeTab === tab.key ? '#4054B2' : 'white', color: activeTab === tab.key ? 'white' : '#6b8f72', boxShadow: activeTab === tab.key ? '0 4px 16px rgba(64,84,178,0.25)' : '0 1px 4px rgba(0,0,0,0.06)', border: activeTab === tab.key ? 'none' : '1px solid rgba(97,206,112,0.15)', transition: 'all 0.15s' }}>
                 <tab.icon style={{ width: 14, height: 14 }} />{tab.label}
               </button>
             ))}
           </div>
 
-          {/* Contadores (só na aba slots) */}
           {activeTab === 'slots' && !loading && (globalCounts.PENDING + globalCounts.APPROVED + globalCounts.REJECTED) > 0 && (
             <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '5px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>
@@ -376,9 +470,7 @@ export default function SegundaChamadaSecretariaPage() {
           )}
         </div>
 
-        {/* ════════════════════════════════════════════════════════════
-            ABA: SLOTS & INSCRIÇÕES
-        ════════════════════════════════════════════════════════════ */}
+        {/* ════════ ABA: SLOTS & INSCRIÇÕES ════════ */}
         {activeTab === 'slots' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,2fr)', gap: 24, alignItems: 'start' }}>
 
@@ -453,7 +545,7 @@ export default function SegundaChamadaSecretariaPage() {
               </form>
             </div>
 
-            {/* Lista agrupada por disciplina */}
+            {/* Lista agrupada */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {loading ? <LoadingSpinner /> : Object.keys(grouped).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 24px', background: 'white', borderRadius: 20, border: '1.5px dashed rgba(97,206,112,0.3)' }}>
@@ -523,7 +615,8 @@ export default function SegundaChamadaSecretariaPage() {
                                       <span style={{ fontSize: 12, color: '#23A455', background: '#e8f9eb', borderRadius: 999, padding: '3px 10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Users2 style={{ width: 11, height: 11 }} />{slot.bookings.length}
                                       </span>
-                                      <button onClick={() => handleDelete(slot.id)}
+                                      {/* ✅ Apagar slot */}
+                                      <button onClick={() => handleDeleteSlot(slot.id)} title="Remover slot"
                                         style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444' }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -532,7 +625,7 @@ export default function SegundaChamadaSecretariaPage() {
                                     </div>
                                   </div>
 
-                                  {/* Lista de inscritos */}
+                                  {/* Inscritos */}
                                   {visibleBookings.length > 0 && (
                                     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                                       <p style={{ fontSize: 11, fontWeight: 700, color: '#4054B2', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
@@ -544,25 +637,42 @@ export default function SegundaChamadaSecretariaPage() {
                                         const isBusy = acting === b.id
 
                                         return (
-                                          <div key={b.id} style={{ borderRadius: 10, border: isJustified ? '1.5px solid #86efac' : '1.5px solid #fca5a5', background: isJustified ? '#f0fdf4' : '#fff5f5', overflow: 'hidden' }}>
+                                          <div key={b.id} style={{
+                                            borderRadius: 10,
+                                            // ✅ FIX: vermelho = sem justificativa, verde = com justificativa
+                                            border: isJustified ? '1.5px solid #86efac' : '1.5px solid #fca5a5',
+                                            background: isJustified ? '#f0fdf4' : '#fff5f5',
+                                            overflow: 'hidden',
+                                          }}>
 
-                                            {/* Cabeçalho */}
-                                            <div style={{ padding: '10px 14px' }}>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                                <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{b.studentName}</span>
-                                                <span style={{ fontSize: 10, color: '#9ca3af' }}>#{i + 1}</span>
-                                                <StatusBadge status={b.status} />
-                                                {isJustified
-                                                  ? <span style={{ fontSize: 11, color: '#166534', background: '#dcfce7', padding: '2px 7px', borderRadius: 5, fontWeight: 600 }}>✔ Justificado</span>
-                                                  : <span style={{ fontSize: 11, color: '#991b1b', background: '#fee2e2', padding: '2px 7px', borderRadius: 5, fontWeight: 600 }}>✘ Sem justificativa</span>
-                                                }
+                                            {/* Cabeçalho do card */}
+                                            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                                              <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{b.studentName}</span>
+                                                  <span style={{ fontSize: 10, color: '#9ca3af' }}>#{i + 1}</span>
+                                                  <StatusBadge status={b.status} />
+                                                  {/* ✅ FIX: badge correto por estado */}
+                                                  {isJustified
+                                                    ? <span style={{ fontSize: 11, color: '#166534', background: '#dcfce7', padding: '2px 7px', borderRadius: 5, fontWeight: 600 }}>✔ Justificado</span>
+                                                    : <span style={{ fontSize: 11, color: '#991b1b', background: '#fee2e2', padding: '2px 7px', borderRadius: 5, fontWeight: 600 }}>✘ Não justificado</span>
+                                                  }
+                                                </div>
+                                                <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
+                                                  Resp: <strong style={{ color: '#374151' }}>{b.parentName}</strong> · {b.parentEmail} · {b.parentPhone}
+                                                </p>
+                                                <p style={{ fontSize: 11, color: '#9ca3af', margin: '3px 0 0' }}>
+                                                  Enviado em: {formatDateTime(b.createdAt)}
+                                                </p>
                                               </div>
-                                              <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
-                                                Resp: <strong style={{ color: '#374151' }}>{b.parentName}</strong> · {b.parentEmail} · {b.parentPhone}
-                                              </p>
-                                              <p style={{ fontSize: 11, color: '#9ca3af', margin: '3px 0 0' }}>
-                                                Enviado em: {formatDateTime(b.createdAt)}
-                                              </p>
+
+                                              {/* ✅ Apagar inscrição */}
+                                              <button onClick={() => handleDeleteBooking(b.id, b.studentName)} title="Remover inscrição"
+                                                style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 7, color: '#ef4444', flexShrink: 0, marginTop: 2 }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                <Trash2 style={{ width: 13, height: 13 }} />
+                                              </button>
                                             </div>
 
                                             {/* Motivo + obs */}
@@ -581,10 +691,11 @@ export default function SegundaChamadaSecretariaPage() {
                                               </div>
                                             )}
 
-                                            {/* Comprovante + botões */}
+                                            {/* Comprovante + ações */}
                                             <div style={{ padding: '8px 14px', borderTop: `1px solid ${isJustified ? '#bbf7d0' : '#fecaca'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                                               {b.fileUrl
-                                                ? <a href={b.fileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#4054B2', textDecoration: 'none', background: '#eef1fb', padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(64,84,178,0.2)' }}>
+                                                ? <a href={b.fileUrl} target="_blank" rel="noopener noreferrer"
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#4054B2', textDecoration: 'none', background: '#eef1fb', padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(64,84,178,0.2)' }}>
                                                     <Paperclip style={{ width: 11, height: 11 }} />Ver comprovante
                                                   </a>
                                                 : <span style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -592,27 +703,23 @@ export default function SegundaChamadaSecretariaPage() {
                                                   </span>
                                               }
 
+                                              {/* ✅ Só Aprovar e Reprovar — e-mail é automático */}
                                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                                 {b.status !== 'APPROVED' && (
                                                   <button onClick={() => handleApprove(b.id)} disabled={isBusy}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'white', background: isBusy ? '#86efac' : '#22c55e', border: 'none', padding: '5px 12px', borderRadius: 7, cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'white', background: isBusy ? '#86efac' : '#22c55e', border: 'none', padding: '6px 14px', borderRadius: 7, cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
                                                     <CheckCircle style={{ width: 12, height: 12 }} />{isBusy ? '...' : 'Aprovar'}
                                                   </button>
                                                 )}
                                                 {b.status !== 'REJECTED' && (
-                                                  <button onClick={() => handleReject(b.id)} disabled={isBusy}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'white', background: isBusy ? '#fca5a5' : '#ef4444', border: 'none', padding: '5px 12px', borderRadius: 7, cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
+                                                  <button onClick={() => openRejectModal(b.id, b.studentName)} disabled={isBusy}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'white', background: isBusy ? '#fca5a5' : '#ef4444', border: 'none', padding: '6px 14px', borderRadius: 7, cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
                                                     <XCircle style={{ width: 12, height: 12 }} />{isBusy ? '...' : 'Reprovar'}
                                                   </button>
                                                 )}
-                                                <button onClick={() => handleSendEmail(b.id, b.status ?? 'PENDING')}
-                                                  disabled={isBusy || b.status === 'PENDING'}
-                                                  title={b.status === 'PENDING' ? 'Aprove ou reprove antes de enviar o e-mail' : 'Enviar e-mail de notificação'}
-                                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: (isBusy || b.status === 'PENDING') ? '#9ca3af' : '#4054B2', background: (isBusy || b.status === 'PENDING') ? '#f3f4f6' : '#eef1fb', border: '1px solid rgba(64,84,178,0.2)', padding: '5px 12px', borderRadius: 7, cursor: (isBusy || b.status === 'PENDING') ? 'not-allowed' : 'pointer', opacity: (isBusy || b.status === 'PENDING') ? 0.6 : 1 }}>
-                                                  <Mail style={{ width: 12, height: 12 }} />{isBusy ? '...' : 'Enviar e-mail'}
-                                                </button>
                                               </div>
                                             </div>
+
                                           </div>
                                         )
                                       })}
@@ -635,7 +742,6 @@ export default function SegundaChamadaSecretariaPage() {
                 )
               })}
 
-              {/* Empty: filtro oculta tudo */}
               {!loading && filterPending && Object.values(grouped).every(g => g.slots.flatMap(s => s.bookings).filter(b => (b.status ?? 'PENDING') === 'PENDING').length === 0) && Object.keys(grouped).length > 0 && (
                 <div style={{ textAlign: 'center', padding: '40px 24px', background: 'white', borderRadius: 20, border: '1.5px dashed rgba(97,206,112,0.3)' }}>
                   <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
@@ -650,9 +756,7 @@ export default function SegundaChamadaSecretariaPage() {
           </div>
         )}
 
-        {/* ════════════════════════════════════════════════════════════
-            ABA: COMPROVANTES
-        ════════════════════════════════════════════════════════════ */}
+        {/* ════════ ABA: COMPROVANTES ════════ */}
         {activeTab === 'comprovantes' && (
           <div>
             {loadingComprovantes ? (
@@ -661,7 +765,7 @@ export default function SegundaChamadaSecretariaPage() {
               <div style={{ textAlign: 'center', padding: '60px 24px', background: 'white', borderRadius: 20, border: '1.5px dashed rgba(97,206,112,0.3)' }}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>📂</div>
                 <p style={{ fontWeight: 600, color: '#3d5c42', fontSize: 16 }}>Nenhum comprovante enviado</p>
-                <p style={{ color: '#6b8f72', fontSize: 14, marginTop: 6 }}>Os comprovantes aparecem aqui quando os pais enviarem justificativas ou comprovantes de pagamento.</p>
+                <p style={{ color: '#6b8f72', fontSize: 14, marginTop: 6 }}>Os comprovantes aparecem aqui quando os pais os enviarem.</p>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
@@ -673,16 +777,14 @@ export default function SegundaChamadaSecretariaPage() {
                     <motion.div key={b.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                       style={{ background: 'white', borderRadius: 16, border: `1.5px solid ${isJustified ? 'rgba(134,239,172,0.5)' : 'rgba(252,165,165,0.5)'}`, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
 
-                      {/* Card header — clicável */}
                       <button onClick={() => setExpandedComp(isOpen ? null : b.id)}
                         style={{ width: '100%', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          {/* Ícone por tipo */}
                           <div style={{ width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: b.reason === 'doenca' ? '#eff6ff' : b.reason === 'luto' ? '#f5f3ff' : '#fff7ed' }}>
                             {b.reason === 'doenca'
-                              ? <FileText style={{ width: 17, height: 17, color: '#3b82f6' }} />
+                              ? <FileText   style={{ width: 17, height: 17, color: '#3b82f6' }} />
                               : b.reason === 'luto'
-                              ? <Heart    style={{ width: 17, height: 17, color: '#8b5cf6' }} />
+                              ? <Heart      style={{ width: 17, height: 17, color: '#8b5cf6' }} />
                               : <FolderOpen style={{ width: 17, height: 17, color: '#f97316' }} />
                             }
                           </div>
@@ -699,13 +801,10 @@ export default function SegundaChamadaSecretariaPage() {
                         </div>
                       </button>
 
-                      {/* Detalhes expandidos */}
                       <AnimatePresence>
                         {isOpen && (
                           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
                             <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #f3f4f6' }}>
-
-                              {/* Info da prova */}
                               <div style={{ background: '#f7f9fe', borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
                                 <p style={{ fontSize: 11, fontWeight: 700, color: '#4054B2', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>Prova</p>
                                 <p style={{ fontSize: 13, fontWeight: 600, color: '#0a1a0d', margin: 0 }}>{b.examSchedule.subjectName} — {b.examSchedule.grade}</p>
@@ -713,15 +812,11 @@ export default function SegundaChamadaSecretariaPage() {
                                   {formatDate(b.examSchedule.date)} · {b.examSchedule.startTime} – {b.examSchedule.endTime}
                                 </p>
                               </div>
-
-                              {/* Contato */}
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                 <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>📧 {b.parentEmail}</p>
                                 <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>📱 {b.parentPhone}</p>
                                 <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>Enviado em: {formatDateTime(b.createdAt)}</p>
                               </div>
-
-                              {/* Tipo de justificativa */}
                               {b.reason && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                   <span style={{ fontSize: 12, fontWeight: 600, color: b.reason === 'doenca' ? '#1d4ed8' : '#7c3aed', background: b.reason === 'doenca' ? '#eff6ff' : '#f5f3ff', padding: '3px 10px', borderRadius: 6 }}>
@@ -729,16 +824,12 @@ export default function SegundaChamadaSecretariaPage() {
                                   </span>
                                 </div>
                               )}
-
-                              {/* Texto de luto */}
                               {b.lutoText && (
                                 <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '10px 12px' }}>
                                   <p style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>Descrição</p>
                                   <p style={{ fontSize: 13, color: '#374151', margin: 0 }}>{b.lutoText}</p>
                                 </div>
                               )}
-
-                              {/* Arquivo */}
                               {b.fileUrl ? (
                                 <div style={{ display: 'flex', gap: 8 }}>
                                   <a href={b.fileUrl} target="_blank" rel="noopener noreferrer"

@@ -28,7 +28,7 @@ export async function POST(
       include: { examSchedule: true },
     })
 
-    // ✅ Envia email de aprovação automaticamente
+    // Envia e-mail de aprovação automaticamente
     try {
       const transporter = createTransport()
       const dateFormatted = formatDateShort(booking.examSchedule.date.toISOString())
