@@ -474,7 +474,7 @@ export default function SegundaChamadaPage() {
                           procampus@email.com
                         </p>
                         <p style={{ fontSize: 12, color: '#f97316', marginTop: 8, fontWeight: 600 }}>
-                          Valor: R$ 50,00
+                          Valor: R$ 30,00
                         </p>
                       </div>
 
