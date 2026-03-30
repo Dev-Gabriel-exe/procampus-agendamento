@@ -230,7 +230,7 @@ export default function AgendamentoCard({
               variant={isCancelled ? 'red' : isPast ? 'gray' : 'white'}
               icon={<Clock style={{ width: 10, height: 10 }} />}
             >
-              {isCancelled ? 'Cancelado' : isPast ? 'Realizado' : '30 min'}
+              {isCancelled ? 'Cancelado' : isPast ? 'Realizado' : '20 min'}
             </Badge>
 
             {/* Botão apagar — só para cancelados e passados */}
