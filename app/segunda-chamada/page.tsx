@@ -19,9 +19,9 @@ const ALL_GRADES = [
 ]
 
 // ── Mude aqui as informações de PIX da escola ──────────────────────────────
-const PIX_KEY   = 'procampus@email.com'
+const PIX_KEY   = 'financeiro@procampus.com.br'
 const PIX_VALUE = 'R$ 30,00'
-const PIX_NAME  = 'Grupo Educacional Pro Campus'
+const PIX_NAME  = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
 
 type ExamSchedule = {
   id: string
