@@ -48,6 +48,8 @@ model Availability {
   teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId    String
   dayOfWeek    Int
+  specificDate DateTime?
+  isSpecial    Boolean       @default(false)
   startTime    String
   endTime      String
   active       Boolean       @default(true)

@@ -1,9 +1,4 @@
-// ============================================================
-// ARQUIVO: src/app/secretaria/professores/page.tsx
-// CAMINHO: procampus-agendamento/src/app/secretaria/professores/page.tsx
-// SUBSTITUA o arquivo inteiro
-// ============================================================
-
+// app/secretaria/professores/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -14,6 +9,7 @@ import { Users, CalendarDays, LogOut, Plus, BookOpen, ClipboardList } from 'luci
 import ProfessorModal      from '@/components/secretaria/ProfessorModal'
 import ProfessorTable      from '@/components/secretaria/ProfessorTable'
 import DisponibilidadeForm from '@/components/secretaria/DisponibilidadeForm'
+import HorarioEspecialForm from '@/components/secretaria/HorarioEspecialForm'   // ← novo
 import LoadingSpinner      from '@/components/ui/LoadingSpinner'
 import RoleBadge           from '@/components/secretaria/RoleBadge'
 import type { Teacher, Subject } from '@/types'
@@ -22,14 +18,23 @@ export const dynamic = 'force-dynamic'
 
 type TeacherFull = Teacher & {
   subjects: { subject: Subject }[]
-  availabilities?: { id: string; date: string; startTime: string; endTime: string; slots: { id: string; isBooked: boolean }[] }[]
+  availabilities?: {
+    id: string
+    dayOfWeek?: number | null
+    specificDate?: string | null
+    isSpecial?: boolean
+    startTime: string
+    endTime: string
+    active: boolean
+    appointments?: { id: string; date: string; startTime: string }[]
+  }[]
 }
 
 const NAV_ITEMS = [
-  { href: '/secretaria',                 icon: CalendarDays,  label: 'Agendamentos',     key: 'dashboard' },
-  { href: '/secretaria/professores',     icon: Users,         label: 'Professores',      key: 'professores' },
-  { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',      key: 'disciplinas' },
-  { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada',  key: 'segunda-chamada' },
+  { href: '/secretaria',                 icon: CalendarDays,  label: 'Agendamentos',    key: 'dashboard' },
+  { href: '/secretaria/professores',     icon: Users,         label: 'Professores',     key: 'professores' },
+  { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
+  { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
 ]
 
 export default function ProfessoresPage() {
@@ -37,20 +42,40 @@ export default function ProfessoresPage() {
   const [subjects,    setSubjects]    = useState<Subject[]>([])
   const [loading,     setLoading]     = useState(true)
   const [expanded,    setExpanded]    = useState<string | null>(null)
+
+  // Modal: novo/editar professor
   const [profModal,   setProfModal]   = useState(false)
   const [editTeacher, setEditTeacher] = useState<TeacherFull | null>(null)
+
+  // Modal: disponibilidade recorrente
   const [dispModal,   setDispModal]   = useState(false)
   const [dispTeacher, setDispTeacher] = useState<Teacher | null>(null)
+
+  // ✅ Modal: horário especial (1 única vez)
+  const [especModal,   setEspecModal]   = useState(false)
+  const [especTeacher, setEspecTeacher] = useState<Teacher | null>(null)
 
   async function loadData() {
     setLoading(true)
     try {
-      const [tRes, sRes, aRes] = await Promise.all([fetch('/api/professores'), fetch('/api/disciplinas'), fetch('/api/disponibilidade-prof')])
+      const [tRes, sRes, aRes] = await Promise.all([
+        fetch('/api/professores'),
+        fetch('/api/disciplinas'),
+        fetch('/api/disponibilidade-prof'),
+      ])
       const [tData, sData, aData] = await Promise.all([tRes.json(), sRes.json(), aRes.json()])
-      setTeachers(tData.map((t: TeacherFull) => ({ ...t, availabilities: aData.filter((a: any) => a.teacherId === t.id) })))
+      setTeachers(
+        tData.map((t: TeacherFull) => ({
+          ...t,
+          availabilities: aData.filter((a: any) => a.teacherId === t.id),
+        }))
+      )
       setSubjects(sData)
-    } catch { console.error('Erro ao carregar dados') }
-    finally { setLoading(false) }
+    } catch {
+      console.error('Erro ao carregar dados')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { loadData() }, [])
@@ -104,7 +129,8 @@ export default function ProfessoresPage() {
             <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d' }}>Professores</h2>
             <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>{teachers.length} professor(es) cadastrado(s)</p>
           </div>
-          <motion.button whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }} onClick={() => { setEditTeacher(null); setProfModal(true) }}
+          <motion.button whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}
+            onClick={() => { setEditTeacher(null); setProfModal(true) }}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#23A455,#61CE70)', color: 'white', border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(97,206,112,0.35)' }}>
             <Plus style={{ width: 16, height: 16 }} />Novo Professor
           </motion.button>
@@ -112,18 +138,39 @@ export default function ProfessoresPage() {
 
         {loading ? <LoadingSpinner /> : (
           <ProfessorTable
-            teachers={teachers} expanded={expanded}
+            teachers={teachers}
+            expanded={expanded}
             onToggleExpand={id => setExpanded(expanded === id ? null : id)}
             onEdit={t => { setEditTeacher(t as any); setProfModal(true) }}
             onDelete={handleDelete}
             onAddDisponibilidade={t => { setDispTeacher(t as any); setDispModal(true) }}
+            onAddHorarioEspecial={t => { setEspecTeacher(t as any); setEspecModal(true) }}   // ← novo
             onDeleteAvailability={handleDeleteAvailability}
           />
         )}
       </main>
 
-      <ProfessorModal open={profModal} teacher={editTeacher} subjects={subjects} onClose={() => { setProfModal(false); setEditTeacher(null) }} onSave={loadData} />
-      <DisponibilidadeForm open={dispModal} teacher={dispTeacher} onClose={() => { setDispModal(false); setDispTeacher(null) }} onSave={loadData} />
+      {/* Modais */}
+      <ProfessorModal
+        open={profModal}
+        teacher={editTeacher}
+        subjects={subjects}
+        onClose={() => { setProfModal(false); setEditTeacher(null) }}
+        onSave={loadData}
+      />
+      <DisponibilidadeForm
+        open={dispModal}
+        teacher={dispTeacher}
+        onClose={() => { setDispModal(false); setDispTeacher(null) }}
+        onSave={loadData}
+      />
+      {/* ✅ Modal horário especial */}
+      <HorarioEspecialForm
+        open={especModal}
+        teacher={especTeacher}
+        onClose={() => { setEspecModal(false); setEspecTeacher(null) }}
+        onSave={loadData}
+      />
     </div>
   )
 }

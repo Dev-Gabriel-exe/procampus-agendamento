@@ -1,12 +1,8 @@
-// ============================================================
-
-// CAMINHO: components/secretaria/ProfessorTable.tsx
-
-// ============================================================
+// components/secretaria/ProfessorTable.tsx
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { Pencil, Trash2, Plus, Mail, Phone, ChevronDown, Clock, Calendar } from 'lucide-react'
+import { Pencil, Trash2, Plus, Mail, Phone, ChevronDown, Clock, Calendar, Star } from 'lucide-react'
 import type { Teacher, Subject } from '@/types'
 
 const DAYS_FULL  = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado']
@@ -22,16 +18,23 @@ const DAY_COLORS: Record<number, { bg: string; color: string; border: string }> 
   6: { bg: '#f0fdfa', color: '#0f766e', border: '#99f6e4' },
 }
 
+const SPECIAL_COLOR = { bg: '#f5f3ff', color: '#7c3aed', border: '#c4b5fd' }
+
+// ── Tipos locais ──────────────────────────────────────────────────────────────
 type AvailabilityItem = {
   id: string
-  dayOfWeek: number
+  dayOfWeek?: number | null
+  specificDate?: Date | string | null  // ← Date (Prisma) ou string (JSON serializado)
+  isSpecial?: boolean | null           // ← null possível vindo do banco
   startTime: string
   endTime: string
   active: boolean
   appointments?: { id: string; date: string; startTime: string }[]
 }
 
-type TeacherFull = Teacher & {
+// Omit<Teacher, 'availabilities'> descarta o campo do tipo global (que não tem
+// isSpecial/specificDate) e deixa o AvailabilityItem local assumir.
+type TeacherFull = Omit<Teacher, 'availabilities'> & {
   subjects: { subject: Subject }[]
   availabilities?: AvailabilityItem[]
 }
@@ -43,14 +46,18 @@ interface ProfessorTableProps {
   onEdit: (t: TeacherFull) => void
   onDelete: (id: string) => void
   onAddDisponibilidade: (t: TeacherFull) => void
+  onAddHorarioEspecial: (t: TeacherFull) => void
   onDeleteAvailability: (id: string) => void
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function groupByDay(availabilities: AvailabilityItem[]) {
   const groups: Record<number, AvailabilityItem[]> = {}
   for (const avail of availabilities) {
-    if (!groups[avail.dayOfWeek]) groups[avail.dayOfWeek] = []
-    groups[avail.dayOfWeek].push(avail)
+    if (avail.isSpecial || avail.specificDate) continue
+    const day = avail.dayOfWeek ?? 0
+    if (!groups[day]) groups[day] = []
+    groups[day].push(avail)
   }
   const sorted: { day: number; items: AvailabilityItem[] }[] = []
   for (const day of [1,2,3,4,5,6,0]) {
@@ -61,9 +68,18 @@ function groupByDay(availabilities: AvailabilityItem[]) {
   return sorted
 }
 
+// Aceita Date ou string — o Prisma retorna Date, mas após JSON.stringify/parse vira string
+function formatSpecialDate(value: Date | string) {
+  return new Date(value).toLocaleDateString('pt-BR', {
+    weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
+    timeZone: 'America/Fortaleza',
+  })
+}
+
+// ── Componente ────────────────────────────────────────────────────────────────
 export default function ProfessorTable({
   teachers, expanded, onToggleExpand,
-  onEdit, onDelete, onAddDisponibilidade, onDeleteAvailability,
+  onEdit, onDelete, onAddDisponibilidade, onAddHorarioEspecial, onDeleteAvailability,
 }: ProfessorTableProps) {
   if (teachers.length === 0) {
     return (
@@ -78,13 +94,16 @@ export default function ProfessorTable({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {teachers.map((teacher, i) => {
-        const groupedAvails = groupByDay(teacher.availabilities || [])
-        const totalSlots    = teacher.availabilities?.length ?? 0
+        const allAvails       = teacher.availabilities || []
+        const recurringAvails = allAvails.filter(a => !a.isSpecial && !a.specificDate)
+        const specialAvails   = allAvails.filter(a => a.isSpecial || !!a.specificDate)
+        const groupedAvails   = groupByDay(recurringAvails)
+        const totalSlots      = allAvails.length
 
         return (
           <motion.div key={teacher.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-            style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.12)', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}
-          >
+            style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.12)', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+
             {/* Linha principal */}
             <div style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 }}>
@@ -120,7 +139,7 @@ export default function ProfessorTable({
                   </div>
 
                   {/* Resumo dias */}
-                  {totalSlots > 0 && (
+                  {(groupedAvails.length > 0 || specialAvails.length > 0) && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
                       {groupedAvails.map(({ day, items }) => {
                         const c = DAY_COLORS[day]
@@ -134,30 +153,47 @@ export default function ProfessorTable({
                           </span>
                         )
                       })}
+                      {specialAvails.length > 0 && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: SPECIAL_COLOR.bg, color: SPECIAL_COLOR.color, border: `1px solid ${SPECIAL_COLOR.border}` }}>
+                          <Star style={{ width: 10, height: 10 }} />
+                          {specialAvails.length} especial{specialAvails.length !== 1 ? 'is' : ''}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Ações */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button onClick={() => onAddDisponibilidade(teacher)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 9, border: '1px solid rgba(97,206,112,0.3)', background: '#f0faf2', color: '#23A455', cursor: 'pointer', transition: 'all 0.2s' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 9, border: '1px solid rgba(97,206,112,0.3)', background: '#f0faf2', color: '#23A455', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#e8f9eb'; e.currentTarget.style.borderColor = '#61CE70' }}
                   onMouseLeave={e => { e.currentTarget.style.background = '#f0faf2'; e.currentTarget.style.borderColor = 'rgba(97,206,112,0.3)' }}>
                   <Plus style={{ width: 13, height: 13 }} />Disponibilidade
                 </button>
-                <button onClick={() => onEdit(teacher)} style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#23A455', transition: 'background 0.15s' }}
+
+                <button onClick={() => onAddHorarioEspecial(teacher)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 9, border: `1px solid ${SPECIAL_COLOR.border}`, background: SPECIAL_COLOR.bg, color: SPECIAL_COLOR.color, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#ede9fe'; e.currentTarget.style.borderColor = '#a78bfa' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = SPECIAL_COLOR.bg; e.currentTarget.style.borderColor = SPECIAL_COLOR.border }}>
+                  <Star style={{ width: 13, height: 13 }} />Horário Especial
+                </button>
+
+                <button onClick={() => onEdit(teacher)}
+                  style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#23A455', transition: 'background 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#f0faf2'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <Pencil style={{ width: 15, height: 15 }} />
                 </button>
-                <button onClick={() => onDelete(teacher.id)} style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444', transition: 'background 0.15s' }}
+                <button onClick={() => onDelete(teacher.id)}
+                  style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444', transition: 'background 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <Trash2 style={{ width: 15, height: 15 }} />
                 </button>
-                <button onClick={() => onToggleExpand(teacher.id)} style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#6b8f72' }}>
+                <button onClick={() => onToggleExpand(teacher.id)}
+                  style={{ padding: 7, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#6b8f72' }}>
                   <motion.div animate={{ rotate: expanded === teacher.id ? 180 : 0 }} transition={{ duration: 0.2 }}>
                     <ChevronDown style={{ width: 15, height: 15 }} />
                   </motion.div>
@@ -165,15 +201,11 @@ export default function ProfessorTable({
               </div>
             </div>
 
-            {/* Disponibilidades expandidas — slots individuais */}
+            {/* Disponibilidades expandidas */}
             <AnimatePresence>
               {expanded === teacher.id && (
                 <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
                   <div style={{ borderTop: '1px solid rgba(97,206,112,0.1)', padding: '20px 24px', background: '#fafdfb' }}>
-                    <h4 style={{ fontSize: 13, fontWeight: 700, color: '#3d5c42', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Clock style={{ width: 14, height: 14, color: '#23A455' }} />
-                      Slots disponíveis ({totalSlots} de 20min)
-                    </h4>
 
                     {totalSlots === 0 ? (
                       <p style={{ fontSize: 13, color: '#6b8f72' }}>
@@ -183,67 +215,118 @@ export default function ProfessorTable({
                         </button>
                       </p>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                        {groupedAvails.map(({ day, items }) => {
-                          const c = DAY_COLORS[day]
-                          return (
-                            <div key={day}>
-                              {/* Cabeçalho do dia */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, background: c.bg, color: c.color, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 700 }}>
-                                  <Calendar style={{ width: 12, height: 12 }} />
-                                  {DAYS_FULL[day]}
-                                </div>
-                                <span style={{ fontSize: 11, color: '#6b8f72' }}>{items.length} slot{items.length !== 1 ? 's' : ''}</span>
-                              </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-                              {/* ✅ Slots individuais de 20min */}
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 8 }}>
-                                {items.map(avail => {
-                                  const futureAppts = avail.appointments?.filter(
-                                    a => new Date(a.date) >= new Date()
-                                  ).length ?? 0
-                                  const isBooked = futureAppts > 0
+                        {/* ── Recorrentes ── */}
+                        {groupedAvails.length > 0 && (
+                          <div>
+                            <h4 style={{ fontSize: 13, fontWeight: 700, color: '#3d5c42', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Clock style={{ width: 14, height: 14, color: '#23A455' }} />
+                              Slots recorrentes ({recurringAvails.length} de 20min)
+                            </h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                              {groupedAvails.map(({ day, items }) => {
+                                const c = DAY_COLORS[day]
+                                return (
+                                  <div key={day}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, background: c.bg, color: c.color, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 700 }}>
+                                        <Calendar style={{ width: 12, height: 12 }} />
+                                        {DAYS_FULL[day]}
+                                      </div>
+                                      <span style={{ fontSize: 11, color: '#6b8f72' }}>{items.length} slot{items.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 8 }}>
+                                      {items.map(avail => {
+                                        const futureAppts = avail.appointments?.filter(a => new Date(a.date) >= new Date()).length ?? 0
+                                        const isBooked    = futureAppts > 0
+                                        return (
+                                          <div key={avail.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: isBooked ? '#fff7ed' : 'white', borderRadius: 10, padding: '8px 12px', border: `1.5px solid ${isBooked ? '#fed7aa' : c.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                                            <Clock style={{ width: 12, height: 12, color: isBooked ? '#c2410c' : c.color, flexShrink: 0 }} />
+                                            <div>
+                                              <p style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d', margin: 0 }}>
+                                                {avail.startTime}<span style={{ color: '#6b8f72', fontWeight: 400 }}> – {avail.endTime}</span>
+                                              </p>
+                                              {isBooked && <p style={{ fontSize: 10, color: '#c2410c', margin: 0, marginTop: 1 }}>{futureAppts} agendado(s)</p>}
+                                            </div>
+                                            {!isBooked && (
+                                              <button onClick={() => onDeleteAvailability(avail.id)}
+                                                style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#ef4444', transition: 'background 0.15s', marginLeft: 2 }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                <Trash2 style={{ width: 12, height: 12 }} />
+                                              </button>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── Especiais ── */}
+                        {specialAvails.length > 0 && (
+                          <div>
+                            <h4 style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Star style={{ width: 14, height: 14, color: '#7c3aed' }} />
+                              Horários especiais ({specialAvails.length} slot{specialAvails.length !== 1 ? 's' : ''})
+                            </h4>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {specialAvails
+                                .slice()
+                                .sort((a, b) => {
+                                  const da = a.specificDate ? new Date(a.specificDate).getTime() : 0
+                                  const db = b.specificDate ? new Date(b.specificDate).getTime() : 0
+                                  return da - db
+                                })
+                                .map(avail => {
+                                  const futureAppts = avail.appointments?.filter(a => new Date(a.date) >= new Date()).length ?? 0
+                                  const isBooked    = futureAppts > 0
+                                  const isPast      = avail.specificDate
+                                    ? new Date(avail.specificDate) < new Date()
+                                    : false
 
                                   return (
                                     <div key={avail.id} style={{
                                       display: 'flex', alignItems: 'center', gap: 8,
-                                      background: isBooked ? '#fff7ed' : 'white',
+                                      background: isBooked ? '#fff7ed' : isPast ? '#f9fafb' : SPECIAL_COLOR.bg,
                                       borderRadius: 10, padding: '8px 12px',
-                                      border: `1.5px solid ${isBooked ? '#fed7aa' : c.border}`,
+                                      border: `1.5px solid ${isBooked ? '#fed7aa' : isPast ? '#e5e7eb' : SPECIAL_COLOR.border}`,
                                       boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                                      opacity: isPast ? 0.6 : 1,
                                     }}>
-                                      <Clock style={{ width: 12, height: 12, color: isBooked ? '#c2410c' : c.color, flexShrink: 0 }} />
+                                      <Star style={{ width: 12, height: 12, color: isPast ? '#9ca3af' : SPECIAL_COLOR.color, flexShrink: 0 }} />
                                       <div>
-                                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d', margin: 0 }}>
-                                          {avail.startTime}
-                                          <span style={{ color: '#6b8f72', fontWeight: 400 }}> – {avail.endTime}</span>
-                                        </p>
-                                        {isBooked && (
-                                          <p style={{ fontSize: 10, color: '#c2410c', margin: 0, marginTop: 1 }}>
-                                            {futureAppts} agendado(s)
+                                        {avail.specificDate && (
+                                          <p style={{ fontSize: 11, color: isPast ? '#9ca3af' : SPECIAL_COLOR.color, fontWeight: 600, margin: 0, textTransform: 'capitalize' }}>
+                                            {formatSpecialDate(avail.specificDate)}
                                           </p>
                                         )}
+                                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d', margin: 0 }}>
+                                          {avail.startTime}<span style={{ color: '#6b8f72', fontWeight: 400 }}> – {avail.endTime}</span>
+                                        </p>
+                                        {isBooked    && <p style={{ fontSize: 10, color: '#c2410c', margin: 0, marginTop: 1 }}>{futureAppts} agendado(s)</p>}
+                                        {isPast && !isBooked && <p style={{ fontSize: 10, color: '#9ca3af', margin: 0, marginTop: 1 }}>Expirado</p>}
                                       </div>
-                                      {/* Botão apagar — só se não tiver agendamentos futuros */}
                                       {!isBooked && (
-                                        <button
-                                          onClick={() => onDeleteAvailability(avail.id)}
-                                          title="Remover slot"
+                                        <button onClick={() => onDeleteAvailability(avail.id)}
                                           style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#ef4444', transition: 'background 0.15s', marginLeft: 2 }}
                                           onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                        >
+                                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                           <Trash2 style={{ width: 12, height: 12 }} />
                                         </button>
                                       )}
                                     </div>
                                   )
                                 })}
-                              </div>
                             </div>
-                          )
-                        })}
+                          </div>
+                        )}
+
                       </div>
                     )}
                   </div>

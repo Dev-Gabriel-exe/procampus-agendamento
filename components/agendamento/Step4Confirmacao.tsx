@@ -44,7 +44,7 @@ export function Step4Confirmacao({ data }: Step4Props) {
     { icon: <BookOpen className="w-4 h-4" />,      label: 'Disciplina',   value: `${data.subjectName} — ${data.studentGrade}` },
     { icon: <User className="w-4 h-4" />,          label: 'Professor(a)', value: data.teacherName  },
     { icon: <CalendarDays className="w-4 h-4" />,  label: 'Data',         value: data.dateLabel    },
-    { icon: <Clock className="w-4 h-4" />,         label: 'Horário',      value: `${data.startTime} – ${data.endTime} (30 min)` },
+    { icon: <Clock className="w-4 h-4" />,         label: 'Horário',      value: `${data.startTime} – ${data.endTime} (20 min)` },
   ]
 
   return (
