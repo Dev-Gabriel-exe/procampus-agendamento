@@ -189,7 +189,7 @@ export default function HeroSection() {
                     }}
                   >
                     <CalendarDays style={{ width: 18, height: 18, flexShrink: 0 }} />
-                    Agendar reunião
+                    Agendar Plantão
                     <motion.span animate={{ x: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }} style={{ display: 'flex' }}>
                       <ArrowRight style={{ width: 16, height: 16 }} />
                     </motion.span>

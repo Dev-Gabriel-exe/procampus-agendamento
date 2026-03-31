@@ -102,7 +102,7 @@ export default function CTASection() {
                 <CalendarDays style={{ width: 22, height: 22, color: '#23A455' }} />
               </div>
               <div style={{ textAlign: isMobile ? 'left' : 'center', flex: 1 }}>
-                <p style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 15, color: '#0D2818', margin: 0, marginBottom: 3 }}>Agendar Reunião</p>
+                <p style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 15, color: '#0D2818', margin: 0, marginBottom: 3 }}>Agendar Plantão</p>
                 <p style={{ fontSize: 12, color: '#6b8f72', margin: 0 }}>Com o professor do seu filho</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#23A455', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
