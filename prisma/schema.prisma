@@ -28,11 +28,12 @@ model Teacher {
 }
 
 model Subject {
-  id            String           @id @default(cuid())
-  name          String
-  grade         String
-  teachers      TeacherSubject[]
-  examSchedules ExamSchedule[]
+  id                String             @id @default(cuid())
+  name              String
+  grade             String
+  teachers          TeacherSubject[]
+  examSchedules     ExamSchedule[]
+  recoverySchedules RecoverySchedule[]
 }
 
 model TeacherSubject {
@@ -96,21 +97,52 @@ model ExamBooking {
   id             String       @id @default(cuid())
   examSchedule   ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
   examScheduleId String
+  parentName     String
+  parentEmail    String
+  parentPhone    String
+  studentName    String
+  studentGrade   String
+  status         String       @default("PENDING")
+  justified      Boolean?
+  reason         String?
+  lutoText       String?
+  fileUrl        String?
+  createdAt      DateTime     @default(now())
+}
 
-  parentName   String
-  parentEmail  String
-  parentPhone  String
-  studentName  String
-  studentGrade String
+// ── Recuperação ──────────────────────────────────────────
 
-  // Status: PENDING | APPROVED | REJECTED
-  status   String  @default("PENDING")
+model RecoverySchedule {
+  id           String            @id @default(cuid())
+  subject      Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subjectName  String            // denormalizado
+  grade        String
+  // "normal" = Fund1 paga R$30 | "paralela" = Fund2 gratuita
+  type         String            @default("normal")
+  // "meio" | "final" — só relevante para type="normal"
+  period       String?
+  date         DateTime
+  startTime    String
+  endTime      String
+  role         String            @default("geral")
+  active       Boolean           @default(true)
+  bookings     RecoveryBooking[]
+  createdAt    DateTime          @default(now())
+}
 
-  // Justificativa
-  justified Boolean?
-  reason    String?   // "doenca" | "luto" | null
-  lutoText  String?   // só quando reason === "luto"
-  fileUrl   String?   // URL Cloudinary do comprovante/atestado
-
-  createdAt DateTime @default(now())
+model RecoveryBooking {
+  id                 String           @id @default(cuid())
+  recoverySchedule   RecoverySchedule @relation(fields: [recoveryScheduleId], references: [id], onDelete: Cascade)
+  recoveryScheduleId String
+  parentName         String
+  parentEmail        String
+  parentPhone        String
+  studentName        String
+  studentGrade       String
+  // Para recuperação paralela: lista de disciplinas separadas por vírgula
+  subjects           String           @default("")
+  status             String           @default("PENDING")
+  fileUrl            String?          // comprovante PIX (só type=normal)
+  createdAt          DateTime         @default(now())
 }

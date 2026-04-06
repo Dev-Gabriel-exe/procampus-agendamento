@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { CalendarDays, Users, LogOut, CheckCircle, XCircle, Clock, Menu, X, BookOpen, ClipboardList } from 'lucide-react'
+import { CalendarDays, Users, LogOut, CheckCircle, XCircle, Clock, Menu, X, BookOpen, ClipboardList, BookMarked } from 'lucide-react'
 import AgendamentoCard from '@/components/secretaria/AgendamentoCard'
 import FiltrosSemana, { type Filtros } from '@/components/secretaria/FiltrosSemana'
 import PrintView from '@/components/secretaria/PrintView'
@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { href: '/secretaria/professores',   icon: Users,         label: 'Professores',     key: 'professores' },
   { href: '/secretaria/disciplinas',   icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
   { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
+  { href: '/secretaria/recuperacao', icon: BookMarked, label: 'Recuperação', key: 'recuperacao' },
 ]
 
 function SecretariaNav({ active }: { active: string }) {

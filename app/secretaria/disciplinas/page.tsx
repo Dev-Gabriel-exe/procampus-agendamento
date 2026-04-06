@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { BookOpen, Plus, Trash2, CalendarDays, Users, LogOut, ChevronDown, AlertCircle, X, ClipboardList } from 'lucide-react'
+import { BookOpen, Plus, Trash2, CalendarDays, Users, LogOut, ChevronDown, AlertCircle, X, ClipboardList, BookMarked } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 import type { Subject } from '@/types'
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { href: '/secretaria/professores',     icon: Users,         label: 'Professores',     key: 'professores' },
   { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
   { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
+  { href: '/secretaria/recuperacao', icon: BookMarked, label: 'Recuperação', key: 'recuperacao' },
 ]
 
 function DeleteModal({ open, name, onConfirm, onCancel }: { open: boolean; name: string; onConfirm: () => void; onCancel: () => void }) {

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Users, CalendarDays, LogOut, Plus, BookOpen, ClipboardList } from 'lucide-react'
+import { Users, CalendarDays, LogOut, Plus, BookOpen, ClipboardList, BookMarked } from 'lucide-react'
 import ProfessorModal      from '@/components/secretaria/ProfessorModal'
 import ProfessorTable      from '@/components/secretaria/ProfessorTable'
 import DisponibilidadeForm from '@/components/secretaria/DisponibilidadeForm'
@@ -35,6 +35,7 @@ const NAV_ITEMS = [
   { href: '/secretaria/professores',     icon: Users,         label: 'Professores',     key: 'professores' },
   { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
   { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
+  { href: '/secretaria/recuperacao', icon: BookMarked, label: 'Recuperação', key: 'recuperacao' },
 ]
 
 export default function ProfessoresPage() {

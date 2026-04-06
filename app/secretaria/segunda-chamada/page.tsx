@@ -11,7 +11,7 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Paperclip, Clock, Filter,
   FolderOpen, FileText, Heart, Download, ExternalLink,
-  Search, SlidersHorizontal,
+  Search, SlidersHorizontal, BookMarked,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { href: '/secretaria/professores',     icon: Users,         label: 'Professores',     key: 'professores' },
   { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
   { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
+  { href: '/secretaria/recuperacao', icon: BookMarked, label: 'Recuperação', key: 'recuperacao' },
 ]
 
 type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
