@@ -23,9 +23,9 @@ const GRADES_FUND1 = new Set([
 ])
 
 const PIX_KEY   = 'financeiro@procampus.com.br'
-const PIX_VALUE = 'R$ 30,00'
 const PIX_NAME  = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
 const MAX_SUBJECTS = 4
+const PRICE_PER_SUBJECT = 30
 
 type RecoverySchedule = {
   id: string; subjectName: string; grade: string; type: string; period?: string | null
@@ -120,13 +120,13 @@ export default function RecuperacaoPage() {
   function goTo(next: number) { setDir(next > step ? 1 : -1); setStep(next) }
 
   // Step 1
-  const [selGrade,     setSelGrade]     = useState('')
-  const [allSubjects,  setAllSubjects]  = useState<string[]>([])
-  const [selSubjectsP, setSelSubjectsP] = useState<string[]>([])
-  const [schedules,    setSchedules]    = useState<RecoverySchedule[]>([])
-  const [loadingSlots, setLoadingSlots] = useState(false)
-  const [hasSearched,  setHasSearched]  = useState(false)
-  const [selectedSlot, setSelectedSlot] = useState<RecoverySchedule | null>(null)
+  const [selGrade,      setSelGrade]      = useState('')
+  const [allSubjects,   setAllSubjects]   = useState<string[]>([])
+  const [selSubjectsP,  setSelSubjectsP]  = useState<string[]>([])            // selected subjects (both fund1 & fund2)
+  const [schedules,     setSchedules]     = useState<RecoverySchedule[]>([])  // all fetched slots for grade+type
+  const [loadingSlots,  setLoadingSlots]  = useState(false)
+  const [hasSearched,   setHasSearched]   = useState(false)
+  const [selectedSlots, setSelectedSlots] = useState<Record<string, RecoverySchedule>>({}) // subjectName → slot
 
   const isFund1    = GRADES_FUND1.has(selGrade)
   const isParalela = !isFund1
@@ -134,6 +134,13 @@ export default function RecuperacaoPage() {
   // Fluxo: Paralela → 1→2(dados)→3(sucesso) | Normal → 1→2(pix)→3(dados)→4(sucesso)
   const dataStep    = isParalela ? 2 : 3
   const successStep = isParalela ? 3 : 4
+
+  // PIX dinâmico — R$30 por disciplina selecionada
+  const pixAmount   = selSubjectsP.length * PRICE_PER_SUBJECT
+  const pixValueStr = `R$ ${pixAmount},00`
+
+  // Todos os slots selecionados?
+  const allSlotsChosen = selSubjectsP.length > 0 && selSubjectsP.every(s => !!selectedSlots[s])
 
   // Step 2 — PIX (só normal)
   const [pixFile,       setPixFile]       = useState<File | null>(null)
@@ -147,8 +154,10 @@ export default function RecuperacaoPage() {
   const [submitting,  setSubmitting]  = useState(false)
   const [submitError, setSubmitError] = useState('')
 
+  // Reset ao trocar série
   useEffect(() => {
-    setAllSubjects([]); setSelSubjectsP([]); setSchedules([]); setSelectedSlot(null); setHasSearched(false)
+    setAllSubjects([]); setSelSubjectsP([]); setSchedules([])
+    setSelectedSlots({}); setHasSearched(false)
     if (!selGrade) return
     ;(async () => {
       try {
@@ -160,13 +169,21 @@ export default function RecuperacaoPage() {
     })()
   }, [selGrade])
 
+  // Limpar slots de disciplinas removidas da seleção
+  useEffect(() => {
+    setSelectedSlots(prev => {
+      const next: Record<string, RecoverySchedule> = {}
+      selSubjectsP.forEach(s => { if (prev[s]) next[s] = prev[s] })
+      return next
+    })
+  }, [selSubjectsP])
+
   async function loadSlots() {
-    if (!selGrade) return
+    if (!selGrade || selSubjectsP.length === 0) return
     setLoadingSlots(true); setHasSearched(true)
     try {
       const type = isFund1 ? 'normal' : 'paralela'
-      const subjectParam = isFund1 && selSubjectsP.length === 1 ? `&subject=${encodeURIComponent(selSubjectsP[0])}` : ''
-      const res = await fetch(`/api/recuperacao?public=true&grade=${encodeURIComponent(selGrade)}&type=${type}${subjectParam}`)
+      const res = await fetch(`/api/recuperacao?public=true&grade=${encodeURIComponent(selGrade)}&type=${type}`)
       const data = await res.json()
       setSchedules(Array.isArray(data) ? data : [])
     } catch { setSchedules([]) }
@@ -183,22 +200,26 @@ export default function RecuperacaoPage() {
   const pixOk  = !!pixFile
 
   async function handleSubmit() {
-    if (!selectedSlot) return
+    const entries = Object.entries(selectedSlots)
+    if (!entries.length) return
     setSubmitting(true); setSubmitError('')
     try {
       let fileUrl: string | null = null
       if (pixFile) { setUploadingFile(true); fileUrl = await uploadToCloudinary(pixFile); setUploadingFile(false) }
 
-      const res = await fetch(`/api/recuperacao/${selectedSlot.id}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parentName, parentEmail, parentPhone, studentName,
-          studentGrade: selGrade,
-          subjects: isParalela ? selSubjectsP.join(',') : selectedSlot.subjectName,
-          fileUrl,
-        }),
-      })
-      if (!res.ok) { const d = await res.json(); setSubmitError(d.error || 'Erro ao inscrever.'); return }
+      await Promise.all(
+        entries.map(([subject, slot]) =>
+          fetch(`/api/recuperacao/${slot.id}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              parentName, parentEmail, parentPhone, studentName,
+              studentGrade: selGrade, subjects: subject, fileUrl,
+            }),
+          }).then(async r => {
+            if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erro ao inscrever.') }
+          })
+        )
+      )
       goTo(successStep)
     } catch (err: any) { setSubmitError(err?.message || 'Erro de conexão.') }
     finally { setSubmitting(false); setUploadingFile(false) }
@@ -248,7 +269,7 @@ export default function RecuperacaoPage() {
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6, fontSize: 14, lineHeight: 1.4 }}>
               {step === 1
-                ? 'Escolha a série e o horário'
+                ? 'Escolha as disciplinas e os horários'
                 : step === 2 && !isParalela
                   ? 'Realize o pagamento e anexe o comprovante'
                   : 'Preencha para confirmar a inscrição'}
@@ -285,20 +306,24 @@ export default function RecuperacaoPage() {
                   <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                     style={{ padding: '12px 16px', borderRadius: 14, background: isFund1 ? 'rgba(245,158,11,0.12)' : 'rgba(35,164,85,0.12)', border: `1px solid ${isFund1 ? 'rgba(245,158,11,0.3)' : 'rgba(35,164,85,0.3)'}` }}>
                     <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: isFund1 ? '#fbbf24' : '#4ade80' }}>
-                      {isFund1 ? '💰 Recuperação Normal — R$ 30,00' : '✅ Recuperação Paralela — Gratuita'}
+                      {isFund1
+                        ? selSubjectsP.length > 0
+                          ? `💰 Recuperação Normal — R$ ${selSubjectsP.length * PRICE_PER_SUBJECT},00 (${selSubjectsP.length} disciplina${selSubjectsP.length > 1 ? 's' : ''})`
+                          : `💰 Recuperação Normal — R$ ${PRICE_PER_SUBJECT},00 por disciplina`
+                        : '✅ Recuperação Paralela — Gratuita'}
                     </p>
                     <p style={{ margin: '4px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
                       {isFund1
-                        ? 'Você precisará realizar o pagamento via PIX.'
+                        ? `Selecione até ${MAX_SUBJECTS} disciplinas. Cada uma custa R$ ${PRICE_PER_SUBJECT},00 via PIX.`
                         : `Você pode selecionar até ${MAX_SUBJECTS} disciplinas para recuperação.`}
                     </p>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Disciplinas — só paralela */}
+              {/* Disciplinas — ambos fund1 e fund2 */}
               <AnimatePresence>
-                {selGrade && isParalela && allSubjects.length > 0 && (
+                {selGrade && allSubjects.length > 0 && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
                     <label style={labelStyle}>
                       Disciplinas em recuperação
@@ -324,7 +349,7 @@ export default function RecuperacaoPage() {
 
               {/* Buscar horários */}
               <AnimatePresence>
-                {selGrade && (isFund1 || selSubjectsP.length > 0) && (
+                {selGrade && selSubjectsP.length > 0 && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <button onClick={loadSlots} style={btnPrimary(false)}>
                       <BookMarked style={{ width: 18, height: 18 }} />Ver horários disponíveis
@@ -339,38 +364,79 @@ export default function RecuperacaoPage() {
                 </div>
               )}
 
-              {!loadingSlots && schedules.length > 0 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
-                    {schedules.length} horário{schedules.length !== 1 ? 's' : ''} disponível{schedules.length !== 1 ? 'is' : ''}
-                  </p>
-                  {schedules.map((slot, idx) => {
-                    const isSel = selectedSlot?.id === slot.id
-                    const periodLabel = slot.period === 'meio' ? 'Meio do Ano' : slot.period === 'final' ? 'Final do Ano' : ''
+              {/* ── Slots agrupados por disciplina ── */}
+              {!loadingSlots && hasSearched && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {selSubjectsP.map(subject => {
+                    const subjectSlots = schedules.filter(s => s.subjectName === subject)
+                    const chosen = selectedSlots[subject]
                     return (
-                      <motion.button key={`${slot.id}-${idx}`} onClick={() => setSelectedSlot(slot)} whileTap={{ scale: 0.98 }}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s', minHeight: 72, background: isSel ? 'rgba(35,164,85,0.2)' : 'rgba(255,255,255,0.04)', border: isSel ? '2px solid rgba(35,164,85,0.6)' : '1.5px solid rgba(35,164,85,0.12)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
-                          <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, background: isSel ? 'rgba(35,164,85,0.35)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <CalendarDays style={{ width: 18, height: 18, color: isSel ? '#4ade80' : 'rgba(255,255,255,0.35)' }} />
+                      <div key={subject}>
+                        {/* Cabeçalho da disciplina */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                          <div style={{ flex: 1, height: 1, background: 'rgba(35,164,85,0.15)' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: chosen ? '#4ade80' : 'rgba(255,255,255,0.55)' }}>{subject}</span>
+                            {chosen && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#4ade80', background: 'rgba(35,164,85,0.15)', padding: '2px 8px', borderRadius: 100 }}>
+                                <Check style={{ width: 10, height: 10 }} />Selecionado
+                              </span>
+                            )}
                           </div>
-                          <div>
-                            {!isParalela && <p style={{ fontSize: 12, fontWeight: 600, color: isSel ? '#4ade80' : 'rgba(255,255,255,0.5)', margin: '0 0 2px' }}>{slot.subjectName}</p>}
-                            <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0, textTransform: 'capitalize' }}>{formatDate(slot.date)}</p>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                              <p style={{ fontSize: 13, margin: 0, display: 'flex', alignItems: 'center', gap: 4, color: isSel ? '#86efac' : 'rgba(255,255,255,0.38)' }}>
-                                <Clock style={{ width: 12, height: 12 }} />{slot.startTime} – {slot.endTime}
-                              </p>
-                              {periodLabel && <span style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600 }}>{periodLabel}</span>}
-                            </div>
-                          </div>
+                          <div style={{ flex: 1, height: 1, background: 'rgba(35,164,85,0.15)' }} />
                         </div>
-                        {isSel
-                          ? <Check style={{ width: 20, height: 20, color: '#4ade80', flexShrink: 0 }} />
-                          : <ArrowRight style={{ width: 18, height: 18, color: 'rgba(255,255,255,0.18)', flexShrink: 0 }} />}
-                      </motion.button>
+
+                        {subjectSlots.length === 0 ? (
+                          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', textAlign: 'center' }}>
+                            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', margin: 0 }}>Nenhum horário disponível para {subject}.</p>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {subjectSlots.map(slot => {
+                              const isSel = chosen?.id === slot.id
+                              const periodLabel = slot.period === 'meio' ? 'Meio do Ano' : slot.period === 'final' ? 'Final do Ano' : ''
+                              return (
+                                <motion.button key={slot.id} onClick={() => setSelectedSlots(prev => ({ ...prev, [subject]: slot }))} whileTap={{ scale: 0.98 }}
+                                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s', minHeight: 68, background: isSel ? 'rgba(35,164,85,0.2)' : 'rgba(255,255,255,0.04)', border: isSel ? '2px solid rgba(35,164,85,0.6)' : '1.5px solid rgba(35,164,85,0.12)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: isSel ? 'rgba(35,164,85,0.35)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <CalendarDays style={{ width: 17, height: 17, color: isSel ? '#4ade80' : 'rgba(255,255,255,0.35)' }} />
+                                    </div>
+                                    <div>
+                                      <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0, textTransform: 'capitalize' }}>{formatDate(slot.date)}</p>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                                        <p style={{ fontSize: 13, margin: 0, display: 'flex', alignItems: 'center', gap: 4, color: isSel ? '#86efac' : 'rgba(255,255,255,0.38)' }}>
+                                          <Clock style={{ width: 12, height: 12 }} />{slot.startTime} – {slot.endTime}
+                                        </p>
+                                        {periodLabel && <span style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600 }}>{periodLabel}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {isSel
+                                    ? <Check style={{ width: 20, height: 20, color: '#4ade80', flexShrink: 0 }} />
+                                    : <ArrowRight style={{ width: 18, height: 18, color: 'rgba(255,255,255,0.18)', flexShrink: 0 }} />}
+                                </motion.button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
+
+                  {/* Progresso de seleção */}
+                  {selSubjectsP.length > 1 && (
+                    <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
+                        {Object.keys(selectedSlots).length} de {selSubjectsP.length} horários escolhidos
+                      </span>
+                      {allSlotsChosen && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <CheckCircle style={{ width: 13, height: 13 }} />Tudo pronto
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -380,7 +446,7 @@ export default function RecuperacaoPage() {
                 </motion.p>
               )}
 
-              <motion.button disabled={!selectedSlot} onClick={() => goTo(2)} whileTap={{ scale: selectedSlot ? 0.98 : 1 }} style={btnPrimary(!selectedSlot)}>
+              <motion.button disabled={!allSlotsChosen} onClick={() => goTo(2)} whileTap={{ scale: allSlotsChosen ? 0.98 : 1 }} style={btnPrimary(!allSlotsChosen)}>
                 Continuar <ArrowRight style={{ width: 18, height: 18 }} />
               </motion.button>
             </motion.div>
@@ -394,19 +460,25 @@ export default function RecuperacaoPage() {
               transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              {/* Resumo da prova selecionada */}
-              {selectedSlot && (
-                <div style={{ background: 'rgba(35,164,85,0.1)', border: '1px solid rgba(35,164,85,0.25)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <BookMarked style={{ width: 16, height: 16, color: '#4ade80', flexShrink: 0 }} />
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>
-                      {selectedSlot.subjectName} — {selGrade}
-                    </p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: '2px 0 0', textTransform: 'capitalize' }}>
-                      {formatDateShort(selectedSlot.date)} · {selectedSlot.startTime}–{selectedSlot.endTime}
-                      {selectedSlot.period === 'meio' ? ' · Meio do Ano' : selectedSlot.period === 'final' ? ' · Final do Ano' : ''}
-                    </p>
+              {/* Resumo das provas selecionadas */}
+              {Object.keys(selectedSlots).length > 0 && (
+                <div style={{ background: 'rgba(35,164,85,0.1)', border: '1px solid rgba(35,164,85,0.25)', borderRadius: 14, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <BookMarked style={{ width: 15, height: 15, color: '#4ade80', flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, fontSize: 14, color: 'white' }}>{selGrade}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', background: 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: 5 }}>
+                      {selSubjectsP.length} disciplina{selSubjectsP.length > 1 ? 's' : ''}
+                    </span>
                   </div>
+                  {Object.entries(selectedSlots).map(([subject, slot]) => (
+                    <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{subject}</span>
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
+                        {formatDateShort(slot.date)} · {slot.startTime}–{slot.endTime}
+                        {slot.period === 'meio' ? ' · Meio' : slot.period === 'final' ? ' · Final' : ''}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -414,14 +486,21 @@ export default function RecuperacaoPage() {
               <div style={{ ...card, borderColor: 'rgba(249,115,22,0.3)', background: 'rgba(249,115,22,0.06)' }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#fb923c', margin: '0 0 4px' }}>💸 Taxa de recuperação</p>
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', lineHeight: 1.5 }}>
-                  Realize o pagamento via PIX e anexe o comprovante para continuar.
+                  {selSubjectsP.length > 1
+                    ? `${selSubjectsP.length} disciplinas × R$ ${PRICE_PER_SUBJECT},00 = ${pixValueStr}. Realize o pagamento via PIX e anexe o comprovante.`
+                    : `Realize o pagamento via PIX e anexe o comprovante para continuar.`}
                 </p>
 
                 {/* Valor + favorecido */}
                 <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valor</p>
-                    <p style={{ fontSize: 22, fontWeight: 900, color: '#4ade80', margin: '2px 0 0', fontFamily: '"Roboto Slab",serif' }}>{PIX_VALUE}</p>
+                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valor total</p>
+                    <p style={{ fontSize: 26, fontWeight: 900, color: '#4ade80', margin: '2px 0 0', fontFamily: '"Roboto Slab",serif' }}>{pixValueStr}</p>
+                    {selSubjectsP.length > 1 && (
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>
+                        {selSubjectsP.length} × R$ {PRICE_PER_SUBJECT},00
+                      </p>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0 }}>Favorecido</p>
@@ -482,34 +561,31 @@ export default function RecuperacaoPage() {
               style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Resumo */}
-              {selectedSlot && (
-                <div style={{ background: 'rgba(35,164,85,0.1)', border: '1px solid rgba(35,164,85,0.2)', borderRadius: 14, padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                    <BookMarked style={{ width: 15, height: 15, color: '#4ade80', flexShrink: 0 }} />
-                    <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selGrade}</p>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: isFund1 ? '#fbbf24' : '#4ade80', background: isFund1 ? 'rgba(245,158,11,0.15)' : 'rgba(35,164,85,0.15)', padding: '2px 8px', borderRadius: 5 }}>
-                      {isFund1 ? '💰 Normal' : '✅ Paralela'}
+              <div style={{ background: 'rgba(35,164,85,0.1)', border: '1px solid rgba(35,164,85,0.2)', borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <BookMarked style={{ width: 15, height: 15, color: '#4ade80', flexShrink: 0 }} />
+                  <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selGrade}</p>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isFund1 ? '#fbbf24' : '#4ade80', background: isFund1 ? 'rgba(245,158,11,0.15)' : 'rgba(35,164,85,0.15)', padding: '2px 8px', borderRadius: 5 }}>
+                    {isFund1 ? `💰 Normal · ${pixValueStr}` : '✅ Paralela'}
+                  </span>
+                </div>
+                {/* Lista de disciplinas + slots */}
+                {Object.entries(selectedSlots).map(([subject, slot]) => (
+                  <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ fontSize: 12, color: isFund1 ? '#fbbf24' : '#4ade80', fontWeight: 600 }}>{subject}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
+                      {formatDateShort(slot.date)} · {slot.startTime}–{slot.endTime}
                     </span>
                   </div>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0, textTransform: 'capitalize' }}>
-                    {formatDateShort(selectedSlot.date)} · {selectedSlot.startTime}–{selectedSlot.endTime}
-                  </p>
-                  {/* Comprovante já enviado — confirmação visual */}
-                  {isFund1 && pixFile && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px', background: 'rgba(34,197,94,0.1)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.2)' }}>
-                      <Check style={{ width: 13, height: 13, color: '#4ade80' }} />
-                      <p style={{ margin: 0, fontSize: 12, color: '#86efac', fontWeight: 600 }}>Comprovante anexado</p>
-                    </div>
-                  )}
-                  {isParalela && selSubjectsP.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                      {selSubjectsP.map(s => (
-                        <span key={s} style={{ fontSize: 11, fontWeight: 600, color: '#4ade80', background: 'rgba(35,164,85,0.15)', padding: '2px 8px', borderRadius: 5 }}>{s}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                ))}
+                {/* Comprovante já enviado — confirmação visual */}
+                {isFund1 && pixFile && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px', background: 'rgba(34,197,94,0.1)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.2)' }}>
+                    <Check style={{ width: 13, height: 13, color: '#4ade80' }} />
+                    <p style={{ margin: 0, fontSize: 12, color: '#86efac', fontWeight: 600 }}>Comprovante anexado</p>
+                  </div>
+                )}
+              </div>
 
               {/* Formulário de dados */}
               <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -579,27 +655,35 @@ export default function RecuperacaoPage() {
                 </p>
               </motion.div>
 
-              {selectedSlot && (
-                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(35,164,85,0.2)', borderRadius: 18, padding: '18px 16px' }}>
-                  {[
-                    { label: 'Aluno',       value: studentName },
-                    { label: 'Série',       value: selGrade },
-                    { label: isParalela ? 'Disciplinas' : 'Disciplina', value: isParalela ? selSubjectsP.join(', ') : selectedSlot.subjectName },
-                    { label: 'Data',        value: formatDate(selectedSlot.date),                          hl: true },
-                    { label: 'Horário',     value: `${selectedSlot.startTime} – ${selectedSlot.endTime}`, hl: true },
-                    { label: 'Tipo',        value: isFund1 ? 'Recuperação Normal (paga)' : 'Recuperação Paralela (gratuita)' },
-                    ...(isFund1 ? [{ label: 'Pagamento', value: 'Comprovante PIX enviado ✅', hl: false }] : []),
-                  ].map((item, i, arr) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: i < arr.length - 1 ? 12 : 0, marginBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: (item as any).hl ? 700 : 500, textAlign: 'right', color: (item as any).hl ? '#4ade80' : 'rgba(255,255,255,0.75)', textTransform: (item as any).hl ? 'capitalize' as any : 'none' as any }}>
-                        {item.value}
-                      </span>
-                    </div>
-                  ))}
-                </motion.div>
-              )}
+              {/* Resumo de todas as inscrições */}
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(35,164,85,0.2)', borderRadius: 18, padding: '18px 16px' }}>
+                {/* Info geral */}
+                {[
+                  { label: 'Aluno',   value: studentName },
+                  { label: 'Série',   value: selGrade },
+                  { label: 'Tipo',    value: isFund1 ? 'Recuperação Normal (paga)' : 'Recuperação Paralela (gratuita)' },
+                  ...(isFund1 ? [{ label: 'Total pago', value: `${pixValueStr} via PIX ✅` }] : []),
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', color: 'rgba(255,255,255,0.75)' }}>{item.value}</span>
+                  </div>
+                ))}
+                {/* Disciplinas individuais */}
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>
+                  {Object.keys(selectedSlots).length} inscrição{Object.keys(selectedSlots).length > 1 ? 'ões' : ''}
+                </p>
+                {Object.entries(selectedSlots).map(([subject, slot]) => (
+                  <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: isFund1 ? '#fbbf24' : '#4ade80' }}>{subject}</span>
+                    <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600, textAlign: 'right', textTransform: 'capitalize' }}>
+                      {formatDate(slot.date)}<br />
+                      <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>{slot.startTime} – {slot.endTime}</span>
+                    </span>
+                  </div>
+                ))}
+              </motion.div>
 
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
                 style={{ width: '100%', background: 'rgba(35,164,85,0.08)', border: '1px solid rgba(35,164,85,0.2)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left' }}>

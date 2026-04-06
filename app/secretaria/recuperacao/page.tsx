@@ -1,3 +1,4 @@
+// app/secretaria/recuperacao/page.tsx
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -10,7 +11,7 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Clock, BookMarked, FolderOpen,
   Search, SlidersHorizontal, Download, ExternalLink,
-  Paperclip, Filter,
+  Paperclip, Filter, Copy,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
@@ -201,6 +202,37 @@ export default function RecuperacaoSecretariaPage() {
 
   function updateCompLocally(id: string, patch: Partial<ComprovanteBooking>) {
     setComprovantes(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
+  }
+
+  // ── Copiar slot — pré-preenche o formulário ──────────────────────────────
+  function handleCopySlot(slot: RecoverySchedule) {
+    // Extrai só a parte YYYY-MM-DD (o date vem como ISO string do Prisma)
+    const dateStr = slot.date.split('T')[0]
+    const subject = subjects.find(s => s.name === slot.subjectName && s.grade === slot.grade)
+
+    if (selGrade === slot.grade) {
+      // Mesma série: useEffect não vai resetar, pode setar direto
+      if (subject) setSelSubject(subject.id)
+      setSelPeriod((slot.period as 'meio' | 'final') || '')
+      setExamDate(dateStr)
+      setStartTime(slot.startTime)
+      setEndTime(slot.endTime)
+    } else {
+      // Série diferente: useEffect vai rodar e limpar selSubject/selPeriod
+      // — usamos setTimeout para sobrescrever depois do reset
+      setSelGrade(slot.grade)
+      setTimeout(() => {
+        if (subject) setSelSubject(subject.id)
+        setSelPeriod((slot.period as 'meio' | 'final') || '')
+        setExamDate(dateStr)
+        setStartTime(slot.startTime)
+        setEndTime(slot.endTime)
+      }, 80)
+    }
+
+    setError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    toast.info('Slot copiado! Ajuste os campos e salve.')
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -557,10 +589,20 @@ export default function RecuperacaoSecretariaPage() {
                                         {periodLabel && <span style={{ fontSize: 11, color: '#6b8f72' }}>{periodLabel}</span>}
                                       </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <span style={{ fontSize: 12, color: '#23A455', background: 'white', borderRadius: 999, padding: '3px 10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #bbf7d0' }}>
                                         <Users2 style={{ width: 11, height: 11 }} />{slot.bookings.length}
                                       </span>
+                                      {/* ── Botão Copiar Slot ── */}
+                                      <button
+                                        onClick={() => handleCopySlot(slot)}
+                                        title="Copiar disciplina e horário para o formulário"
+                                        style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#4054B2' }}
+                                        onMouseEnter={e => e.currentTarget.style.background = '#eef1fb'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                      >
+                                        <Copy style={{ width: 14, height: 14 }} />
+                                      </button>
                                       <button onClick={() => handleDeleteSlot(slot.id)} style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444' }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -659,7 +701,7 @@ export default function RecuperacaoSecretariaPage() {
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#c2410c' }}>Chave PIX para recuperação normal: {PIX_KEY}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#92400e' }}>Favorecido: {PIX_NAME} · R$ 30,00</p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#92400e' }}>Favorecido: {PIX_NAME} · R$ 30,00 por disciplina</p>
               </div>
             </div>
 
