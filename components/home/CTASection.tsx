@@ -143,7 +143,7 @@ export default function CTASection() {
               </div>
               <div style={{ textAlign: isMobile ? 'left' : 'center', flex: 1 }}>
                 <p style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 15, color: 'white', margin: 0, marginBottom: 3 }}>Recuperação</p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Aulas de reforço</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Prova de recuperação</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#faa54a', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                 {!isMobile && 'Acessar'} <ArrowRight style={{ width: 14, height: 14 }} />

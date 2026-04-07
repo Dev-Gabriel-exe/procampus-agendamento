@@ -45,15 +45,15 @@ const flows = {
     ],
   },
   recuperacao: {
-    label: 'Recuperação e Reforço',
+    label: 'Prova de Recuperação',
     labelShort: 'Recuperação',
     icon: BookMarked,
     color: '#f97316',
     steps: [
-      { n: '01', icon: GraduationCap, color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Série e Disciplina', desc: 'Selecione a série do seu filho e a disciplina em que precisa de reforço.' },
-      { n: '02', icon: Clock,         color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Escolha o Horário',  desc: 'Veja os horários disponíveis com professores especializados em reforço.' },
-      { n: '03', icon: User,          color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Seus Dados',         desc: 'Informe seu nome, e-mail, telefone e dificuldades específicas do aluno.' },
-      { n: '04', icon: CheckCircle,   color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', title: 'Agendado!',         desc: 'Confirmação por e-mail com cronograma personalizado de aulas.' },
+      { n: '01', icon: GraduationCap, color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Série e Disciplina', desc: 'Selecione a série do seu filho e a disciplina da prova de recuperação.' },
+      { n: '02', icon: Clock,         color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Escolha o Horário',  desc: 'Veja os horários disponíveis agendados pela secretaria para a prova.' },
+      { n: '03', icon: User,          color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Seus Dados',         desc: 'Informe seu nome, e-mail, WhatsApp e do aluno que fará a prova.' },
+      { n: '04', icon: CheckCircle,   color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', title: 'Inscrito!',         desc: 'Confirmação por e-mail com data, horário e instruções para o dia da prova.' },
     ],
   },
 }
