@@ -164,6 +164,10 @@ export default function RecuperacaoSecretariaPage() {
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
 
+  // Lote de seleção: { [grade]: disciplinaId[] }
+  const [loteSelecao,  setLoteSelecao]  = useState<Record<string, string[]>>({})
+  const [lotePeriodos, setLotePeriodos] = useState<Record<string, 'meio' | 'final'>>({})  const totalLote = Object.values(loteSelecao).reduce((s, ids) => s + ids.length, 0)
+
   const isFund1Grade      = GRADES_FUND1.includes(selGrade)
   const effectiveType     = isFund1Grade ? 'normal' : 'paralela'
   const availableSubjects = subjects.filter(s => s.grade === selGrade)
@@ -216,23 +220,47 @@ export default function RecuperacaoSecretariaPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); setError('')
-    if (!selSubject || !selGrade || !examDate || !startTime || !endTime) { setError('Preencha todos os campos.'); return }
+    if (!examDate || !startTime || !endTime) { setError('Preencha a data e os horários.'); return }
     if (startTime >= endTime) { setError('Horário de fim deve ser após o início.'); return }
-    if (effectiveType === 'normal' && !selPeriod) { setError('Selecione o período.'); return }
-    const subject = subjects.find(s => s.id === selSubject)
-    if (!subject) { setError('Disciplina inválida.'); return }
+    if (totalLote === 0) { setError('Selecione pelo menos uma disciplina.'); return }
+
+    // Valida períodos do Fund1
+    for (const [grade, ids] of Object.entries(loteSelecao)) {
+      if (ids.length > 0 && GRADES_FUND1.includes(grade) && !lotePeriodos[grade]) {
+        setError(`Selecione o período (Meio ou Final) para: ${grade}`); return
+      }
+    }
+
     setSaving(true)
-    try {
-      const res = await fetch('/api/recuperacao', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectId: selSubject, subjectName: subject.name, grade: selGrade, type: effectiveType, period: effectiveType === 'normal' ? selPeriod : null, date: examDate, startTime, endTime }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Erro ao criar'); return }
-      setExamDate(''); setStartTime(''); setEndTime(''); setSelPeriod('')
-      toast.success('Slot criado!'); loadData()
-    } catch { setError('Erro de conexão') }
-    finally { setSaving(false) }
+    let criados = 0; let erros = 0
+
+    for (const [grade, discIds] of Object.entries(loteSelecao)) {
+      if (discIds.length === 0) continue
+      const isF1    = GRADES_FUND1.includes(grade)
+      const type    = isF1 ? 'normal' : 'paralela'
+      const period  = isF1 ? lotePeriodos[grade] : null
+
+      for (const discId of discIds) {
+        const subject = subjects.find(s => s.id === discId)
+        if (!subject) continue
+        try {
+          const res = await fetch('/api/recuperacao', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subjectId: discId, subjectName: subject.name, grade, type, period, date: examDate, startTime, endTime }),
+          })
+          if (res.ok) criados++; else erros++
+        } catch { erros++ }
+      }
+    }
+
+    setSaving(false)
+    if (criados > 0) {
+      toast.success(`✅ ${criados} slot${criados !== 1 ? 's' : ''} criado${criados !== 1 ? 's' : ''}!${erros > 0 ? ` (${erros} já existiam)` : ''}`)
+      setLoteSelecao({}); setLotePeriodos({}); setExamDate(''); setStartTime(''); setEndTime('')
+      loadData()
+    } else {
+      setError(`Erro: ${erros} slot${erros !== 1 ? 's' : ''} já existem ou falharam.`)
+    }
   }
 
   async function handleDeleteSlot(id: string) {
@@ -425,58 +453,18 @@ export default function RecuperacaoSecretariaPage() {
         {activeTab === 'slots' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,2fr)', gap: 24, alignItems: 'start' }}>
 
-            {/* Formulário */}
+            {/* Formulário — criação em lote */}
             <div style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.15)', padding: 24, boxShadow: '0 2px 16px rgba(0,0,0,0.04)', position: 'sticky', top: 76 }}>
               <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 700, fontSize: 16, color: '#0a1a0d', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Plus style={{ width: 16, height: 16, color: '#23A455' }} />Novo Slot de Recuperação
               </h3>
-              <p style={{ fontSize: 12, color: '#6b8f72', marginBottom: 18 }}>Fund1 → Normal (paga) · Fund2 → Paralela (gratuita)</p>
+              <p style={{ fontSize: 12, color: '#6b8f72', marginBottom: 18 }}>
+                Escolha a data e selecione várias séries e disciplinas de uma vez.
+              </p>
 
               <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={labelStyle}>Série</label>
-                  <div style={{ position: 'relative' }}>
-                    <select value={selGrade} onChange={e => setSelGrade(e.target.value)} style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: 'pointer', color: selGrade ? '#0a1a0d' : '#9ca3af' }}>
-                      <option value="">Selecione a série</option>
-                      {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                    <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#6b8f72', pointerEvents: 'none' }} />
-                  </div>
-                </div>
 
-                {selGrade && (
-                  <div style={{ padding: '10px 14px', borderRadius: 10, background: isFund1Grade ? '#fff7ed' : '#f0fdf4', border: `1px solid ${isFund1Grade ? '#fed7aa' : '#bbf7d0'}` }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: isFund1Grade ? '#c2410c' : '#15803d' }}>
-                      {isFund1Grade ? '💰 Recuperação Normal — R$ 30,00' : '✅ Recuperação Paralela — Gratuita'}
-                    </p>
-                  </div>
-                )}
-
-                {selGrade && isFund1Grade && (
-                  <div>
-                    <label style={labelStyle}>Período</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {[{ v: 'meio', l: 'Meio do Ano' }, { v: 'final', l: 'Final do Ano' }].map(p => (
-                        <button key={p.v} type="button" onClick={() => setSelPeriod(p.v as 'meio' | 'final')}
-                          style={{ flex: 1, padding: '10px 8px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${selPeriod === p.v ? '#23A455' : 'rgba(97,206,112,0.2)'}`, background: selPeriod === p.v ? '#e8f9eb' : 'white', color: selPeriod === p.v ? '#23A455' : '#6b8f72' }}>
-                          {p.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label style={labelStyle}>Disciplina</label>
-                  <div style={{ position: 'relative' }}>
-                    <select value={selSubject} onChange={e => setSelSubject(e.target.value)} disabled={!selGrade} style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: selGrade ? 'pointer' : 'not-allowed', color: selSubject ? '#0a1a0d' : '#9ca3af', opacity: selGrade ? 1 : 0.5 }}>
-                      <option value="">Selecione a disciplina</option>
-                      {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                    <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#6b8f72', pointerEvents: 'none' }} />
-                  </div>
-                </div>
-
+                {/* Data */}
                 <div>
                   <label style={labelStyle}>Data da prova</label>
                   <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} style={inputStyle}
@@ -484,6 +472,7 @@ export default function RecuperacaoSecretariaPage() {
                     onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }} />
                 </div>
 
+                {/* Horários */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {[['Início', startTime, setStartTime], ['Fim', endTime, setEndTime]].map(([lbl, val, setter]) => (
                     <div key={lbl as string}>
@@ -495,6 +484,94 @@ export default function RecuperacaoSecretariaPage() {
                   ))}
                 </div>
 
+                {/* Séries + Disciplinas em lote */}
+                <div>
+                  <label style={labelStyle}>Séries e Disciplinas</label>
+                  <div style={{ border: '1.5px solid rgba(97,206,112,0.2)', borderRadius: 12, overflow: 'hidden', maxHeight: 340, overflowY: 'auto' }}>
+                    {grades.map(grade => {
+                      const isF1       = GRADES_FUND1.includes(grade)
+                      const discsDaGrade = subjects.filter(s => s.grade === grade)
+                      const selecionadas = loteSelecao[grade] ?? []
+                      const todas        = selecionadas.length === discsDaGrade.length && discsDaGrade.length > 0
+
+                      return (
+                        <div key={grade} style={{ borderBottom: '1px solid rgba(97,206,112,0.1)' }}>
+                          {/* Cabeçalho da série */}
+                          <div style={{ padding: '10px 14px', background: isF1 ? '#fffbeb' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{grade}</span>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: isF1 ? '#c2410c' : '#15803d', background: isF1 ? '#fef3c7' : '#dcfce7', padding: '1px 7px', borderRadius: 4 }}>
+                                {isF1 ? '💰 Normal' : '✅ Paralela'}
+                              </span>
+                            </div>
+                            {discsDaGrade.length > 0 && (
+                              <button type="button"
+                                onClick={() => setLoteSelecao(prev => ({
+                                  ...prev,
+                                  [grade]: todas ? [] : discsDaGrade.map(d => d.id),
+                                }))}
+                                style={{ fontSize: 11, fontWeight: 600, color: '#23A455', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+                                {todas ? 'Desmarcar todas' : 'Marcar todas'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Disciplinas da série */}
+                          {discsDaGrade.length === 0 ? (
+                            <p style={{ fontSize: 12, color: '#9ca3af', padding: '8px 14px', margin: 0 }}>Nenhuma disciplina cadastrada</p>
+                          ) : (
+                            <div style={{ padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {discsDaGrade.map(d => {
+                                const sel = selecionadas.includes(d.id)
+                                return (
+                                  <button key={d.id} type="button"
+                                    onClick={() => setLoteSelecao(prev => {
+                                      const cur = prev[grade] ?? []
+                                      return { ...prev, [grade]: sel ? cur.filter(x => x !== d.id) : [...cur, d.id] }
+                                    })}
+                                    style={{ padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: sel ? '#23A455' : 'white', color: sel ? 'white' : '#6b7280', border: sel ? '1.5px solid #23A455' : '1.5px solid #e5e7eb', boxShadow: sel ? '0 2px 8px rgba(35,164,85,0.25)' : 'none' }}>
+                                    {d.name}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          {/* Período — só para Fund1 se tiver algo selecionado */}
+                          {isF1 && selecionadas.length > 0 && (
+                            <div style={{ padding: '0 14px 10px', display: 'flex', gap: 6 }}>
+                              {[{ v: 'meio', l: '📅 Meio do Ano' }, { v: 'final', l: '📅 Final do Ano' }].map(p => (
+                                <button key={p.v} type="button"
+                                  onClick={() => setLotePeriodos(prev => ({ ...prev, [grade]: p.v as 'meio' | 'final' }))}
+                                  style={{ flex: 1, padding: '7px 8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${lotePeriodos[grade] === p.v ? '#f59e0b' : 'rgba(97,206,112,0.2)'}`, background: lotePeriodos[grade] === p.v ? '#fef3c7' : 'white', color: lotePeriodos[grade] === p.v ? '#c2410c' : '#6b8f72' }}>
+                                  {p.l}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Resumo do lote */}
+                  {totalLote > 0 && (
+                    <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#15803d' }}>
+                        {totalLote} slot{totalLote !== 1 ? 's' : ''} serão criados
+                      </p>
+                      <p style={{ margin: '3px 0 0', fontSize: 11, color: '#6b8f72' }}>
+                        {Object.entries(loteSelecao)
+                          .filter(([, ids]) => ids.length > 0)
+                          .map(([grade, ids]) => {
+                            const nomes = subjects.filter(s => ids.includes(s.id)).map(s => s.name)
+                            return `${grade}: ${nomes.join(', ')}`
+                          }).join(' · ')}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {error && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef2f2', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: 13 }}>
                     <AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }} />{error}
@@ -502,8 +579,8 @@ export default function RecuperacaoSecretariaPage() {
                   </div>
                 )}
 
-                <button type="submit" disabled={saving} style={{ padding: '12px', borderRadius: 10, border: 'none', background: saving ? 'rgba(35,164,85,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)', color: saving ? 'rgba(255,255,255,0.5)' : 'white', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: '"Roboto Slab",serif', boxShadow: saving ? 'none' : '0 4px 16px rgba(35,164,85,0.3)' }}>
-                  {saving ? 'Salvando...' : <><Plus style={{ width: 15, height: 15 }} />Adicionar Slot</>}
+                <button type="submit" disabled={saving || totalLote === 0} style={{ padding: '12px', borderRadius: 10, border: 'none', background: saving || totalLote === 0 ? 'rgba(35,164,85,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)', color: saving || totalLote === 0 ? 'rgba(255,255,255,0.5)' : 'white', fontSize: 14, fontWeight: 700, cursor: saving || totalLote === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: '"Roboto Slab",serif', boxShadow: saving || totalLote === 0 ? 'none' : '0 4px 16px rgba(35,164,85,0.3)' }}>
+                  {saving ? 'Criando slots...' : <><Plus style={{ width: 15, height: 15 }} />{totalLote > 0 ? `Criar ${totalLote} slot${totalLote !== 1 ? 's' : ''}` : 'Adicionar Slots'}</> }
                 </button>
               </form>
             </div>
