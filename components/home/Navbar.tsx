@@ -61,10 +61,10 @@ export default function Navbar() {
               </motion.button>
             </Link>
 
-            {/* Recuperação — verde escuro */}
+            {/* Recuperação — laranja */}
             <Link href="/recuperacao" style={{ textDecoration: 'none' }}>
-              <motion.button whileHover={{ scale: 1.04, boxShadow: '0 8px 30px rgba(35,164,85,0.55)' }} whileTap={{ scale: 0.97 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#166534,#23A455)', color: 'white', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 20px rgba(35,164,85,0.25)', whiteSpace: 'nowrap', fontFamily: '"Roboto Slab", serif' }}>
+              <motion.button whileHover={{ scale: 1.04, boxShadow: '0 8px 30px rgba(249,115,22,0.55)' }} whileTap={{ scale: 0.97 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#d97706,#f97316)', color: 'white', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 20px rgba(249,115,22,0.3)', whiteSpace: 'nowrap', fontFamily: '"Roboto Slab", serif' }}>
                 <BookMarked style={{ width: 14, height: 14 }} />Recuperação
               </motion.button>
             </Link>
@@ -113,7 +113,7 @@ export default function Navbar() {
             </Link>
 
             <Link href="/recuperacao" style={{ textDecoration: 'none' }} onClick={() => setMenuOpen(false)}>
-              <button style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'linear-gradient(135deg,#166534,#23A455)', color: 'white', border: 'none', borderRadius: 14, padding: '15px 24px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: '"Roboto Slab", serif' }}>
+              <button style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'linear-gradient(135deg,#d97706,#f97316)', color: 'white', border: 'none', borderRadius: 14, padding: '15px 24px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: '"Roboto Slab", serif' }}>
                 <BookMarked style={{ width: 18, height: 18 }} />Recuperação
               </button>
             </Link>
