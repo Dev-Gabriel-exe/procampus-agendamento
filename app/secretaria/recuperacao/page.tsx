@@ -1,4 +1,3 @@
-// app/secretaria/recuperacao/page.tsx
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -77,7 +76,6 @@ function formatDateTime(date: string) {
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })
 }
 
-// ── Modal de reprovação ──────────────────────────────────────────────────────
 function RejectModal({ studentName, onConfirm, onCancel }: { studentName: string; onConfirm: (r: string) => void; onCancel: () => void }) {
   const [reason, setReason] = useState('')
   return (
@@ -104,7 +102,6 @@ function RejectModal({ studentName, onConfirm, onCancel }: { studentName: string
   )
 }
 
-// ── Modal de confirmação de deleção ──────────────────────────────────────────
 function DeleteModal({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -114,7 +111,7 @@ function DeleteModal({ name, onConfirm, onCancel }: { name: string; onConfirm: (
         <div style={{ width: 48, height: 48, borderRadius: 14, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
           <Trash2 style={{ width: 22, height: 22, color: '#ef4444' }} />
         </div>
-        <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 17, color: '#0a1a0d', margin: '0 0 8px' }}>Apagar comprovante?</h3>
+        <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 17, color: '#0a1a0d', margin: '0 0 8px' }}>Apagar registro?</h3>
         <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 22px', lineHeight: 1.5 }}>
           O registro de <strong style={{ color: '#374151' }}>{name}</strong> será removido permanentemente.
         </p>
@@ -129,7 +126,6 @@ function DeleteModal({ name, onConfirm, onCancel }: { name: string; onConfirm: (
   )
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 export default function RecuperacaoSecretariaPage() {
   const { data: session } = useSession()
   const role   = (session?.user as any)?.role ?? 'geral'
@@ -137,7 +133,6 @@ export default function RecuperacaoSecretariaPage() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('slots')
 
-  // Slots
   const [schedules,     setSchedules]     = useState<RecoverySchedule[]>([])
   const [subjects,      setSubjects]      = useState<Subject[]>([])
   const [loading,       setLoading]       = useState(true)
@@ -146,18 +141,20 @@ export default function RecuperacaoSecretariaPage() {
   const [rejectTarget,  setRejectTarget]  = useState<{ id: string; studentName: string } | null>(null)
   const [filterPending, setFilterPending] = useState(false)
 
-  // Comprovantes
-  const [comprovantes,        setComprovantes]        = useState<ComprovanteBooking[]>([])
-  const [loadingComp,         setLoadingComp]         = useState(false)
-  const [expandedComp,        setExpandedComp]        = useState<string | null>(null)
-  const [deleteTarget,        setDeleteTarget]        = useState<{ id: string; name: string } | null>(null)
-  const [deletingComp,        setDeletingComp]        = useState<string | null>(null)
-  const [compSearch,          setCompSearch]          = useState('')
-  const [compFilter,          setCompFilter]          = useState<CompFilter>('all')
-  const [actingComp,          setActingComp]          = useState<string | null>(null)
-  const [rejectTargetComp,    setRejectTargetComp]    = useState<{ id: string; studentName: string } | null>(null)
+  // ✅ DELETE booking dentro do slot
+  const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
+  const [deletingBooking,     setDeletingBooking]     = useState<string | null>(null)
 
-  // Form
+  const [comprovantes,     setComprovantes]     = useState<ComprovanteBooking[]>([])
+  const [loadingComp,      setLoadingComp]      = useState(false)
+  const [expandedComp,     setExpandedComp]     = useState<string | null>(null)
+  const [deleteTarget,     setDeleteTarget]     = useState<{ id: string; name: string } | null>(null)
+  const [deletingComp,     setDeletingComp]     = useState<string | null>(null)
+  const [compSearch,       setCompSearch]       = useState('')
+  const [compFilter,       setCompFilter]       = useState<CompFilter>('all')
+  const [actingComp,       setActingComp]       = useState<string | null>(null)
+  const [rejectTargetComp, setRejectTargetComp] = useState<{ id: string; studentName: string } | null>(null)
+
   const [selGrade,   setSelGrade]   = useState('')
   const [selSubject, setSelSubject] = useState('')
   const [selPeriod,  setSelPeriod]  = useState<'meio' | 'final' | ''>('')
@@ -167,9 +164,9 @@ export default function RecuperacaoSecretariaPage() {
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
 
-  const isFund1Grade        = GRADES_FUND1.includes(selGrade)
-  const effectiveType       = isFund1Grade ? 'normal' : 'paralela'
-  const availableSubjects   = subjects.filter(s => s.grade === selGrade)
+  const isFund1Grade      = GRADES_FUND1.includes(selGrade)
+  const effectiveType     = isFund1Grade ? 'normal' : 'paralela'
+  const availableSubjects = subjects.filter(s => s.grade === selGrade)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -199,40 +196,22 @@ export default function RecuperacaoSecretariaPage() {
   function updateBookingLocally(id: string, patch: Partial<RecoveryBooking>) {
     setSchedules(prev => prev.map(s => ({ ...s, bookings: s.bookings.map(b => b.id === id ? { ...b, ...patch } : b) })))
   }
-
+  function removeBookingLocally(id: string) {
+    setSchedules(prev => prev.map(s => ({ ...s, bookings: s.bookings.filter(b => b.id !== id) })))
+  }
   function updateCompLocally(id: string, patch: Partial<ComprovanteBooking>) {
     setComprovantes(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
   }
 
-  // ── Copiar slot — pré-preenche o formulário ──────────────────────────────
+  // ✅ CORRIGIDO: copia só data e horário, mantém série/disciplina/período intactos
   function handleCopySlot(slot: RecoverySchedule) {
-    // Extrai só a parte YYYY-MM-DD (o date vem como ISO string do Prisma)
     const dateStr = slot.date.split('T')[0]
-    const subject = subjects.find(s => s.name === slot.subjectName && s.grade === slot.grade)
-
-    if (selGrade === slot.grade) {
-      // Mesma série: useEffect não vai resetar, pode setar direto
-      if (subject) setSelSubject(subject.id)
-      setSelPeriod((slot.period as 'meio' | 'final') || '')
-      setExamDate(dateStr)
-      setStartTime(slot.startTime)
-      setEndTime(slot.endTime)
-    } else {
-      // Série diferente: useEffect vai rodar e limpar selSubject/selPeriod
-      // — usamos setTimeout para sobrescrever depois do reset
-      setSelGrade(slot.grade)
-      setTimeout(() => {
-        if (subject) setSelSubject(subject.id)
-        setSelPeriod((slot.period as 'meio' | 'final') || '')
-        setExamDate(dateStr)
-        setStartTime(slot.startTime)
-        setEndTime(slot.endTime)
-      }, 80)
-    }
-
+    setExamDate(dateStr)
+    setStartTime(slot.startTime)
+    setEndTime(slot.endTime)
     setError('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
-    toast.info('Slot copiado! Ajuste os campos e salve.')
+    toast.info('📋 Data e horário copiados! Ajuste os outros campos se necessário.')
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -257,10 +236,24 @@ export default function RecuperacaoSecretariaPage() {
   }
 
   async function handleDeleteSlot(id: string) {
-    if (!confirm('Remover este slot?')) return
+    if (!confirm('Remover este slot? Todas as inscrições vinculadas também serão removidas.')) return
     const res = await fetch(`/api/recuperacao/${id}`, { method: 'DELETE' })
     if (!res.ok) { toast.error('Falha ao remover.'); return }
     toast.success('Slot removido.'); loadData()
+  }
+
+  // ✅ NOVO: delete de inscrição individual do pai (dentro do slot)
+  async function confirmDeleteBooking() {
+    if (!deleteBookingTarget) return
+    const { id, name } = deleteBookingTarget; setDeleteBookingTarget(null)
+    setDeletingBooking(id)
+    removeBookingLocally(id)
+    try {
+      const res = await fetch(`/api/recuperacao/booking/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success(`Inscrição de ${name} removida.`)
+    } catch { toast.error('Falha ao remover inscrição.'); loadData() }
+    finally { setDeletingBooking(null) }
   }
 
   async function handleApprove(id: string) {
@@ -288,7 +281,6 @@ export default function RecuperacaoSecretariaPage() {
     finally { setActing(null) }
   }
 
-  // Comprovantes actions
   async function handleApproveComp(id: string) {
     setActingComp(id); updateCompLocally(id, { status: 'APPROVED' })
     try {
@@ -327,7 +319,6 @@ export default function RecuperacaoSecretariaPage() {
     finally { setDeletingComp(null) }
   }
 
-  // Agrupamentos
   const grouped = schedules.reduce((acc, s) => {
     const key = `${s.type}|${s.grade}|${s.subjectName}`
     if (!acc[key]) acc[key] = { type: s.type, grade: s.grade, subjectName: s.subjectName, slots: [] }
@@ -361,9 +352,11 @@ export default function RecuperacaoSecretariaPage() {
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
       <Toaster position="top-right" richColors closeButton />
       <AnimatePresence>
-        {rejectTarget     && <RejectModal studentName={rejectTarget.studentName}     onConfirm={confirmReject}     onCancel={() => setRejectTarget(null)} />}
-        {rejectTargetComp && <RejectModal studentName={rejectTargetComp.studentName} onConfirm={confirmRejectComp} onCancel={() => setRejectTargetComp(null)} />}
-        {deleteTarget     && <DeleteModal name={deleteTarget.name} onConfirm={confirmDeleteComp} onCancel={() => setDeleteTarget(null)} />}
+        {rejectTarget        && <RejectModal studentName={rejectTarget.studentName}        onConfirm={confirmReject}     onCancel={() => setRejectTarget(null)} />}
+        {rejectTargetComp    && <RejectModal studentName={rejectTargetComp.studentName}    onConfirm={confirmRejectComp} onCancel={() => setRejectTargetComp(null)} />}
+        {deleteTarget        && <DeleteModal name={deleteTarget.name}        onConfirm={confirmDeleteComp}   onCancel={() => setDeleteTarget(null)} />}
+        {/* ✅ Modal para deletar inscrição dentro do slot */}
+        {deleteBookingTarget && <DeleteModal name={deleteBookingTarget.name} onConfirm={confirmDeleteBooking} onCancel={() => setDeleteBookingTarget(null)} />}
       </AnimatePresence>
 
       <header style={{ background: 'linear-gradient(135deg,#0D2818 0%,#1a7a2e 100%)', borderBottom: '1px solid rgba(97,206,112,0.15)', position: 'sticky', top: 0, zIndex: 50 }}>
@@ -400,21 +393,15 @@ export default function RecuperacaoSecretariaPage() {
           <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d', margin: 0 }}>Recuperação</h2>
           <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Gerencie slots de recuperação normal (Fund1) e paralela (Fund2)</p>
 
-          {/* Tabs */}
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {([
               { key: 'slots',        label: 'Slots & Inscrições', icon: ClipboardList },
-              { key: 'comprovantes', label: 'Comprovantes PIX',   icon: FolderOpen,
-                badge: pendingCompCount || null },
+              { key: 'comprovantes', label: 'Comprovantes PIX',   icon: FolderOpen, badge: pendingCompCount || null },
             ] as const).map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key as ActiveTab)}
                 style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, background: activeTab === tab.key ? '#23A455' : 'white', color: activeTab === tab.key ? 'white' : '#6b8f72', boxShadow: activeTab === tab.key ? '0 4px 16px rgba(35,164,85,0.3)' : '0 1px 4px rgba(0,0,0,0.06)', border: activeTab === tab.key ? 'none' : '1px solid rgba(97,206,112,0.2)', transition: 'all 0.15s' }}>
                 <tab.icon style={{ width: 14, height: 14 }} />{tab.label}
-                {(tab as any).badge ? (
-                  <span style={{ background: '#f97316', color: 'white', borderRadius: 999, fontSize: 10, fontWeight: 800, padding: '1px 6px', marginLeft: 2 }}>
-                    {(tab as any).badge}
-                  </span>
-                ) : null}
+                {(tab as any).badge ? <span style={{ background: '#f97316', color: 'white', borderRadius: 999, fontSize: 10, fontWeight: 800, padding: '1px 6px', marginLeft: 2 }}>{(tab as any).badge}</span> : null}
               </button>
             ))}
           </div>
@@ -581,6 +568,7 @@ export default function RecuperacaoSecretariaPage() {
                               const periodLabel = slot.period === 'meio' ? '📅 Meio do Ano' : slot.period === 'final' ? '📅 Final do Ano' : ''
                               return (
                                 <div key={slot.id} style={{ background: 'white', borderRadius: 12, border: `1px solid ${accentBorder}`, overflow: 'hidden' }}>
+                                  {/* Cabeçalho do slot */}
                                   <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: accentBg }}>
                                     <div>
                                       <p style={{ fontWeight: 700, fontSize: 14, color: '#0a1a0d', margin: 0, textTransform: 'capitalize' }}>{formatDate(slot.date)}</p>
@@ -593,17 +581,15 @@ export default function RecuperacaoSecretariaPage() {
                                       <span style={{ fontSize: 12, color: '#23A455', background: 'white', borderRadius: 999, padding: '3px 10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #bbf7d0' }}>
                                         <Users2 style={{ width: 11, height: 11 }} />{slot.bookings.length}
                                       </span>
-                                      {/* ── Botão Copiar Slot ── */}
-                                      <button
-                                        onClick={() => handleCopySlot(slot)}
-                                        title="Copiar disciplina e horário para o formulário"
+                                      {/* ✅ CORRIGIDO: copia só data e horário */}
+                                      <button onClick={() => handleCopySlot(slot)} title="Copiar data e horário para o formulário"
                                         style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#4054B2' }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#eef1fb'}
-                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                      >
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         <Copy style={{ width: 14, height: 14 }} />
                                       </button>
-                                      <button onClick={() => handleDeleteSlot(slot.id)} style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444' }}
+                                      <button onClick={() => handleDeleteSlot(slot.id)} title="Remover slot"
+                                        style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444' }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         <Trash2 style={{ width: 14, height: 14 }} />
@@ -611,21 +597,36 @@ export default function RecuperacaoSecretariaPage() {
                                     </div>
                                   </div>
 
+                                  {/* Inscrições */}
                                   {vis.length > 0 && (
                                     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                                       {vis.map((b, i) => {
                                         const isBusy       = acting === b.id
+                                        const isDelBook    = deletingBooking === b.id
                                         const subjectsList = b.subjects ? b.subjects.split(',').map(x => x.trim()).filter(Boolean) : []
                                         return (
-                                          <div key={b.id} style={{ borderRadius: 10, border: '1px solid #e5e7eb', background: '#fafafa', overflow: 'hidden' }}>
+                                          <div key={b.id} style={{ borderRadius: 10, border: '1px solid #e5e7eb', background: isDelBook ? '#fef2f2' : '#fafafa', overflow: 'hidden', opacity: isDelBook ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                                             <div style={{ padding: '10px 14px' }}>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                                <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{b.studentName}</span>
-                                                <span style={{ fontSize: 10, color: '#9ca3af' }}>#{i + 1}</span>
-                                                <StatusBadge status={b.status as BookingStatus} />
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+                                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{b.studentName}</span>
+                                                  <span style={{ fontSize: 10, color: '#9ca3af' }}>#{i + 1}</span>
+                                                  <StatusBadge status={b.status as BookingStatus} />
+                                                </div>
+                                                {/* ✅ NOVO: botão de deletar inscrição do pai */}
+                                                <button
+                                                  onClick={() => setDeleteBookingTarget({ id: b.id, name: b.studentName })}
+                                                  disabled={isBusy || isDelBook}
+                                                  title="Remover esta inscrição"
+                                                  style={{ padding: 5, border: 'none', background: 'transparent', cursor: isBusy || isDelBook ? 'not-allowed' : 'pointer', borderRadius: 7, color: '#ef4444', flexShrink: 0 }}
+                                                  onMouseEnter={e => { if (!isBusy && !isDelBook) e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
+                                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                  <Trash2 style={{ width: 13, height: 13 }} />
+                                                </button>
                                               </div>
                                               <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
-                                                Resp: <strong style={{ color: '#374151' }}>{b.parentName}</strong> · {b.parentEmail}
+                                                Resp: <strong style={{ color: '#374151' }}>{b.parentName}</strong> · {b.parentEmail} · {b.parentPhone}
                                               </p>
                                               {subjectsList.length > 0 && (
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
@@ -634,7 +635,6 @@ export default function RecuperacaoSecretariaPage() {
                                                   ))}
                                                 </div>
                                               )}
-                                              {/* PIX info para recuperação normal */}
                                               {slot.type === 'normal' && (
                                                 <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: '#fff7ed', border: '1px solid #fed7aa' }}>
                                                   <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#c2410c' }}>💰 Taxa de R$ 30,00 — PIX: {PIX_KEY}</p>
@@ -694,7 +694,6 @@ export default function RecuperacaoSecretariaPage() {
         {/* ════════ ABA: COMPROVANTES PIX ════════ */}
         {activeTab === 'comprovantes' && (
           <div>
-            {/* Info PIX */}
             <div style={{ background: 'white', borderRadius: 14, border: '1px solid #fed7aa', padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <span style={{ fontSize: 20 }}>💰</span>
@@ -705,7 +704,6 @@ export default function RecuperacaoSecretariaPage() {
               </div>
             </div>
 
-            {/* Busca e filtros */}
             {!loadingComp && comprovantes.length > 0 && (
               <div style={{ background: 'white', borderRadius: 14, border: '1px solid rgba(97,206,112,0.15)', padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
                 <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
@@ -761,8 +759,6 @@ export default function RecuperacaoSecretariaPage() {
                   return (
                     <motion.div key={b.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: isDeleting ? 0.4 : 1, y: 0 }} layout
                       style={{ background: 'white', borderRadius: 14, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.04)', transition: 'opacity 0.2s' }}>
-
-                      {/* Linha principal */}
                       <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
                         <div style={{ width: 40, height: 40, borderRadius: 12, background: isNormal ? '#fff7ed' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <span style={{ fontSize: 18 }}>{isNormal ? '💰' : '✅'}</span>
@@ -771,14 +767,8 @@ export default function RecuperacaoSecretariaPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 14, fontWeight: 700, color: '#0a1a0d' }}>{b.parentName}</span>
                             <StatusBadge status={b.status} />
-                            {isNormal && (
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: '#fff7ed', padding: '2px 8px', borderRadius: 5 }}>💰 Normal</span>
-                            )}
-                            {b.fileUrl && (
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#4054B2', background: '#eef1fb', padding: '2px 8px', borderRadius: 5, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                <Paperclip style={{ width: 10, height: 10 }} />Comprovante
-                              </span>
-                            )}
+                            {isNormal && <span style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: '#fff7ed', padding: '2px 8px', borderRadius: 5 }}>💰 Normal</span>}
+                            {b.fileUrl && <span style={{ fontSize: 11, fontWeight: 600, color: '#4054B2', background: '#eef1fb', padding: '2px 8px', borderRadius: 5, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Paperclip style={{ width: 10, height: 10 }} />Comprovante</span>}
                           </div>
                           <p style={{ fontSize: 12, color: '#6b7280', margin: '3px 0 0' }}>
                             Aluno: <strong style={{ color: '#374151' }}>{b.studentName}</strong>
@@ -807,14 +797,11 @@ export default function RecuperacaoSecretariaPage() {
                         </div>
                       </div>
 
-                      {/* Painel expandido */}
                       <AnimatePresence>
                         {isOpen && (
                           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
                             <div style={{ borderTop: '1px solid #f3f4f6', padding: '16px 18px', background: '#fafafa', display: 'flex', flexDirection: 'column', gap: 12 }}>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-
-                                {/* Coluna 1: info */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                   <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 14px' }}>
                                     <p style={{ fontSize: 11, fontWeight: 700, color: '#23A455', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Prova</p>
@@ -830,8 +817,6 @@ export default function RecuperacaoSecretariaPage() {
                                     <p style={{ fontSize: 11, color: '#9ca3af', margin: '4px 0 0' }}>Enviado: {formatDateTime(b.createdAt)}</p>
                                   </div>
                                 </div>
-
-                                {/* Coluna 2: PIX + comprovante */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                   {isNormal && (
                                     <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px' }}>
@@ -840,7 +825,6 @@ export default function RecuperacaoSecretariaPage() {
                                       <p style={{ fontSize: 12, color: '#92400e', margin: '3px 0 0' }}>{PIX_NAME}</p>
                                     </div>
                                   )}
-
                                   <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
                                     <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
                                       {isNormal ? '🧾 Comprovante PIX' : '📄 Comprovante'}
@@ -861,8 +845,6 @@ export default function RecuperacaoSecretariaPage() {
                                         <Paperclip style={{ width: 13, height: 13 }} />Nenhum arquivo enviado
                                       </p>
                                     )}
-
-                                    {/* Aprovar / Reprovar */}
                                     <div style={{ display: 'flex', gap: 8 }}>
                                       {b.status !== 'APPROVED' && (
                                         <button onClick={() => handleApproveComp(b.id)} disabled={isBusy}
