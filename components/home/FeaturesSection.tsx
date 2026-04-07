@@ -6,7 +6,7 @@
 
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
-import { CalendarDays, Clock, Mail, Smartphone, Shield, ClipboardList, FileCheck } from 'lucide-react'
+import { CalendarDays, Clock, Mail, Smartphone, Shield, ClipboardList, FileCheck, BookMarked } from 'lucide-react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 
@@ -36,6 +36,19 @@ const services = [
     accentColor: '#4054B2',
     borderColor: 'rgba(64,84,178,0.25)',
     glowColor: 'rgba(64,84,178,0.06)',
+  },
+  {
+    key: 'recuperacao',
+    href: '/recuperacao',
+    icon: BookMarked,
+    tag: 'Recuperação',
+    tagColor: '#f97316',
+    tagBg: '#fff7ed',
+    title: 'Aulas de Reforço',
+    desc: 'Agende aulas de recuperação e reforço para seu filho com professores disponíveis. Flexível, eficiente e pensado para melhorar o desempenho.',
+    accentColor: '#f97316',
+    borderColor: 'rgba(249,115,22,0.25)',
+    glowColor: 'rgba(249,115,22,0.06)',
   },
 ]
 

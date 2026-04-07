@@ -7,7 +7,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion, useInView } from 'framer-motion'
 import Link from 'next/link'
-import { CalendarDays, ArrowRight, ClipboardList } from 'lucide-react'
+import { CalendarDays, ArrowRight, ClipboardList, BookMarked } from 'lucide-react'
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(false)
@@ -131,10 +131,30 @@ export default function CTASection() {
             </motion.div>
           </Link>
 
+          {/* Recuperação */}
+          <Link href="/recuperacao" style={{ textDecoration: 'none', flex: 1 }}>
+            <motion.div
+              whileHover={{ scale: 1.03, y: -4, boxShadow: '0 28px 60px rgba(249,115,22,0.3)' }}
+              whileTap={{ scale: 0.97 }}
+              style={{ background: 'rgba(249,115,22,0.18)', border: '1.5px solid rgba(249,115,22,0.35)', backdropFilter: 'blur(16px)', borderRadius: 20, padding: 'clamp(20px,3vw,28px) clamp(20px,3vw,36px)', cursor: 'pointer', display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', gap: isMobile ? 14 : 12, height: '100%' }}
+            >
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(249,115,22,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <BookMarked style={{ width: 22, height: 22, color: '#faa54a' }} />
+              </div>
+              <div style={{ textAlign: isMobile ? 'left' : 'center', flex: 1 }}>
+                <p style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 15, color: 'white', margin: 0, marginBottom: 3 }}>Recuperação</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Aulas de reforço</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#faa54a', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                {!isMobile && 'Acessar'} <ArrowRight style={{ width: 14, height: 14 }} />
+              </div>
+            </motion.div>
+          </Link>
+
         </div>
 
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.05em' }}>
-          Sem cadastro · Sem senha · Confirmação imediata por e-mail
+          Sem cadastro · Sem senha · Confirmação imediata por e-mail · Plantão, 2ª Chamada e Recuperação
         </p>
       </motion.div>
     </section>

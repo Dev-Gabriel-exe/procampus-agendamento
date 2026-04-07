@@ -6,7 +6,7 @@
  
 import { useRef, useState, useEffect } from 'react'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
-import { GraduationCap, Clock, User, CheckCircle, ClipboardList, BookOpen, CalendarDays } from 'lucide-react'
+import { GraduationCap, Clock, User, CheckCircle, ClipboardList, BookOpen, CalendarDays, BookMarked } from 'lucide-react'
  
 function useIsMobile() {
   const [mobile, setMobile] = useState(false)
@@ -42,6 +42,18 @@ const flows = {
       { n: '02', icon: ClipboardList, color: '#23A455', bg: '#e8f9eb', border: '#c3e6cb', title: 'Escolha o Horário',  desc: 'Veja os horários disponíveis cadastrados pela secretaria para a prova.' },
       { n: '03', icon: User,          color: '#4054B2', bg: '#eef1fb', border: '#c7d2fb', title: 'Seus Dados',         desc: 'Informe seu nome, e-mail, WhatsApp e o nome do aluno para confirmar a inscrição.' },
       { n: '04', icon: CheckCircle,   color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', title: 'Inscrito!',          desc: 'Confirmação por e-mail com data, horário e instruções para o dia da prova.' },
+    ],
+  },
+  recuperacao: {
+    label: 'Recuperação e Reforço',
+    labelShort: 'Recuperação',
+    icon: BookMarked,
+    color: '#f97316',
+    steps: [
+      { n: '01', icon: GraduationCap, color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Série e Disciplina', desc: 'Selecione a série do seu filho e a disciplina em que precisa de reforço.' },
+      { n: '02', icon: Clock,         color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Escolha o Horário',  desc: 'Veja os horários disponíveis com professores especializados em reforço.' },
+      { n: '03', icon: User,          color: '#f97316', bg: '#fff7ed', border: '#fbcf8f', title: 'Seus Dados',         desc: 'Informe seu nome, e-mail, telefone e dificuldades específicas do aluno.' },
+      { n: '04', icon: CheckCircle,   color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', title: 'Agendado!',         desc: 'Confirmação por e-mail com cronograma personalizado de aulas.' },
     ],
   },
 }

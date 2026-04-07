@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion'
 import Link from 'next/link'
-import { CalendarDays, ArrowRight, ClipboardList } from 'lucide-react'
+import { CalendarDays, ArrowRight, ClipboardList, BookMarked } from 'lucide-react'
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(false)
@@ -218,6 +218,29 @@ export default function HeroSection() {
                     <ArrowRight style={{ width: 16, height: 16 }} />
                   </motion.button>
                 </Link>
+
+                {/* Recuperação */}
+                <Link href="/recuperacao" style={{ textDecoration: 'none', width: isMobile ? '100%' : 'auto' }}>
+                  <motion.button
+                    whileHover={{ scale: 1.05, boxShadow: '0 0 60px rgba(249,115,22,0.45)' }}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      width: isMobile ? '100%' : 'auto',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+                      background: 'rgba(249,115,22,0.14)',
+                      color: '#faa54a', border: '1.5px solid rgba(249,115,22,0.4)', borderRadius: 100,
+                      padding: 'clamp(14px,2vw,18px) clamp(24px,4vw,48px)',
+                      fontSize: 'clamp(14px,1.6vw,17px)', fontWeight: 800,
+                      cursor: 'pointer', letterSpacing: '-0.02em',
+                      fontFamily: '"Roboto Slab", Georgia, serif',
+                      backdropFilter: 'blur(12px)',
+                    }}
+                  >
+                    <BookMarked style={{ width: 18, height: 18, flexShrink: 0 }} />
+                    Recuperação
+                    <ArrowRight style={{ width: 16, height: 16 }} />
+                  </motion.button>
+                </Link>
               </div>
 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.2 }}>
@@ -240,7 +263,7 @@ export default function HeroSection() {
                 { value: '100%', label: 'Online' },
                 { value: '20min', label: 'Por reunião' },
                 { value: '2ª', label: 'Chamada' },
-                { value: '24h', label: 'Disponível' },
+                { value: '3+', label: 'Opções' },
               ].map((s, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.7, delay: 2.2 + i * 0.1 }} style={{ textAlign: 'center' }}>
