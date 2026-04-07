@@ -166,7 +166,9 @@ export default function RecuperacaoSecretariaPage() {
 
   // Lote de seleção: { [grade]: disciplinaId[] }
   const [loteSelecao,  setLoteSelecao]  = useState<Record<string, string[]>>({})
-  const [lotePeriodos, setLotePeriodos] = useState<Record<string, 'meio' | 'final'>>({})  const totalLote = Object.values(loteSelecao).reduce((s, ids) => s + ids.length, 0)
+  const [lotePeriodos, setLotePeriodos] = useState<Record<string, 'meio' | 'final'>>({})
+
+  const totalLote = Object.values(loteSelecao).reduce((s, ids) => s + ids.length, 0)
 
   const isFund1Grade      = GRADES_FUND1.includes(selGrade)
   const effectiveType     = isFund1Grade ? 'normal' : 'paralela'
