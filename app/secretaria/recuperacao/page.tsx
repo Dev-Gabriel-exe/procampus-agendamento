@@ -107,11 +107,11 @@ function DeadlineBadge({ deadline }: { deadline?: string | null }) {
   if (!deadline) return null
   console.log('DeadlineBadge recebeu:', deadline) // Debug
   const expired = deadlineExpired(deadline)
-  // Usa Fortaleza para exibir — se o servidor guardou como fim-do-dia UTC,
-  // isso converte corretamente de volta para o dia original
-  const label = new Date(deadline).toLocaleDateString('pt-BR', {
+  // O servidor armazena como "próximo dia às 03:00 UTC" = fim do dia anterior em Fortaleza
+  // Então 2026-04-11T03:00:00.000Z representa o fim do dia 10
+  const [y, m, d] = deadline.split('T')[0].split('-').map(Number)
+  const label = new Date(y, m - 1, d - 1).toLocaleDateString('pt-BR', {
     day: '2-digit', month: 'short',
-    timeZone: 'America/Fortaleza',
   })
   return (
     <span style={{
