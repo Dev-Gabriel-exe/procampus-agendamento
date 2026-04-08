@@ -537,7 +537,7 @@ export default function RecuperacaoSecretariaPage() {
                 {/* ── PRAZO DE INSCRIÇÕES (novo) ── */}
                 <div>
                   <label style={labelStyle}>
-                    Prazo de inscrições
+                    Ultima data de inscrições
                     <span style={{ marginLeft: 6, fontWeight: 400, textTransform: 'none', color: '#9ca3af' }}>(opcional)</span>
                   </label>
                   <div style={{ position: 'relative' }}>
