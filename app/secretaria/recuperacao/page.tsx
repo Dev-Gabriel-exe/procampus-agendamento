@@ -81,20 +81,27 @@ function formatDateTime(date: string) {
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })
 }
 
-/** Retorna true se o prazo de inscrições já passou */
+/** Retorna true se o prazo de inscrições já passou (fim do dia, horário local) */
 function deadlineExpired(deadline?: string | null): boolean {
   if (!deadline) return false
-  // Parse a data no timezone específico para evitar erro de fuso horário
-  const deadlineDate = new Date(deadline + 'T23:59:59Z') // Fim do dia em UTC
-  const now = new Date()
-  return deadlineDate < now
+  // Extrai só YYYY-MM-DD (Prisma pode devolver ISO completo)
+  const [y, m, d] = deadline.split('T')[0].split('-').map(Number)
+  // Fim do dia no horário local — sem nenhuma conversão UTC
+  const endOfDay = new Date(y, m - 1, d, 23, 59, 59)
+  return endOfDay < new Date()
 }
 
 /** Badge de prazo de inscrições */
 function DeadlineBadge({ deadline }: { deadline?: string | null }) {
   if (!deadline) return null
   const expired = deadlineExpired(deadline)
-  const label   = formatDateShort(deadline)
+
+  // Extrai YYYY-MM-DD e monta data local — evita o shift de fuso
+  const [y, m, d] = deadline.split('T')[0].split('-').map(Number)
+  const label = new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'short',
+  })
+
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
