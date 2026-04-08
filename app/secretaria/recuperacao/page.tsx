@@ -105,6 +105,7 @@ function formatLocalInput(dateStr: string): string {
 /** Badge de prazo de inscrições */
 function DeadlineBadge({ deadline }: { deadline?: string | null }) {
   if (!deadline) return null
+  console.log('DeadlineBadge recebeu:', deadline) // Debug
   const expired = deadlineExpired(deadline)
   // Usa Fortaleza para exibir — se o servidor guardou como fim-do-dia UTC,
   // isso converte corretamente de volta para o dia original
