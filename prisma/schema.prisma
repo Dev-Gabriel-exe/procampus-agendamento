@@ -129,6 +129,7 @@ model RecoverySchedule {
   active       Boolean           @default(true)
   bookings     RecoveryBooking[]
   createdAt    DateTime          @default(now())
+  registrationDeadline  DateTime?
 }
 
 model RecoveryBooking {

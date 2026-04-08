@@ -1,3 +1,4 @@
+// app/secretaria/recuperacao/page.tsx
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -10,7 +11,7 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Clock, BookMarked, FolderOpen,
   Search, SlidersHorizontal, Download, ExternalLink,
-  Paperclip, Filter, Copy,
+  Paperclip, Filter, Copy, CalendarOff, CalendarCheck,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
@@ -41,7 +42,9 @@ type RecoveryBooking = {
 }
 type RecoverySchedule = {
   id: string; subjectName: string; grade: string; type: string; period?: string | null
-  date: string; startTime: string; endTime: string; active: boolean; bookings: RecoveryBooking[]
+  date: string; startTime: string; endTime: string; active: boolean
+  registrationDeadline?: string | null   // ← novo
+  bookings: RecoveryBooking[]
 }
 type ComprovanteBooking = RecoveryBooking & {
   recoverySchedule: {
@@ -58,6 +61,7 @@ const STATUS_META: Record<BookingStatus, { label: string; bg: string; color: str
 const PIX_KEY  = 'financeiro@procampus.com.br'
 const PIX_NAME = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
 
+// ── helpers ──────────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status?: BookingStatus }) {
   const s = STATUS_META[status ?? 'PENDING']
   return (
@@ -77,6 +81,35 @@ function formatDateTime(date: string) {
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })
 }
 
+/** Retorna true se o prazo de inscrições já passou */
+function deadlineExpired(deadline?: string | null): boolean {
+  if (!deadline) return false
+  return new Date(deadline) < new Date()
+}
+
+/** Badge de prazo de inscrições */
+function DeadlineBadge({ deadline }: { deadline?: string | null }) {
+  if (!deadline) return null
+  const expired = deadlineExpired(deadline)
+  const label   = formatDateShort(deadline)
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+      padding: '3px 9px', borderRadius: 6,
+      color:      expired ? '#991b1b' : '#1e3a5f',
+      background: expired ? '#fee2e2' : '#dbeafe',
+      border:     `1px solid ${expired ? '#fecaca' : '#bfdbfe'}`,
+    }}>
+      {expired
+        ? <><CalendarOff style={{ width: 10, height: 10 }} />Inscrições encerradas · {label}</>
+        : <><CalendarCheck style={{ width: 10, height: 10 }} />Prazo: {label}</>
+      }
+    </span>
+  )
+}
+
+// ── Modais ───────────────────────────────────────────────────────────────────
 function RejectModal({ studentName, onConfirm, onCancel }: { studentName: string; onConfirm: (r: string) => void; onCancel: () => void }) {
   const [reason, setReason] = useState('')
   return (
@@ -127,6 +160,7 @@ function DeleteModal({ name, onConfirm, onCancel }: { name: string; onConfirm: (
   )
 }
 
+// ════════════════════════════════════════════════════════════════════════════
 export default function RecuperacaoSecretariaPage() {
   const { data: session } = useSession()
   const role   = (session?.user as any)?.role ?? 'geral'
@@ -134,6 +168,7 @@ export default function RecuperacaoSecretariaPage() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('slots')
 
+  // Slots
   const [schedules,     setSchedules]     = useState<RecoverySchedule[]>([])
   const [subjects,      setSubjects]      = useState<Subject[]>([])
   const [loading,       setLoading]       = useState(true)
@@ -142,10 +177,11 @@ export default function RecuperacaoSecretariaPage() {
   const [rejectTarget,  setRejectTarget]  = useState<{ id: string; studentName: string } | null>(null)
   const [filterPending, setFilterPending] = useState(false)
 
-  // ✅ DELETE booking dentro do slot
+  // Delete inscrição dentro do slot
   const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
   const [deletingBooking,     setDeletingBooking]     = useState<string | null>(null)
 
+  // Comprovantes
   const [comprovantes,     setComprovantes]     = useState<ComprovanteBooking[]>([])
   const [loadingComp,      setLoadingComp]      = useState(false)
   const [expandedComp,     setExpandedComp]     = useState<string | null>(null)
@@ -157,24 +193,18 @@ export default function RecuperacaoSecretariaPage() {
   const [actingComp,       setActingComp]       = useState<string | null>(null)
   const [rejectTargetComp, setRejectTargetComp] = useState<{ id: string; studentName: string } | null>(null)
 
-  const [selGrade,   setSelGrade]   = useState('')
-  const [selSubject, setSelSubject] = useState('')
-  const [selPeriod,  setSelPeriod]  = useState<'meio' | 'final' | ''>('')
-  const [examDate,   setExamDate]   = useState('')
-  const [startTime,  setStartTime]  = useState('')
-  const [endTime,    setEndTime]    = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [error,      setError]      = useState('')
+  // Formulário
+  const [examDate,      setExamDate]      = useState('')
+  const [startTime,     setStartTime]     = useState('')
+  const [endTime,       setEndTime]       = useState('')
+  const [regDeadline,   setRegDeadline]   = useState('')   // ← novo: prazo de inscrições
+  const [saving,        setSaving]        = useState(false)
+  const [error,         setError]         = useState('')
 
-  // Lote de seleção: { [grade]: disciplinaId[] }
+  // Lote de seleção
   const [loteSelecao,  setLoteSelecao]  = useState<Record<string, string[]>>({})
   const [lotePeriodos, setLotePeriodos] = useState<Record<string, 'meio' | 'final'>>({})
-
   const totalLote = Object.values(loteSelecao).reduce((s, ids) => s + ids.length, 0)
-
-  const isFund1Grade      = GRADES_FUND1.includes(selGrade)
-  const effectiveType     = isFund1Grade ? 'normal' : 'paralela'
-  const availableSubjects = subjects.filter(s => s.grade === selGrade)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -198,9 +228,21 @@ export default function RecuperacaoSecretariaPage() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
-  useEffect(() => { setSelSubject(''); setSelPeriod('') }, [selGrade])
   useEffect(() => { if (activeTab === 'comprovantes') loadComprovantes() }, [activeTab, loadComprovantes])
 
+  // ── Copiar só data e horário ──────────────────────────────────────────────
+  function handleCopySlot(slot: RecoverySchedule) {
+    const dateStr = slot.date.split('T')[0]
+    setExamDate(dateStr)
+    setStartTime(slot.startTime)
+    setEndTime(slot.endTime)
+    // NÃO copia prazo, pois cada slot pode ter prazo diferente
+    setError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    toast.info('📋 Data e horário copiados! Ajuste os outros campos se necessário.')
+  }
+
+  // ── Mutations locais ──────────────────────────────────────────────────────
   function updateBookingLocally(id: string, patch: Partial<RecoveryBooking>) {
     setSchedules(prev => prev.map(s => ({ ...s, bookings: s.bookings.map(b => b.id === id ? { ...b, ...patch } : b) })))
   }
@@ -211,24 +253,18 @@ export default function RecuperacaoSecretariaPage() {
     setComprovantes(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
   }
 
-  // ✅ CORRIGIDO: copia só data e horário, mantém série/disciplina/período intactos
-  function handleCopySlot(slot: RecoverySchedule) {
-    const dateStr = slot.date.split('T')[0]
-    setExamDate(dateStr)
-    setStartTime(slot.startTime)
-    setEndTime(slot.endTime)
-    setError('')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    toast.info('📋 Data e horário copiados! Ajuste os outros campos se necessário.')
-  }
-
+  // ── Criar slots em lote ───────────────────────────────────────────────────
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!examDate || !startTime || !endTime) { setError('Preencha a data e os horários.'); return }
     if (startTime >= endTime) { setError('Horário de fim deve ser após o início.'); return }
     if (totalLote === 0) { setError('Selecione pelo menos uma disciplina.'); return }
 
-    // Valida períodos do Fund1
+    // Prazo deve ser anterior à data da prova (se informado)
+    if (regDeadline && regDeadline >= examDate) {
+      setError('O prazo de inscrições deve ser anterior à data da prova.'); return
+    }
+
     for (const [grade, ids] of Object.entries(loteSelecao)) {
       if (ids.length > 0 && GRADES_FUND1.includes(grade) && !lotePeriodos[grade]) {
         setError(`Selecione o período (Meio ou Final) para: ${grade}`); return
@@ -240,9 +276,9 @@ export default function RecuperacaoSecretariaPage() {
 
     for (const [grade, discIds] of Object.entries(loteSelecao)) {
       if (discIds.length === 0) continue
-      const isF1    = GRADES_FUND1.includes(grade)
-      const type    = isF1 ? 'normal' : 'paralela'
-      const period  = isF1 ? lotePeriodos[grade] : null
+      const isF1   = GRADES_FUND1.includes(grade)
+      const type   = isF1 ? 'normal' : 'paralela'
+      const period = isF1 ? lotePeriodos[grade] : null
 
       for (const discId of discIds) {
         const subject = subjects.find(s => s.id === discId)
@@ -250,7 +286,11 @@ export default function RecuperacaoSecretariaPage() {
         try {
           const res = await fetch('/api/recuperacao', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subjectId: discId, subjectName: subject.name, grade, type, period, date: examDate, startTime, endTime }),
+            body: JSON.stringify({
+              subjectId: discId, subjectName: subject.name, grade, type, period,
+              date: examDate, startTime, endTime,
+              registrationDeadline: regDeadline || null,   // ← passa prazo
+            }),
           })
           if (res.ok) criados++; else erros++
         } catch { erros++ }
@@ -260,7 +300,8 @@ export default function RecuperacaoSecretariaPage() {
     setSaving(false)
     if (criados > 0) {
       toast.success(`✅ ${criados} slot${criados !== 1 ? 's' : ''} criado${criados !== 1 ? 's' : ''}!${erros > 0 ? ` (${erros} já existiam)` : ''}`)
-      setLoteSelecao({}); setLotePeriodos({}); setExamDate(''); setStartTime(''); setEndTime('')
+      setLoteSelecao({}); setLotePeriodos({})
+      setExamDate(''); setStartTime(''); setEndTime(''); setRegDeadline('')
       loadData()
     } else {
       setError(`Erro: ${erros} slot${erros !== 1 ? 's' : ''} já existem ou falharam.`)
@@ -268,18 +309,16 @@ export default function RecuperacaoSecretariaPage() {
   }
 
   async function handleDeleteSlot(id: string) {
-    if (!confirm('Remover este slot? Todas as inscrições vinculadas também serão removidas.')) return
+    if (!confirm('Remover este slot?')) return
     const res = await fetch(`/api/recuperacao/${id}`, { method: 'DELETE' })
     if (!res.ok) { toast.error('Falha ao remover.'); return }
     toast.success('Slot removido.'); loadData()
   }
 
-  // ✅ NOVO: delete de inscrição individual do pai (dentro do slot)
   async function confirmDeleteBooking() {
     if (!deleteBookingTarget) return
     const { id, name } = deleteBookingTarget; setDeleteBookingTarget(null)
-    setDeletingBooking(id)
-    removeBookingLocally(id)
+    setDeletingBooking(id); removeBookingLocally(id)
     try {
       const res = await fetch(`/api/recuperacao/booking/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
@@ -351,6 +390,7 @@ export default function RecuperacaoSecretariaPage() {
     finally { setDeletingComp(null) }
   }
 
+  // ── Agrupamentos ─────────────────────────────────────────────────────────
   const grouped = schedules.reduce((acc, s) => {
     const key = `${s.type}|${s.grade}|${s.subjectName}`
     if (!acc[key]) acc[key] = { type: s.type, grade: s.grade, subjectName: s.subjectName, slots: [] }
@@ -392,10 +432,10 @@ export default function RecuperacaoSecretariaPage() {
         {rejectTarget        && <RejectModal studentName={rejectTarget.studentName}        onConfirm={confirmReject}     onCancel={() => setRejectTarget(null)} />}
         {rejectTargetComp    && <RejectModal studentName={rejectTargetComp.studentName}    onConfirm={confirmRejectComp} onCancel={() => setRejectTargetComp(null)} />}
         {deleteTarget        && <DeleteModal name={deleteTarget.name}        onConfirm={confirmDeleteComp}   onCancel={() => setDeleteTarget(null)} />}
-        {/* ✅ Modal para deletar inscrição dentro do slot */}
         {deleteBookingTarget && <DeleteModal name={deleteBookingTarget.name} onConfirm={confirmDeleteBooking} onCancel={() => setDeleteBookingTarget(null)} />}
       </AnimatePresence>
 
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header style={{ background: 'linear-gradient(135deg,#0D2818 0%,#1a7a2e 100%)', borderBottom: '1px solid rgba(97,206,112,0.15)', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
@@ -430,6 +470,7 @@ export default function RecuperacaoSecretariaPage() {
           <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d', margin: 0 }}>Recuperação</h2>
           <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Gerencie slots de recuperação normal (Fund1) e paralela (Fund2)</p>
 
+          {/* Tabs */}
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {([
               { key: 'slots',        label: 'Slots & Inscrições', icon: ClipboardList },
@@ -462,7 +503,7 @@ export default function RecuperacaoSecretariaPage() {
         {activeTab === 'slots' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,2fr)', gap: 24, alignItems: 'start' }}>
 
-            {/* Formulário — criação em lote */}
+            {/* ── Formulário ── */}
             <div style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.15)', padding: 24, boxShadow: '0 2px 16px rgba(0,0,0,0.04)', position: 'sticky', top: 76 }}>
               <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 700, fontSize: 16, color: '#0a1a0d', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Plus style={{ width: 16, height: 16, color: '#23A455' }} />Novo Slot de Recuperação
@@ -473,7 +514,7 @@ export default function RecuperacaoSecretariaPage() {
 
               <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-                {/* Data */}
+                {/* Data da prova */}
                 <div>
                   <label style={labelStyle}>Data da prova</label>
                   <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} style={inputStyle}
@@ -493,19 +534,48 @@ export default function RecuperacaoSecretariaPage() {
                   ))}
                 </div>
 
+                {/* ── PRAZO DE INSCRIÇÕES (novo) ── */}
+                <div>
+                  <label style={labelStyle}>
+                    Prazo de inscrições
+                    <span style={{ marginLeft: 6, fontWeight: 400, textTransform: 'none', color: '#9ca3af' }}>(opcional)</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="date"
+                      value={regDeadline}
+                      onChange={e => setRegDeadline(e.target.value)}
+                      max={examDate || undefined}   // não pode ser igual ou depois da prova
+                      style={{ ...inputStyle, paddingRight: regDeadline ? 36 : 14, color: regDeadline ? '#0a1a0d' : '#9ca3af' }}
+                      onFocus={e => { e.target.style.borderColor = '#f59e0b'; e.target.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)' }}
+                      onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
+                    />
+                    {regDeadline && (
+                      <button type="button" onClick={() => setRegDeadline('')}
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', display: 'flex', alignItems: 'center' }}>
+                        <X style={{ width: 14, height: 14 }} />
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
+                    {regDeadline
+                      ? `As inscrições serão encerradas automaticamente no final do dia ${new Date(regDeadline + 'T12:00:00').toLocaleDateString('pt-BR')}.`
+                      : 'Se não informado, as inscrições ficam abertas até a data da prova.'}
+                  </p>
+                </div>
+
                 {/* Séries + Disciplinas em lote */}
                 <div>
                   <label style={labelStyle}>Séries e Disciplinas</label>
                   <div style={{ border: '1.5px solid rgba(97,206,112,0.2)', borderRadius: 12, overflow: 'hidden', maxHeight: 340, overflowY: 'auto' }}>
                     {grades.map(grade => {
-                      const isF1       = GRADES_FUND1.includes(grade)
+                      const isF1         = GRADES_FUND1.includes(grade)
                       const discsDaGrade = subjects.filter(s => s.grade === grade)
                       const selecionadas = loteSelecao[grade] ?? []
                       const todas        = selecionadas.length === discsDaGrade.length && discsDaGrade.length > 0
 
                       return (
                         <div key={grade} style={{ borderBottom: '1px solid rgba(97,206,112,0.1)' }}>
-                          {/* Cabeçalho da série */}
                           <div style={{ padding: '10px 14px', background: isF1 ? '#fffbeb' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{grade}</span>
@@ -515,17 +585,12 @@ export default function RecuperacaoSecretariaPage() {
                             </div>
                             {discsDaGrade.length > 0 && (
                               <button type="button"
-                                onClick={() => setLoteSelecao(prev => ({
-                                  ...prev,
-                                  [grade]: todas ? [] : discsDaGrade.map(d => d.id),
-                                }))}
+                                onClick={() => setLoteSelecao(prev => ({ ...prev, [grade]: todas ? [] : discsDaGrade.map(d => d.id) }))}
                                 style={{ fontSize: 11, fontWeight: 600, color: '#23A455', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
                                 {todas ? 'Desmarcar todas' : 'Marcar todas'}
                               </button>
                             )}
                           </div>
-
-                          {/* Disciplinas da série */}
                           {discsDaGrade.length === 0 ? (
                             <p style={{ fontSize: 12, color: '#9ca3af', padding: '8px 14px', margin: 0 }}>Nenhuma disciplina cadastrada</p>
                           ) : (
@@ -545,8 +610,6 @@ export default function RecuperacaoSecretariaPage() {
                               })}
                             </div>
                           )}
-
-                          {/* Período — só para Fund1 se tiver algo selecionado */}
                           {isF1 && selecionadas.length > 0 && (
                             <div style={{ padding: '0 14px 10px', display: 'flex', gap: 6 }}>
                               {[{ v: 'meio', l: '📅 Meio do Ano' }, { v: 'final', l: '📅 Final do Ano' }].map(p => (
@@ -563,11 +626,11 @@ export default function RecuperacaoSecretariaPage() {
                     })}
                   </div>
 
-                  {/* Resumo do lote */}
                   {totalLote > 0 && (
                     <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
                       <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#15803d' }}>
                         {totalLote} slot{totalLote !== 1 ? 's' : ''} serão criados
+                        {regDeadline ? ` · prazo ${new Date(regDeadline + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}
                       </p>
                       <p style={{ margin: '3px 0 0', fontSize: 11, color: '#6b8f72' }}>
                         {Object.entries(loteSelecao)
@@ -588,13 +651,14 @@ export default function RecuperacaoSecretariaPage() {
                   </div>
                 )}
 
-                <button type="submit" disabled={saving || totalLote === 0} style={{ padding: '12px', borderRadius: 10, border: 'none', background: saving || totalLote === 0 ? 'rgba(35,164,85,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)', color: saving || totalLote === 0 ? 'rgba(255,255,255,0.5)' : 'white', fontSize: 14, fontWeight: 700, cursor: saving || totalLote === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: '"Roboto Slab",serif', boxShadow: saving || totalLote === 0 ? 'none' : '0 4px 16px rgba(35,164,85,0.3)' }}>
-                  {saving ? 'Criando slots...' : <><Plus style={{ width: 15, height: 15 }} />{totalLote > 0 ? `Criar ${totalLote} slot${totalLote !== 1 ? 's' : ''}` : 'Adicionar Slots'}</> }
+                <button type="submit" disabled={saving || totalLote === 0}
+                  style={{ padding: '12px', borderRadius: 10, border: 'none', background: saving || totalLote === 0 ? 'rgba(35,164,85,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)', color: saving || totalLote === 0 ? 'rgba(255,255,255,0.5)' : 'white', fontSize: 14, fontWeight: 700, cursor: saving || totalLote === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: '"Roboto Slab",serif', boxShadow: saving || totalLote === 0 ? 'none' : '0 4px 16px rgba(35,164,85,0.3)' }}>
+                  {saving ? 'Criando slots...' : <><Plus style={{ width: 15, height: 15 }} />{totalLote > 0 ? `Criar ${totalLote} slot${totalLote !== 1 ? 's' : ''}` : 'Adicionar Slots'}</>}
                 </button>
               </form>
             </div>
 
-            {/* Lista de slots */}
+            {/* ── Lista de slots ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {loading ? <LoadingSpinner /> : Object.keys(grouped).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 24px', background: 'white', borderRadius: 20, border: '1.5px dashed rgba(97,206,112,0.3)' }}>
@@ -650,24 +714,27 @@ export default function RecuperacaoSecretariaPage() {
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
                           <div style={{ borderTop: `1px solid ${accentBorder}`, padding: '16px 20px', background: '#fafdfb', display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {group.slots.map(slot => {
-                              const vis = filterPending ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING') : slot.bookings
+                              const vis         = filterPending ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING') : slot.bookings
                               const periodLabel = slot.period === 'meio' ? '📅 Meio do Ano' : slot.period === 'final' ? '📅 Final do Ano' : ''
+                              const expired     = deadlineExpired(slot.registrationDeadline)
+
                               return (
-                                <div key={slot.id} style={{ background: 'white', borderRadius: 12, border: `1px solid ${accentBorder}`, overflow: 'hidden' }}>
+                                <div key={slot.id} style={{ background: 'white', borderRadius: 12, border: `1px solid ${expired ? '#fecaca' : accentBorder}`, overflow: 'hidden' }}>
                                   {/* Cabeçalho do slot */}
-                                  <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: accentBg }}>
+                                  <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: expired ? '#fff5f5' : accentBg }}>
                                     <div>
                                       <p style={{ fontWeight: 700, fontSize: 14, color: '#0a1a0d', margin: 0, textTransform: 'capitalize' }}>{formatDate(slot.date)}</p>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                                        <p style={{ fontSize: 13, color: accentColor, fontWeight: 600, margin: 0 }}>{slot.startTime} – {slot.endTime}</p>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                                        <p style={{ fontSize: 13, color: expired ? '#ef4444' : accentColor, fontWeight: 600, margin: 0 }}>{slot.startTime} – {slot.endTime}</p>
                                         {periodLabel && <span style={{ fontSize: 11, color: '#6b8f72' }}>{periodLabel}</span>}
+                                        {/* ── Badge de prazo ── */}
+                                        <DeadlineBadge deadline={slot.registrationDeadline} />
                                       </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                       <span style={{ fontSize: 12, color: '#23A455', background: 'white', borderRadius: 999, padding: '3px 10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #bbf7d0' }}>
                                         <Users2 style={{ width: 11, height: 11 }} />{slot.bookings.length}
                                       </span>
-                                      {/* ✅ CORRIGIDO: copia só data e horário */}
                                       <button onClick={() => handleCopySlot(slot)} title="Copiar data e horário para o formulário"
                                         style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#4054B2' }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#eef1fb'}
@@ -699,15 +766,11 @@ export default function RecuperacaoSecretariaPage() {
                                                   <span style={{ fontSize: 10, color: '#9ca3af' }}>#{i + 1}</span>
                                                   <StatusBadge status={b.status as BookingStatus} />
                                                 </div>
-                                                {/* ✅ NOVO: botão de deletar inscrição do pai */}
-                                                <button
-                                                  onClick={() => setDeleteBookingTarget({ id: b.id, name: b.studentName })}
-                                                  disabled={isBusy || isDelBook}
-                                                  title="Remover esta inscrição"
+                                                <button onClick={() => setDeleteBookingTarget({ id: b.id, name: b.studentName })} disabled={isBusy || isDelBook}
+                                                  title="Remover inscrição"
                                                   style={{ padding: 5, border: 'none', background: 'transparent', cursor: isBusy || isDelBook ? 'not-allowed' : 'pointer', borderRadius: 7, color: '#ef4444', flexShrink: 0 }}
                                                   onMouseEnter={e => { if (!isBusy && !isDelBook) e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
-                                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                                >
+                                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                                   <Trash2 style={{ width: 13, height: 13 }} />
                                                 </button>
                                               </div>
@@ -816,8 +879,6 @@ export default function RecuperacaoSecretariaPage() {
                     </button>
                   ))}
                 </div>
-
-                {/* Filtro de turma comprovantes */}
                 {todasTurmasComp.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <span style={{ fontSize: 12, color: '#6b8f72', fontWeight: 600 }}>Turma:</span>
@@ -853,10 +914,10 @@ export default function RecuperacaoSecretariaPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {filteredComps.map(b => {
-                  const isOpen     = expandedComp === b.id
-                  const isDeleting = deletingComp === b.id
-                  const isBusy     = actingComp === b.id
-                  const isNormal   = b.recoverySchedule?.type === 'normal'
+                  const isOpen       = expandedComp === b.id
+                  const isDeleting   = deletingComp === b.id
+                  const isBusy       = actingComp === b.id
+                  const isNormal     = b.recoverySchedule?.type === 'normal'
                   const subjectsList = b.subjects ? b.subjects.split(',').map(x => x.trim()).filter(Boolean) : []
 
                   return (
