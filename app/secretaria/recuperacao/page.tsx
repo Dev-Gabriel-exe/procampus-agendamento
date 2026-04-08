@@ -84,7 +84,10 @@ function formatDateTime(date: string) {
 /** Retorna true se o prazo de inscrições já passou */
 function deadlineExpired(deadline?: string | null): boolean {
   if (!deadline) return false
-  return new Date(deadline) < new Date()
+  // Parse a data no timezone específico para evitar erro de fuso horário
+  const deadlineDate = new Date(deadline + 'T23:59:59Z') // Fim do dia em UTC
+  const now = new Date()
+  return deadlineDate < now
 }
 
 /** Badge de prazo de inscrições */
@@ -173,10 +176,12 @@ export default function RecuperacaoSecretariaPage() {
   const [subjects,      setSubjects]      = useState<Subject[]>([])
   const [loading,       setLoading]       = useState(true)
   const [expanded,      setExpanded]      = useState<string | null>(null)
+  const [expandedGrade, setExpandedGrade] = useState<string | null>(null)
   const [acting,        setActing]        = useState<string | null>(null)
   const [rejectTarget,  setRejectTarget]  = useState<{ id: string; studentName: string } | null>(null)
   const [filterPending, setFilterPending] = useState(false)
   const [slotFilterTurma, setSlotFilterTurma] = useState('')
+  const [selectedSlotIds, setSelectedSlotIds] = useState<Set<string>>(new Set())
 
   // Delete inscrição dentro do slot
   const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
@@ -316,6 +321,33 @@ export default function RecuperacaoSecretariaPage() {
     toast.success('Slot removido.'); loadData()
   }
 
+  async function handleDeleteMultipleSlots() {
+    if (selectedSlotIds.size === 0) return
+    if (!confirm(`Remover ${selectedSlotIds.size} slot${selectedSlotIds.size !== 1 ? 's' : ''}?`)) return
+    try {
+      let successCount = 0
+      for (const id of selectedSlotIds) {
+        const res = await fetch(`/api/recuperacao/${id}`, { method: 'DELETE' })
+        if (res.ok) successCount++
+      }
+      setSelectedSlotIds(new Set())
+      toast.success(`${successCount} slot${successCount !== 1 ? 's' : ''} removido${successCount !== 1 ? 's' : ''}.`)
+      loadData()
+    } catch (err) {
+      toast.error('Erro ao remover slots.')
+    }
+  }
+
+  function toggleSlotSelection(slotId: string) {
+    const newSelected = new Set(selectedSlotIds)
+    if (newSelected.has(slotId)) {
+      newSelected.delete(slotId)
+    } else {
+      newSelected.add(slotId)
+    }
+    setSelectedSlotIds(newSelected)
+  }
+
   async function confirmDeleteBooking() {
     if (!deleteBookingTarget) return
     const { id, name } = deleteBookingTarget; setDeleteBookingTarget(null)
@@ -392,6 +424,16 @@ export default function RecuperacaoSecretariaPage() {
   }
 
   // ── Agrupamentos ─────────────────────────────────────────────────────────
+  // Agrupa por série -> disciplina -> slots
+  const groupedByGrade = schedules.reduce((acc, s) => {
+    const grade = s.grade
+    const disciplineKey = `${s.type}|${s.subjectName}`
+    if (!acc[grade]) acc[grade] = {}
+    if (!acc[grade][disciplineKey]) acc[grade][disciplineKey] = { type: s.type, subjectName: s.subjectName, slots: [] }
+    acc[grade][disciplineKey].slots.push(s)
+    return acc
+  }, {} as Record<string, Record<string, { type: string; subjectName: string; slots: RecoverySchedule[] }>>)
+
   const grouped = schedules.reduce((acc, s) => {
     const key = `${s.type}|${s.grade}|${s.subjectName}`
     if (!acc[key]) acc[key] = { type: s.type, grade: s.grade, subjectName: s.subjectName, slots: [] }
@@ -517,6 +559,12 @@ export default function RecuperacaoSecretariaPage() {
                   ))}
                 </div>
               )}
+              {selectedSlotIds.size > 0 && (
+                <button onClick={handleDeleteMultipleSlots}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: '1px solid #ef4444', background: '#fff5f5', color: '#ef4444', cursor: 'pointer' }}>
+                  <Trash2 style={{ width: 12, height: 12 }} />Deletar {selectedSlotIds.size} slot{selectedSlotIds.size !== 1 ? 's' : ''}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -581,7 +629,7 @@ export default function RecuperacaoSecretariaPage() {
                   </div>
                   <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
                     {regDeadline
-                      ? `As inscrições serão encerradas automaticamente no final do dia ${new Date(regDeadline + 'T12:00:00').toLocaleDateString('pt-BR')}.`
+                      ? `As inscrições serão encerradas automaticamente no final do dia ${formatDateShort(regDeadline)}.`
                       : 'Se não informado, as inscrições ficam abertas até a data da prova.'}
                   </p>
                 </div>
@@ -652,7 +700,7 @@ export default function RecuperacaoSecretariaPage() {
                     <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
                       <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#15803d' }}>
                         {totalLote} slot{totalLote !== 1 ? 's' : ''} serão criados
-                        {regDeadline ? ` · prazo ${new Date(regDeadline + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}
+                        {regDeadline ? ` · prazo ${formatDateShort(regDeadline)}` : ''}
                       </p>
                       <p style={{ margin: '3px 0 0', fontSize: 11, color: '#6b8f72' }}>
                         {Object.entries(loteSelecao)
@@ -680,180 +728,198 @@ export default function RecuperacaoSecretariaPage() {
               </form>
             </div>
 
-            {/* ── Lista de slots ── */}
+            {/* ── Lista de slots por série ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {loading ? <LoadingSpinner /> : Object.keys(grouped).length === 0 ? (
+              {loading ? <LoadingSpinner /> : Object.keys(groupedByGrade).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 24px', background: 'white', borderRadius: 20, border: '1.5px dashed rgba(97,206,112,0.3)' }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>📚</div>
                   <p style={{ fontWeight: 600, color: '#3d5c42', fontSize: 16 }}>Nenhum slot cadastrado</p>
                 </div>
-              ) : Object.entries(grouped).map(([key, group]) => {
-                const allBookings  = group.slots.flatMap(s => s.bookings)
-                const pendingCount = allBookings.filter(b => (b.status ?? 'PENDING') === 'PENDING').length
-                if (filterPending && pendingCount === 0) return null
-                const isNormal     = group.type === 'normal'
-                const accentColor  = isNormal ? '#f59e0b' : '#23A455'
-                const accentBg     = isNormal ? '#fef3c7' : '#e8f9eb'
-                const accentBorder = isNormal ? '#fde68a' : '#bbf7d0'
+              ) : grades.map(grade => {
+                const gradesData = groupedByGrade[grade]
+                if (!gradesData) return null
+
+                const allBookingsForGrade = Object.values(gradesData).flatMap(disc => disc.slots.flatMap(s => s.bookings))
+                const pendingCountGrade = allBookingsForGrade.filter(b => (b.status ?? 'PENDING') === 'PENDING').length
+                if (filterPending && pendingCountGrade === 0) return null
+
+                const isOpen = expandedGrade === grade
 
                 return (
-                  <motion.div key={key} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                    style={{ background: 'white', borderRadius: 16, border: `1.5px solid ${accentBorder}`, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-                    <button onClick={() => setExpanded(expanded === key ? null : key)}
+                  <motion.div key={grade} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ background: 'white', borderRadius: 16, border: '1.5px solid rgba(97,206,112,0.15)', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+                    <button onClick={() => setExpandedGrade(isOpen ? null : grade)}
                       style={{ width: '100%', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 12, background: accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <BookMarked style={{ width: 18, height: 18, color: accentColor }} />
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: '#e8f9eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <BookMarked style={{ width: 18, height: 18, color: '#23A455' }} />
                         </div>
                         <div>
-                          <p style={{ fontWeight: 700, fontSize: 15, color: '#0a1a0d', margin: 0 }}>{group.subjectName}</p>
+                          <p style={{ fontWeight: 700, fontSize: 15, color: '#0a1a0d', margin: 0 }}>{grade}</p>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                            <p style={{ fontSize: 12, color: '#6b8f72', margin: 0 }}>{group.grade}</p>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: accentColor, background: accentBg, padding: '1px 8px', borderRadius: 5 }}>
-                              {isNormal ? '💰 Normal' : '✅ Paralela'}
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#23A455', background: '#e8f9eb', borderRadius: 999, padding: '4px 10px' }}>
+                              {Object.keys(gradesData).length} disciplina{Object.keys(gradesData).length !== 1 ? 's' : ''}
                             </span>
+                            {allBookingsForGrade.length > 0 && (
+                              <span style={{ fontSize: 12, fontWeight: 600, color: '#4054B2', background: '#eef1fb', borderRadius: 999, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Users2 style={{ width: 12, height: 12 }} />{allBookingsForGrade.length} inscrito{allBookingsForGrade.length !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {pendingCountGrade > 0 && (
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', borderRadius: 999, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Clock style={{ width: 11, height: 11 }} />{pendingCountGrade} pendente{pendingCountGrade !== 1 ? 's' : ''}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#23A455', background: '#e8f9eb', borderRadius: 999, padding: '4px 10px' }}>{group.slots.length} slot{group.slots.length !== 1 ? 's' : ''}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#4054B2', background: '#eef1fb', borderRadius: 999, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Users2 style={{ width: 12, height: 12 }} />{allBookings.length} inscrito{allBookings.length !== 1 ? 's' : ''}
-                        </span>
-                        {pendingCount > 0 && (
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', borderRadius: 999, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Clock style={{ width: 11, height: 11 }} />{pendingCount} pendente{pendingCount !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        <motion.div animate={{ rotate: expanded === key ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                          <ChevronDown style={{ width: 15, height: 15, color: '#6b8f72' }} />
-                        </motion.div>
-                      </div>
+                      <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                        <ChevronDown style={{ width: 15, height: 15, color: '#6b8f72' }} />
+                      </motion.div>
                     </button>
 
                     <AnimatePresence>
-                      {expanded === key && (
+                      {isOpen && (
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
-                          <div style={{ borderTop: `1px solid ${accentBorder}`, padding: '16px 20px', background: '#fafdfb', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {group.slots.map(slot => {
-                              const vis         = (() => {
-                                let filtered = filterPending ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING') : slot.bookings
-                                if (slotFilterTurma) {
-                                  filtered = filtered.filter(b => extractTurma(b.studentGrade) === slotFilterTurma)
-                                }
-                                return filtered
-                              })()
-                              const periodLabel = slot.period === 'meio' ? '📅 Meio do Ano' : slot.period === 'final' ? '📅 Final do Ano' : ''
-                              const expired     = deadlineExpired(slot.registrationDeadline)
+                          <div style={{ borderTop: '1px solid rgba(97,206,112,0.15)', padding: '16px 20px', background: '#fafdfb', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {Object.entries(gradesData).map(([disciplineKey, disciplineGroup]) => {
+                              const allBookingsForDisk = disciplineGroup.slots.flatMap(s => s.bookings)
+                              const pendingCountDisk = allBookingsForDisk.filter(b => (b.status ?? 'PENDING') === 'PENDING').length
+                              if (filterPending && pendingCountDisk === 0) return null
+                              const isNormal = disciplineGroup.type === 'normal'
+                              const accentColor = isNormal ? '#f59e0b' : '#23A455'
+                              const accentBg = isNormal ? '#fef3c7' : '#f0fdf4'
+                              const accentBorder = isNormal ? '#fde68a' : '#dcfce7'
 
                               return (
-                                <div key={slot.id} style={{ background: 'white', borderRadius: 12, border: `1px solid ${expired ? '#fecaca' : accentBorder}`, overflow: 'hidden' }}>
-                                  {/* Cabeçalho do slot */}
-                                  <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: expired ? '#fff5f5' : accentBg }}>
+                                <div key={disciplineKey} style={{ background: '#ffffff', borderRadius: 12, border: `1px solid ${accentBorder}`, overflow: 'hidden' }}>
+                                  <div style={{ padding: '12px 16px', background: accentBg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                                     <div>
-                                      <p style={{ fontWeight: 700, fontSize: 14, color: '#0a1a0d', margin: 0, textTransform: 'capitalize' }}>{formatDate(slot.date)}</p>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
-                                        <p style={{ fontSize: 13, color: expired ? '#ef4444' : accentColor, fontWeight: 600, margin: 0 }}>{slot.startTime} – {slot.endTime}</p>
-                                        {periodLabel && <span style={{ fontSize: 11, color: '#6b8f72' }}>{periodLabel}</span>}
-                                        {/* ── Badge de prazo ── */}
-                                        <DeadlineBadge deadline={slot.registrationDeadline} />
+                                      <p style={{ fontWeight: 700, fontSize: 14, color: '#0a1a0d', margin: 0 }}>{disciplineGroup.subjectName}</p>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: accentColor, background: 'white', padding: '1px 8px', borderRadius: 5 }}>
+                                          {isNormal ? '💰 Normal' : '✅ Paralela'}
+                                        </span>
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: accentColor }}>
+                                          {disciplineGroup.slots.length} slot{disciplineGroup.slots.length !== 1 ? 's' : ''}
+                                        </span>
                                       </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                      <span style={{ fontSize: 12, color: '#23A455', background: 'white', borderRadius: 999, padding: '3px 10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #bbf7d0' }}>
-                                        <Users2 style={{ width: 11, height: 11 }} />{slot.bookings.length}
+                                    {allBookingsForDisk.length > 0 && (
+                                      <span style={{ fontSize: 11, fontWeight: 600, color: '#4054B2', background: '#eef1fb', borderRadius: 999, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                                        <Users2 style={{ width: 10, height: 10 }} />{allBookingsForDisk.length}
                                       </span>
-                                      <button onClick={() => handleCopySlot(slot)} title="Copiar data e horário para o formulário"
-                                        style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#4054B2' }}
-                                        onMouseEnter={e => e.currentTarget.style.background = '#eef1fb'}
-                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                        <Copy style={{ width: 14, height: 14 }} />
-                                      </button>
-                                      <button onClick={() => handleDeleteSlot(slot.id)} title="Remover slot"
-                                        style={{ padding: 6, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 8, color: '#ef4444' }}
-                                        onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                        <Trash2 style={{ width: 14, height: 14 }} />
-                                      </button>
-                                    </div>
+                                    )}
                                   </div>
 
-                                  {/* Inscrições */}
-                                  {vis.length > 0 && (
-                                    <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                      {vis.map((b, i) => {
-                                        const isBusy       = acting === b.id
-                                        const isDelBook    = deletingBooking === b.id
-                                        const subjectsList = b.subjects ? b.subjects.split(',').map(x => x.trim()).filter(Boolean) : []
-                                        return (
-                                          <div key={b.id} style={{ borderRadius: 10, border: '1px solid #e5e7eb', background: isDelBook ? '#fef2f2' : '#fafafa', overflow: 'hidden', opacity: isDelBook ? 0.5 : 1, transition: 'opacity 0.2s' }}>
-                                            <div style={{ padding: '10px 14px' }}>
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: 1 }}>
-                                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{b.studentName}</span>
-                                                  <span style={{ fontSize: 10, color: '#9ca3af' }}>#{i + 1}</span>
-                                                  <StatusBadge status={b.status as BookingStatus} />
-                                                </div>
-                                                <button onClick={() => setDeleteBookingTarget({ id: b.id, name: b.studentName })} disabled={isBusy || isDelBook}
-                                                  title="Remover inscrição"
-                                                  style={{ padding: 5, border: 'none', background: 'transparent', cursor: isBusy || isDelBook ? 'not-allowed' : 'pointer', borderRadius: 7, color: '#ef4444', flexShrink: 0 }}
-                                                  onMouseEnter={e => { if (!isBusy && !isDelBook) e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
-                                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                  <Trash2 style={{ width: 13, height: 13 }} />
-                                                </button>
+                                  <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {disciplineGroup.slots.map(slot => {
+                                      const vis = (() => {
+                                        let filtered = filterPending ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING') : slot.bookings
+                                        if (slotFilterTurma) {
+                                          filtered = filtered.filter(b => extractTurma(b.studentGrade) === slotFilterTurma)
+                                        }
+                                        return filtered
+                                      })()
+                                      const periodLabel = slot.period === 'meio' ? '📅 Meio do Ano' : slot.period === 'final' ? '📅 Final do Ano' : ''
+                                      const expired = deadlineExpired(slot.registrationDeadline)
+                                      const expandedKey = `${grade}-${disciplineKey}-${slot.id}`
+
+                                      return (
+                                        <div key={slot.id} style={{ background: '#fafafa', borderRadius: 10, border: `1px solid ${expired ? '#fecaca' : accentBorder}`, overflow: 'hidden' }}>
+                                          {/* Cabeçalho do slot */}
+                                          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: expired ? '#fff5f5' : '#ffffff' }}>
+                                            <div>
+                                              <p style={{ fontWeight: 600, fontSize: 13, color: '#0a1a0d', margin: 0 }}>{formatDate(slot.date)}</p>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                                                <p style={{ fontSize: 12, color: expired ? '#ef4444' : accentColor, fontWeight: 600, margin: 0 }}>{slot.startTime} – {slot.endTime}</p>
+                                                {periodLabel && <span style={{ fontSize: 10, color: '#6b8f72' }}>{periodLabel}</span>}
+                                                <DeadlineBadge deadline={slot.registrationDeadline} />
                                               </div>
-                                              <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
-                                                Resp: <strong style={{ color: '#374151' }}>{b.parentName}</strong> · {b.parentEmail} · {b.parentPhone}
-                                              </p>
-                                              {subjectsList.length > 0 && (
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-                                                  {subjectsList.map(sub => (
-                                                    <span key={sub} style={{ fontSize: 11, fontWeight: 600, color: '#23A455', background: '#e8f9eb', padding: '2px 8px', borderRadius: 5 }}>{sub}</span>
-                                                  ))}
-                                                </div>
-                                              )}
-                                              {slot.type === 'normal' && (
-                                                <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: '#fff7ed', border: '1px solid #fed7aa' }}>
-                                                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#c2410c' }}>💰 Taxa de R$ 30,00 — PIX: {PIX_KEY}</p>
-                                                  {b.fileUrl
-                                                    ? <p style={{ margin: '3px 0 0', fontSize: 11, color: '#15803d', fontWeight: 600 }}>✅ Comprovante enviado</p>
-                                                    : <p style={{ margin: '3px 0 0', fontSize: 11, color: '#b45309' }}>⚠️ Aguardando comprovante</p>
-                                                  }
-                                                </div>
-                                              )}
                                             </div>
-                                            <div style={{ padding: '8px 14px', borderTop: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                              {b.fileUrl
-                                                ? <a href={b.fileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#4054B2', textDecoration: 'none', background: '#eef1fb', padding: '4px 10px', borderRadius: 6 }}>
-                                                    <Paperclip style={{ width: 11, height: 11 }} />Ver comprovante
-                                                  </a>
-                                                : <span style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4 }}><Paperclip style={{ width: 11, height: 11 }} />Sem comprovante</span>
-                                              }
-                                              <div style={{ display: 'flex', gap: 6 }}>
-                                                {b.status !== 'APPROVED' && (
-                                                  <button onClick={() => handleApprove(b.id)} disabled={isBusy}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'white', background: isBusy ? '#86efac' : '#22c55e', border: 'none', padding: '6px 14px', borderRadius: 7, cursor: isBusy ? 'not-allowed' : 'pointer' }}>
-                                                    <CheckCircle style={{ width: 12, height: 12 }} />{isBusy ? '...' : 'Aprovar'}
-                                                  </button>
-                                                )}
-                                                {b.status !== 'REJECTED' && (
-                                                  <button onClick={() => setRejectTarget({ id: b.id, studentName: b.studentName })} disabled={isBusy}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'white', background: isBusy ? '#fca5a5' : '#ef4444', border: 'none', padding: '6px 14px', borderRadius: 7, cursor: isBusy ? 'not-allowed' : 'pointer' }}>
-                                                    <XCircle style={{ width: 12, height: 12 }} />{isBusy ? '...' : 'Reprovar'}
-                                                  </button>
-                                                )}
-                                              </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                              <input
+                                                type="checkbox"
+                                                checked={selectedSlotIds.has(slot.id)}
+                                                onChange={() => toggleSlotSelection(slot.id)}
+                                                style={{ cursor: 'pointer', width: 14, height: 14 }}
+                                                title="Selecionar para deleção em massa"
+                                              />
+                                              <span style={{ fontSize: 11, color: '#23A455', background: '#e8f9eb', borderRadius: 999, padding: '2px 8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3, border: '1px solid #bbf7d0' }}>
+                                                <Users2 style={{ width: 10, height: 10 }} />{slot.bookings.length}
+                                              </span>
+                                              <button onClick={() => handleCopySlot(slot)} title="Copiar data e horário"
+                                                style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#4054B2' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#eef1fb'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                <Copy style={{ width: 12, height: 12 }} />
+                                              </button>
+                                              <button onClick={() => handleDeleteSlot(slot.id)} title="Remover slot"
+                                                style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#ef4444' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                <Trash2 style={{ width: 12, height: 12 }} />
+                                              </button>
                                             </div>
                                           </div>
-                                        )
-                                      })}
-                                    </div>
-                                  )}
-                                  {vis.length === 0 && (
-                                    <div style={{ padding: '14px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
-                                      {filterPending && slot.bookings.length > 0 ? 'Nenhum inscrito pendente.' : 'Nenhum inscrito neste slot.'}
-                                    </div>
-                                  )}
+
+                                          {/* Inscrições */}
+                                          {vis.length > 0 && (
+                                            <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: `1px solid ${accentBorder}` }}>
+                                              {vis.map((b, i) => {
+                                                const isBusy = acting === b.id
+                                                const isDelBook = deletingBooking === b.id
+                                                const subjectsList = b.subjects ? b.subjects.split(',').map(x => x.trim()).filter(Boolean) : []
+                                                return (
+                                                  <div key={b.id} style={{ borderRadius: 8, border: '1px solid #e5e7eb', background: isDelBook ? '#fef2f2' : '#ffffff', overflow: 'hidden', opacity: isDelBook ? 0.5 : 1 }}>
+                                                    <div style={{ padding: '8px 12px' }}>
+                                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+                                                          <span style={{ fontSize: 12, fontWeight: 700, color: '#0a1a0d' }}>{b.studentName}</span>
+                                                          <span style={{ fontSize: 9, color: '#9ca3af' }}>#{i + 1}</span>
+                                                          <StatusBadge status={b.status as BookingStatus} />
+                                                        </div>
+                                                        <button onClick={() => setDeleteBookingTarget({ id: b.id, name: b.studentName })} disabled={isBusy || isDelBook}
+                                                          style={{ padding: 3, border: 'none', background: 'transparent', cursor: isBusy || isDelBook ? 'not-allowed' : 'pointer', borderRadius: 5, color: '#ef4444', flexShrink: 0 }}
+                                                          onMouseEnter={e => { if (!isBusy && !isDelBook) e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
+                                                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                          <Trash2 style={{ width: 11, height: 11 }} />
+                                                        </button>
+                                                      </div>
+                                                      <p style={{ fontSize: 11, color: '#6b7280', margin: '3px 0 0' }}>
+                                                        {b.parentEmail} · {b.parentPhone}
+                                                      </p>
+                                                    </div>
+                                                    <div style={{ padding: '6px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                                      <div style={{ display: 'flex', gap: 4 }}>
+                                                        {b.status !== 'APPROVED' && (
+                                                          <button onClick={() => handleApprove(b.id)} disabled={isBusy}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: 'white', background: isBusy ? '#86efac' : '#22c55e', border: 'none', padding: '4px 10px', borderRadius: 5, cursor: isBusy ? 'not-allowed' : 'pointer' }}>
+                                                            <CheckCircle style={{ width: 10, height: 10 }} />{isBusy ? '...' : 'Aprovar'}
+                                                          </button>
+                                                        )}
+                                                        {b.status !== 'REJECTED' && (
+                                                          <button onClick={() => setRejectTarget({ id: b.id, studentName: b.studentName })} disabled={isBusy}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: 'white', background: isBusy ? '#fca5a5' : '#ef4444', border: 'none', padding: '4px 10px', borderRadius: 5, cursor: isBusy ? 'not-allowed' : 'pointer' }}>
+                                                            <XCircle style={{ width: 10, height: 10 }} />{isBusy ? '...' : 'Reprovar'}
+                                                          </button>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          )}
+                                          {vis.length === 0 && (
+                                            <div style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>
+                                              {filterPending && slot.bookings.length > 0 ? 'Nenhum pendente.' : 'Sem inscritos.'}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
                                 </div>
                               )
                             })}
