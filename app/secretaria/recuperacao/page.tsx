@@ -177,7 +177,6 @@ export default function RecuperacaoSecretariaPage() {
   const [rejectTarget,  setRejectTarget]  = useState<{ id: string; studentName: string } | null>(null)
   const [filterPending, setFilterPending] = useState(false)
   const [slotFilterTurma, setSlotFilterTurma] = useState('')
-  const [slotFilterTurma, setSlotFilterTurma] = useState('')
 
   // Delete inscrição dentro do slot
   const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
