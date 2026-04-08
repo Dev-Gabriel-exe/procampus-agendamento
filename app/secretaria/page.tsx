@@ -11,7 +11,7 @@ import FiltrosSemana, { type Filtros } from '@/components/secretaria/FiltrosSema
 import PrintView from '@/components/secretaria/PrintView'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
-
+import { extractTurma } from '@/lib/turmas'
 export const dynamic = 'force-dynamic'
 
 type AppointmentFull = {

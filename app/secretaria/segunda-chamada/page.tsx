@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
-
+import { extractTurma } from '@/lib/turmas'
 export const dynamic = 'force-dynamic'
 
 const GRADES_FUND1 = ['Educação Infantil','1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental']
@@ -37,6 +37,7 @@ type CompFilter    = 'all' | 'PENDING' | 'APPROVED' | 'REJECTED'
 type ExamBooking = {
   id: string
   studentName: string
+  studentGrade: string  
   parentName: string
   parentEmail: string
   parentPhone: string
@@ -186,6 +187,7 @@ export default function SegundaChamadaSecretariaPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [acting,   setActing]   = useState<string | null>(null)
   const [filterPending, setFilterPending] = useState(false)
+  const [filterTurma, setFilterTurma] = useState('')
   const [rejectTarget, setRejectTarget] = useState<{ id: string; studentName: string } | null>(null)
 
   // Formulário
@@ -205,6 +207,7 @@ export default function SegundaChamadaSecretariaPage() {
   const [deletingComp,        setDeletingComp]        = useState<string | null>(null)
   const [compSearch,          setCompSearch]          = useState('')
   const [compFilter,          setCompFilter]          = useState<CompFilter>('all')
+  const [compFilterTurma,     setCompFilterTurma]     = useState('')
 
   const availableSubjects = subjects.filter(s => s.grade === selGrade)
 
@@ -337,13 +340,22 @@ export default function SegundaChamadaSecretariaPage() {
     { PENDING: 0, APPROVED: 0, REJECTED: 0 } as Record<BookingStatus, number>
   )
 
+  const todasTurmas = [...new Set(
+    exams.flatMap(e => e.bookings.map(b => extractTurma(b.studentGrade))).filter(Boolean)
+  )].sort()
+
+  const todasTurmasComp = [...new Set(
+    comprovantes.map(b => extractTurma(b.studentGrade)).filter(Boolean)
+  )].sort()
+
   // ── Filtro comprovantes ───────────────────────────────────────────────────
   const filteredComps = comprovantes.filter(b => {
     const matchSearch = compSearch.trim() === '' ||
       b.parentName.toLowerCase().includes(compSearch.toLowerCase()) ||
       b.studentName.toLowerCase().includes(compSearch.toLowerCase())
     const matchStatus = compFilter === 'all' || (b.status ?? 'PENDING') === compFilter
-    return matchSearch && matchStatus
+    const matchTurma  = !compFilterTurma || extractTurma(b.studentGrade) === compFilterTurma
+    return matchSearch && matchStatus && matchTurma
   })
 
   const compCounts = comprovantes.reduce(
@@ -438,6 +450,21 @@ export default function SegundaChamadaSecretariaPage() {
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: filterPending ? '1px solid #4054B2' : '1px solid rgba(64,84,178,0.2)', background: filterPending ? '#4054B2' : 'white', color: filterPending ? 'white' : '#4054B2', cursor: 'pointer', transition: 'all 0.15s' }}>
                 <Filter style={{ width: 12, height: 12 }} />{filterPending ? 'Mostrando só pendentes' : 'Mostrar só pendentes'}
               </button>
+              {todasTurmas.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: '#6b8f72', fontWeight: 600 }}>Turma:</span>
+                  <button onClick={() => setFilterTurma('')}
+                    style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: !filterTurma ? '1px solid #4054B2' : '1px solid #e5e7eb', background: !filterTurma ? '#eef1fb' : 'white', color: !filterTurma ? '#4054B2' : '#6b7280' }}>
+                    Todas
+                  </button>
+                  {todasTurmas.map(t => (
+                    <button key={t} onClick={() => setFilterTurma(t === filterTurma ? '' : t)}
+                      style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: filterTurma === t ? '1px solid #4054B2' : '1px solid #e5e7eb', background: filterTurma === t ? '#eef1fb' : 'white', color: filterTurma === t ? '#4054B2' : '#6b7280' }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -549,7 +576,11 @@ export default function SegundaChamadaSecretariaPage() {
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
                           <div style={{ borderTop: '1px solid rgba(64,84,178,0.1)', padding: '16px 20px', background: '#fafafe', display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {group.slots.map(slot => {
-                              const visibleBookings = filterPending ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING') : slot.bookings
+                              const visibleBookings = slot.bookings.filter(b => {
+                                const matchPending = !filterPending || (b.status ?? 'PENDING') === 'PENDING'
+                                const matchTurma   = !filterTurma   || extractTurma(b.studentGrade) === filterTurma
+                                return matchPending && matchTurma
+                              })
                               return (
                                 <div key={slot.id} style={{ background: 'white', borderRadius: 12, border: '1px solid rgba(64,84,178,0.12)', overflow: 'hidden' }}>
                                   <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#f7f9fe' }}>
@@ -583,6 +614,11 @@ export default function SegundaChamadaSecretariaPage() {
                                                   <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{b.studentName}</span>
                                                   <span style={{ fontSize: 10, color: '#9ca3af' }}>#{i + 1}</span>
                                                   <StatusBadge status={b.status} />
+                                                  {extractTurma(b.studentGrade) && (
+                                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#4054B2', background: '#eef1fb', padding: '2px 8px', borderRadius: 5, border: '1px solid rgba(64,84,178,0.2)' }}>
+                                                      📚 {extractTurma(b.studentGrade)}
+                                                    </span>
+                                                  )}
                                                   {isJustified
                                                     ? <span style={{ fontSize: 11, color: '#166534', background: '#dcfce7', padding: '2px 7px', borderRadius: 5, fontWeight: 600 }}>✔ Justificado</span>
                                                     : <span style={{ fontSize: 11, color: '#991b1b', background: '#fee2e2', padding: '2px 7px', borderRadius: 5, fontWeight: 600 }}>✘ Não justificado</span>
@@ -701,6 +737,23 @@ export default function SegundaChamadaSecretariaPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* Filtro de turma comprovantes */}
+                {todasTurmasComp.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, color: '#6b8f72', fontWeight: 600 }}>Turma:</span>
+                    <button onClick={() => setCompFilterTurma('')}
+                      style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: !compFilterTurma ? '1px solid #4054B2' : '1px solid #e5e7eb', background: !compFilterTurma ? '#eef1fb' : 'white', color: !compFilterTurma ? '#4054B2' : '#6b7280' }}>
+                      Todas
+                    </button>
+                    {todasTurmasComp.map(t => (
+                      <button key={t} onClick={() => setCompFilterTurma(t === compFilterTurma ? '' : t)}
+                        style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: compFilterTurma === t ? '1px solid #4054B2' : '1px solid #e5e7eb', background: compFilterTurma === t ? '#eef1fb' : 'white', color: compFilterTurma === t ? '#4054B2' : '#6b7280' }}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

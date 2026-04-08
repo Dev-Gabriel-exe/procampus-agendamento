@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
+import { extractTurma } from '@/lib/turmas'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ type CompFilter    = 'all' | 'PENDING' | 'APPROVED' | 'REJECTED'
 type Subject       = { id: string; name: string; grade: string }
 
 type RecoveryBooking = {
-  id: string; studentName: string; parentName: string; parentEmail: string
+  id: string; studentName: string; studentGrade: string; parentName: string; parentEmail: string
   parentPhone: string; subjects: string; status: BookingStatus; fileUrl?: string | null; createdAt: string
 }
 type RecoverySchedule = {
@@ -152,6 +153,7 @@ export default function RecuperacaoSecretariaPage() {
   const [deletingComp,     setDeletingComp]     = useState<string | null>(null)
   const [compSearch,       setCompSearch]       = useState('')
   const [compFilter,       setCompFilter]       = useState<CompFilter>('all')
+  const [compFilterTurma,  setCompFilterTurma]  = useState('')
   const [actingComp,       setActingComp]       = useState<string | null>(null)
   const [rejectTargetComp, setRejectTargetComp] = useState<{ id: string; studentName: string } | null>(null)
 
@@ -365,12 +367,17 @@ export default function RecuperacaoSecretariaPage() {
     { PENDING: 0, APPROVED: 0, REJECTED: 0 } as Record<BookingStatus, number>
   )
 
+  const todasTurmasComp = [...new Set(
+    comprovantes.map(b => extractTurma(b.studentGrade)).filter(Boolean)
+  )].sort()
+
   const filteredComps = comprovantes.filter(b => {
     const matchSearch = compSearch.trim() === '' ||
       b.parentName.toLowerCase().includes(compSearch.toLowerCase()) ||
       b.studentName.toLowerCase().includes(compSearch.toLowerCase())
     const matchStatus = compFilter === 'all' || (b.status ?? 'PENDING') === compFilter
-    return matchSearch && matchStatus
+    const matchTurma  = !compFilterTurma || extractTurma(b.studentGrade) === compFilterTurma
+    return matchSearch && matchStatus && matchTurma
   })
 
   const pendingCompCount = comprovantes.filter(c => (c.status ?? 'PENDING') === 'PENDING').length
@@ -795,7 +802,7 @@ export default function RecuperacaoSecretariaPage() {
                     </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   <SlidersHorizontal style={{ width: 13, height: 13, color: '#9ca3af' }} />
                   {([
                     { key: 'all',      label: `Todos (${comprovantes.length})` },
@@ -809,6 +816,23 @@ export default function RecuperacaoSecretariaPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* Filtro de turma comprovantes */}
+                {todasTurmasComp.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, color: '#6b8f72', fontWeight: 600 }}>Turma:</span>
+                    <button onClick={() => setCompFilterTurma('')}
+                      style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: !compFilterTurma ? '1px solid #23A455' : '1px solid #e5e7eb', background: !compFilterTurma ? '#e8f9eb' : 'white', color: !compFilterTurma ? '#23A455' : '#6b7280' }}>
+                      Todas
+                    </button>
+                    {todasTurmasComp.map(t => (
+                      <button key={t} onClick={() => setCompFilterTurma(t === compFilterTurma ? '' : t)}
+                        style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: compFilterTurma === t ? '1px solid #23A455' : '1px solid #e5e7eb', background: compFilterTurma === t ? '#e8f9eb' : 'white', color: compFilterTurma === t ? '#23A455' : '#6b7280' }}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

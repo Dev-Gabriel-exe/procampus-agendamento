@@ -8,8 +8,9 @@ import {
   ArrowLeft, ArrowRight, Check, ClipboardList,
   User, Mail, Phone, GraduationCap, CheckCircle,
   ChevronDown, MapPin, CalendarDays, Clock,
-  AlertCircle, FileText, Heart, Upload, Copy, Sun, Moon,
+  AlertCircle, FileText, Heart, Upload, Copy, CalendarPlus, Sun, Moon,
 } from 'lucide-react'
+import { generateCalendarLink } from '@/lib/calendar-link'
 
 const ALL_GRADES = [
   'Educação Infantil',
@@ -601,6 +602,26 @@ export default function SegundaChamadaPage() {
                   ))}
                 </motion.div>
               )}
+
+              {selectedExam && (
+                <motion.a
+                  initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
+                  href={generateCalendarLink({
+                    title: `Segunda Chamada — ${selectedExam.subjectName}`,
+                    date: selectedExam.date,
+                    startTime: selectedExam.startTime,
+                    endTime: selectedExam.endTime,
+                    description: `Segunda chamada de ${selectedExam.subjectName}\nAluno: ${studentName}\nSérie: ${selGrade}`,
+                  })}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ width: '100%', textDecoration: 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.15)', color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                    <CalendarPlus style={{ width: 18, height: 18, color: '#4ade80' }} />
+                    Adicionar ao Google Agenda
+                  </div>
+                </motion.a>
+              )}
+              
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} style={{ width: '100%', background: 'rgba(64,84,178,0.08)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left' }}>
                 <MapPin style={{ width: 16, height: 16, color: '#6b7fe8', flexShrink: 0, marginTop: 1 }} />
                 <div>

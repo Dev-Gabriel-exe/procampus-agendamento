@@ -7,8 +7,10 @@ import Link from 'next/link'
 import {
   ArrowLeft, ArrowRight, Check, BookMarked,
   User, Mail, Phone, GraduationCap, CheckCircle,
-  ChevronDown, MapPin, CalendarDays, Clock, Copy, Upload,
+  ChevronDown, MapPin, CalendarDays, Clock, Copy, Upload, CalendarPlus,
 } from 'lucide-react'
+import { getTurmas, buildStudentGrade } from '@/lib/turmas'
+import { generateCalendarLink } from '@/lib/calendar-link'
 
 const ALL_GRADES = [
   'Educação Infantil',
@@ -121,12 +123,14 @@ export default function RecuperacaoPage() {
 
   // Step 1
   const [selGrade,      setSelGrade]      = useState('')
+  const [selTurma,      setSelTurma]      = useState('')
   const [allSubjects,   setAllSubjects]   = useState<string[]>([])
   const [selSubjectsP,  setSelSubjectsP]  = useState<string[]>([])            // selected subjects (both fund1 & fund2)
   const [schedules,     setSchedules]     = useState<RecoverySchedule[]>([])  // all fetched slots for grade+type
   const [loadingSlots,  setLoadingSlots]  = useState(false)
   const [hasSearched,   setHasSearched]   = useState(false)
   const [selectedSlots, setSelectedSlots] = useState<Record<string, RecoverySchedule>>({}) // subjectName → slot
+  const turmasDisponiveis = getTurmas(selGrade)
 
   const isFund1    = GRADES_FUND1.has(selGrade)
   const isParalela = !isFund1
@@ -157,7 +161,7 @@ export default function RecuperacaoPage() {
   // Reset ao trocar série
   useEffect(() => {
     setAllSubjects([]); setSelSubjectsP([]); setSchedules([])
-    setSelectedSlots({}); setHasSearched(false)
+    setSelectedSlots({}); setHasSearched(false); setSelTurma('')
     if (!selGrade) return
     ;(async () => {
       try {
@@ -213,7 +217,7 @@ export default function RecuperacaoPage() {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               parentName, parentEmail, parentPhone, studentName,
-              studentGrade: selGrade, subjects: subject, fileUrl,
+              studentGrade: buildStudentGrade(selGrade, selTurma), subjects: subject, fileUrl,
             }),
           }).then(async r => {
             if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erro ao inscrever.') }
@@ -300,6 +304,27 @@ export default function RecuperacaoPage() {
                 </div>
               </div>
 
+              {/* Seletor de turma */}
+              <AnimatePresence>
+                {selGrade && turmasDisponiveis.length > 0 && (
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
+                    <label style={labelStyle}>Turma do aluno</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {turmasDisponiveis.map(t => (
+                        <button key={t} onClick={() => setSelTurma(t)}
+                          style={{ padding: '11px 18px', borderRadius: 100, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44,
+                            background: selTurma === t ? 'linear-gradient(135deg,#23A455,#61CE70)' : 'rgba(255,255,255,0.06)',
+                            color: selTurma === t ? '#041809' : 'rgba(255,255,255,0.65)',
+                            border: selTurma === t ? '2px solid transparent' : '1.5px solid rgba(35,164,85,0.2)',
+                            boxShadow: selTurma === t ? '0 4px 20px rgba(35,164,85,0.35)' : 'none' }}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Badge tipo */}
               <AnimatePresence>
                 {selGrade && (
@@ -349,7 +374,7 @@ export default function RecuperacaoPage() {
 
               {/* Buscar horários */}
               <AnimatePresence>
-                {selGrade && selSubjectsP.length > 0 && (
+                {selGrade && selTurma && selSubjectsP.length > 0 && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <button onClick={loadSlots} style={btnPrimary(false)}>
                       <BookMarked style={{ width: 18, height: 18 }} />Ver horários disponíveis
@@ -686,6 +711,28 @@ export default function RecuperacaoPage() {
               </motion.div>
 
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+                style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Object.entries(selectedSlots).map(([subject, slot]) => (
+                  <motion.a key={subject}
+                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
+                    href={generateCalendarLink({
+                      title: `Recuperação — ${subject}`,
+                      date: slot.date,
+                      startTime: slot.startTime,
+                      endTime: slot.endTime,
+                      description: `Recuperação de ${subject}\nAluno: ${studentName}\nTurma: ${buildStudentGrade(selGrade, selTurma)}`,
+                    })}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ textDecoration: 'none', width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.15)', color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                      <CalendarPlus style={{ width: 18, height: 18, color: '#4ade80' }} />
+                      {Object.keys(selectedSlots).length > 1 ? `Google Agenda — ${subject}` : 'Adicionar ao Google Agenda'}
+                    </div>
+                  </motion.a>
+                ))}
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
                 style={{ width: '100%', background: 'rgba(35,164,85,0.08)', border: '1px solid rgba(35,164,85,0.2)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left' }}>
                 <MapPin style={{ width: 16, height: 16, color: '#4ade80', flexShrink: 0, marginTop: 1 }} />
                 <div>
