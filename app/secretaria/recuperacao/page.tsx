@@ -81,27 +81,37 @@ function formatDateTime(date: string) {
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })
 }
 
-/** Retorna true se o prazo de inscrições já passou (fim do dia, horário local) */
+/** Retorna true se o prazo já passou (fim do dia em Fortaleza) */
 function deadlineExpired(deadline?: string | null): boolean {
   if (!deadline) return false
-  // Extrai só YYYY-MM-DD (Prisma pode devolver ISO completo)
-  const [y, m, d] = deadline.split('T')[0].split('-').map(Number)
-  // Fim do dia no horário local — sem nenhuma conversão UTC
-  const endOfDay = new Date(y, m - 1, d, 23, 59, 59)
+  // Extrai a data no fuso de Fortaleza (independente de como foi armazenado)
+  const dateInFortaleza = new Date(deadline).toLocaleDateString('en-CA', {
+    timeZone: 'America/Fortaleza', // retorna YYYY-MM-DD
+  })
+  const [y, m, d] = dateInFortaleza.split('-').map(Number)
+  // Meia-noite de Fortaleza (UTC-3) = próximo dia às 03:00 UTC
+  const endOfDay = new Date(Date.UTC(y, m - 1, d + 1, 3, 0, 0))
   return endOfDay < new Date()
+}
+
+/** Formata data de input YYYY-MM-DD como data local sem conversão UTC */
+function formatLocalInput(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'short',
+  })
 }
 
 /** Badge de prazo de inscrições */
 function DeadlineBadge({ deadline }: { deadline?: string | null }) {
   if (!deadline) return null
   const expired = deadlineExpired(deadline)
-
-  // Extrai YYYY-MM-DD e monta data local — evita o shift de fuso
-  const [y, m, d] = deadline.split('T')[0].split('-').map(Number)
-  const label = new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+  // Usa Fortaleza para exibir — se o servidor guardou como fim-do-dia UTC,
+  // isso converte corretamente de volta para o dia original
+  const label = new Date(deadline).toLocaleDateString('pt-BR', {
     day: '2-digit', month: 'short',
+    timeZone: 'America/Fortaleza',
   })
-
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -636,7 +646,7 @@ export default function RecuperacaoSecretariaPage() {
                   </div>
                   <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
                     {regDeadline
-                      ? `As inscrições serão encerradas automaticamente no final do dia ${formatDateShort(regDeadline)}.`
+                      ? `As inscrições serão encerradas automaticamente no final do dia ${formatLocalInput(regDeadline)}.`
                       : 'Se não informado, as inscrições ficam abertas até a data da prova.'}
                   </p>
                 </div>
@@ -707,7 +717,7 @@ export default function RecuperacaoSecretariaPage() {
                     <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
                       <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#15803d' }}>
                         {totalLote} slot{totalLote !== 1 ? 's' : ''} serão criados
-                        {regDeadline ? ` · prazo ${formatDateShort(regDeadline)}` : ''}
+                        {regDeadline ? ` · prazo ${formatLocalInput(regDeadline)}` : ''}
                       </p>
                       <p style={{ margin: '3px 0 0', fontSize: 11, color: '#6b8f72' }}>
                         {Object.entries(loteSelecao)
