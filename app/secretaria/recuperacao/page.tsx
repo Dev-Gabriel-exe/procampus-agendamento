@@ -176,6 +176,8 @@ export default function RecuperacaoSecretariaPage() {
   const [acting,        setActing]        = useState<string | null>(null)
   const [rejectTarget,  setRejectTarget]  = useState<{ id: string; studentName: string } | null>(null)
   const [filterPending, setFilterPending] = useState(false)
+  const [slotFilterTurma, setSlotFilterTurma] = useState('')
+  const [slotFilterTurma, setSlotFilterTurma] = useState('')
 
   // Delete inscrição dentro do slot
   const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
@@ -411,6 +413,10 @@ export default function RecuperacaoSecretariaPage() {
     comprovantes.map(b => extractTurma(b.studentGrade)).filter(Boolean)
   )].sort()
 
+  const todasTurmasSlots = [...new Set(
+    schedules.flatMap(s => s.bookings.map(b => extractTurma(b.studentGrade))).filter(Boolean)
+  )].sort()
+
   const filteredComps = comprovantes.filter(b => {
     const matchSearch = compSearch.trim() === '' ||
       b.parentName.toLowerCase().includes(compSearch.toLowerCase()) ||
@@ -485,16 +491,33 @@ export default function RecuperacaoSecretariaPage() {
           </div>
 
           {activeTab === 'slots' && !loading && (globalCounts.PENDING + globalCounts.APPROVED + globalCounts.REJECTED) > 0 && (
-            <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-              {(['PENDING','APPROVED','REJECTED'] as BookingStatus[]).map(s => (
-                <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: STATUS_META[s].color, background: STATUS_META[s].bg, padding: '5px 12px', borderRadius: 8, border: `1px solid ${STATUS_META[s].border}` }}>
-                  {STATUS_META[s].icon}{globalCounts[s]} {STATUS_META[s].label}{globalCounts[s] !== 1 ? 's' : ''}
-                </span>
-              ))}
-              <button onClick={() => setFilterPending(f => !f)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: filterPending ? '1px solid #23A455' : '1px solid rgba(97,206,112,0.3)', background: filterPending ? '#23A455' : 'white', color: filterPending ? 'white' : '#23A455', cursor: 'pointer' }}>
-                <Filter style={{ width: 12, height: 12 }} />{filterPending ? 'Mostrando só pendentes' : 'Mostrar só pendentes'}
-              </button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(['PENDING','APPROVED','REJECTED'] as BookingStatus[]).map(s => (
+                  <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: STATUS_META[s].color, background: STATUS_META[s].bg, padding: '5px 12px', borderRadius: 8, border: `1px solid ${STATUS_META[s].border}` }}>
+                    {STATUS_META[s].icon}{globalCounts[s]} {STATUS_META[s].label}{globalCounts[s] !== 1 ? 's' : ''}
+                  </span>
+                ))}
+                <button onClick={() => setFilterPending(f => !f)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: filterPending ? '1px solid #23A455' : '1px solid rgba(97,206,112,0.3)', background: filterPending ? '#23A455' : 'white', color: filterPending ? 'white' : '#23A455', cursor: 'pointer' }}>
+                  <Filter style={{ width: 12, height: 12 }} />{filterPending ? 'Mostrando só pendentes' : 'Mostrar só pendentes'}
+                </button>
+              </div>
+              {todasTurmasSlots.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, color: '#6b8f72', fontWeight: 600 }}>Turma:</span>
+                  <button onClick={() => setSlotFilterTurma('')}
+                    style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: !slotFilterTurma ? '1px solid #23A455' : '1px solid #e5e7eb', background: !slotFilterTurma ? '#e8f9eb' : 'white', color: !slotFilterTurma ? '#23A455' : '#6b7280' }}>
+                    Todas
+                  </button>
+                  {todasTurmasSlots.map(t => (
+                    <button key={t} onClick={() => setSlotFilterTurma(t === slotFilterTurma ? '' : t)}
+                      style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: slotFilterTurma === t ? '1px solid #23A455' : '1px solid #e5e7eb', background: slotFilterTurma === t ? '#e8f9eb' : 'white', color: slotFilterTurma === t ? '#23A455' : '#6b7280' }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -714,7 +737,13 @@ export default function RecuperacaoSecretariaPage() {
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
                           <div style={{ borderTop: `1px solid ${accentBorder}`, padding: '16px 20px', background: '#fafdfb', display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {group.slots.map(slot => {
-                              const vis         = filterPending ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING') : slot.bookings
+                              const vis         = (() => {
+                                let filtered = filterPending ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING') : slot.bookings
+                                if (slotFilterTurma) {
+                                  filtered = filtered.filter(b => extractTurma(b.studentGrade) === slotFilterTurma)
+                                }
+                                return filtered
+                              })()
                               const periodLabel = slot.period === 'meio' ? '📅 Meio do Ano' : slot.period === 'final' ? '📅 Final do Ano' : ''
                               const expired     = deadlineExpired(slot.registrationDeadline)
 
