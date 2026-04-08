@@ -51,28 +51,59 @@ export async function POST(req: NextRequest) {
   const role = (session.user as any)?.role ?? 'geral'
 
   try {
-    const { name, grade } = await req.json()
-    if (!name || !grade) return NextResponse.json({ error: 'Nome e série obrigatórios' }, { status: 400 })
+    const body = await req.json()
+    const { name, grades } = body
+    
+    // Aceita tanto o formato antigo (grade) quanto o novo (grades array)
+    const gradesToCreate = grades || (body.grade ? [body.grade] : null)
+    
+    if (!name || !gradesToCreate) {
+      return NextResponse.json({ error: 'Nome e série(s) obrigatória(s)' }, { status: 400 })
+    }
 
-    // Verifica se o role tem permissão para essa série
+    if (!Array.isArray(gradesToCreate)) {
+      return NextResponse.json({ error: 'Grades deve ser um array' }, { status: 400 })
+    }
+
+    // Verifica permissões
     if (!isGeral(role)) {
       const allowed = getGradesForRole(role)
-      if (!allowed.includes(grade)) {
-        return NextResponse.json({ error: 'Série fora do seu nível de acesso.' }, { status: 403 })
+      const unauthorized = gradesToCreate.filter(g => !allowed.includes(g))
+      if (unauthorized.length > 0) {
+        return NextResponse.json({ error: `Série(s) fora do seu nível de acesso: ${unauthorized.join(', ')}` }, { status: 403 })
       }
     }
 
-    // Verifica se já existe
-    const existing = await prisma.subject.findFirst({ where: { name, grade } })
-    if (existing) return NextResponse.json({ error: 'Esta disciplina já existe para esta série.' }, { status: 409 })
+    // Cria a disciplina para cada série
+    const created: any[] = []
+    const errors: any[] = []
 
-    const id = `${name}-${grade}`.toLowerCase().replace(/[\sºªç\/áéíóúãõâêî]/g, c => {
-      const map: Record<string, string> = { 'á':'a','é':'e','í':'i','ó':'o','ú':'u','ã':'a','õ':'o','â':'a','ê':'e','î':'i','ç':'c',' ':'-','º':'-','ª':'-','/':'-' }
-      return map[c] ?? c
-    }).replace(/-+/g, '-')
+    for (const grade of gradesToCreate) {
+      try {
+        // Verifica se já existe
+        const existing = await prisma.subject.findFirst({ where: { name, grade } })
+        if (existing) {
+          errors.push({ grade, error: 'Já existe para esta série' })
+          continue
+        }
 
-    const subject = await prisma.subject.create({ data: { id, name, grade } })
-    return NextResponse.json(subject, { status: 201 })
+        const id = `${name}-${grade}`.toLowerCase().replace(/[\sºªç\/áéíóúãõâêî]/g, c => {
+          const map: Record<string, string> = { 'á':'a','é':'e','í':'i','ó':'o','ú':'u','ã':'a','õ':'o','â':'a','ê':'e','î':'i','ç':'c',' ':'-','º':'-','ª':'-','/':'-' }
+          return map[c] ?? c
+        }).replace(/-+/g, '-')
+
+        const subject = await prisma.subject.create({ data: { id, name, grade } })
+        created.push(subject)
+      } catch (err) {
+        errors.push({ grade, error: String(err) })
+      }
+    }
+
+    if (created.length === 0) {
+      return NextResponse.json({ error: 'Nenhuma série foi criada', errors }, { status: 409 })
+    }
+
+    return NextResponse.json({ created, errors: errors.length > 0 ? errors : undefined }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Erro ao criar disciplina' }, { status: 500 })
   }

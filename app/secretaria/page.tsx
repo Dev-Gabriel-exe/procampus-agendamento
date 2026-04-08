@@ -114,7 +114,7 @@ function StatCard({ label, value, icon: Icon, color, bg }: { label: string; valu
 export default function SecretariaPage() {
   const [appointments, setAppointments] = useState<AppointmentFull[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtros, setFiltros] = useState<Filtros>({ search: '', dateFrom: '', dateTo: '', grade: '', discipline: '' })
+  const [filtros, setFiltros] = useState<Filtros>({ search: '', dateFrom: '', dateTo: '', grade: '', discipline: '', turma: '' })
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
@@ -145,19 +145,21 @@ export default function SecretariaPage() {
     if (filtros.dateTo   && new Date(a.date).toISOString().split('T')[0] > filtros.dateTo)   return false
     if (filtros.grade      && a.studentGrade !== filtros.grade)      return false
     if (filtros.discipline && a.subjectName  !== filtros.discipline) return false
+    if (filtros.turma      && extractTurma(a.studentGrade) !== filtros.turma) return false
     return true
   })
 
   const confirmed    = filtered.filter(a => a.status === 'confirmed')
   const cancelled    = filtered.filter(a => a.status === 'cancelled')
   const disciplines  = [...new Set(appointments.map(a => a.subjectName).filter(Boolean))].sort()
+  const turmas       = [...new Set(appointments.map(a => extractTurma(a.studentGrade)).filter(Boolean))].sort()
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
       <SecretariaNav active="dashboard" />
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 40px' }}>
         <div style={{ marginBottom: 16 }}>
-          <FiltrosSemana filtros={filtros} onFiltros={setFiltros} disciplines={disciplines} totalFiltrado={filtered.length} totalGeral={appointments.length} onPrint={() => window.print()} />
+          <FiltrosSemana filtros={filtros} onFiltros={setFiltros} disciplines={disciplines} turmas={turmas} totalFiltrado={filtered.length} totalGeral={appointments.length} onPrint={() => window.print()} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }} className="no-print stats-grid">
           <StatCard label="Confirmados" value={confirmed.length} icon={CheckCircle} color="#23A455" bg="#e8f9eb" />

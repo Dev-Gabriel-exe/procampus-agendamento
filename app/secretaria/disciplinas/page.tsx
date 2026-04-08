@@ -64,14 +64,15 @@ export default function DisciplinasPage() {
 
   const grades = role === 'fund1' ? GRADES_FUND1 : role === 'fund2' ? GRADES_FUND2 : GRADES_ALL
 
-  const [subjects,    setSubjects]    = useState<Subject[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [newName,     setNewName]     = useState('')
-  const [newGrade,    setNewGrade]    = useState('')
-  const [saving,      setSaving]      = useState(false)
-  const [error,       setError]       = useState('')
-  const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; name: string }>({ open: false, id: '', name: '' })
-  const [expanded,    setExpanded]    = useState<string | null>(null)
+  const [subjects,         setSubjects]         = useState<Subject[]>([])
+  const [loading,          setLoading]          = useState(true)
+  const [newName,          setNewName]          = useState('')
+  const [selDiscipline,    setSelDiscipline]    = useState('')
+  const [selectedGrades,   setSelectedGrades]   = useState<string[]>([])
+  const [saving,           setSaving]           = useState(false)
+  const [error,            setError]            = useState('')
+  const [deleteModal,      setDeleteModal]      = useState<{ open: boolean; id: string; name: string }>({ open: false, id: '', name: '' })
+  const [expanded,         setExpanded]         = useState<string | null>(null)
 
   async function loadSubjects() {
     setLoading(true)
@@ -84,20 +85,51 @@ export default function DisciplinasPage() {
 
   useEffect(() => { loadSubjects() }, [])
 
-  async function handleCreate(e: React.FormEvent) {
+  // Pega apenas os nomes únicos de disciplinas
+  const uniqueDisciplines = Array.from(new Set(subjects.map(s => s.name))).sort()
+
+  // Pega as séries que já têm a disciplina selecionada
+  const gradesWithSelectedDiscipline = subjects
+    .filter(s => s.name === selDiscipline)
+    .map(s => s.grade)
+
+  // Pega as séries que NÃO têm a disciplina selecionada (disponíveis para vincular)
+  const availableGrades = grades.filter(g => !gradesWithSelectedDiscipline.includes(g))
+
+  async function handleCreateDiscipline(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!newName.trim() || !newGrade) { setError('Preencha nome e série.'); return }
+    if (!newName.trim()) { setError('Digite o nome da disciplina.'); return }
     setSaving(true)
     try {
       const res = await fetch('/api/disciplinas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), grade: newGrade }),
+        body: JSON.stringify({ name: newName.trim(), grades: [grades[0]] }), // Cria com a primeira série como referência
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Erro ao criar'); return }
-      setNewName(''); setNewGrade('')
+      setNewName('')
+      loadSubjects()
+    } catch { setError('Erro de conexão') }
+    finally { setSaving(false) }
+  }
+
+  async function handleLinkDiscipline(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (!selDiscipline) { setError('Selecione uma disciplina.'); return }
+    if (selectedGrades.length === 0) { setError('Selecione pelo menos uma série.'); return }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/disciplinas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: selDiscipline, grades: selectedGrades }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Erro ao vincular'); return }
+      setSelectedGrades([])
       loadSubjects()
     } catch { setError('Erro de conexão') }
     finally { setSaving(false) }
@@ -162,76 +194,126 @@ export default function DisciplinasPage() {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,2fr)', gap: 24, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)', gap: 24, alignItems: 'start' }}>
 
-          {/* ── Formulário de criação ── */}
+          {/* ── Painel Esquerdo: Criar Disciplina ── */}
           <div style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.15)', padding: 24, boxShadow: '0 2px 16px rgba(0,0,0,0.04)', position: 'sticky', top: 84 }}>
             <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 700, fontSize: 16, color: '#0a1a0d', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Plus style={{ width: 16, height: 16, color: '#23A455' }} />
-              Nova Disciplina
+              Criar Disciplina
             </h3>
 
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <form onSubmit={handleCreateDiscipline} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-                  Nome da disciplina
+                  Nome
                 </label>
                 <input
                   type="text" value={newName} onChange={e => setNewName(e.target.value)}
-                  placeholder="Ex: Robótica"
+                  placeholder="Ex: Filosofia"
                   style={{ width: '100%', padding: '11px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.2)', fontSize: 14, outline: 'none', fontFamily: 'inherit', color: '#0a1a0d', background: 'white' }}
                   onFocus={e => { e.target.style.borderColor = '#23A455'; e.target.style.boxShadow = '0 0 0 3px rgba(97,206,112,0.1)' }}
                   onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-                  Série
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <select value={newGrade} onChange={e => setNewGrade(e.target.value)}
-                    style={{ width: '100%', padding: '11px 36px 11px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.2)', fontSize: 14, outline: 'none', appearance: 'none', fontFamily: 'inherit', color: newGrade ? '#0a1a0d' : '#9ca3af', background: 'white', cursor: 'pointer' }}
-                    onFocus={e => { e.target.style.borderColor = '#23A455'; e.target.style.boxShadow = '0 0 0 3px rgba(97,206,112,0.1)' }}
-                    onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
-                  >
-                    <option value="">Selecione a série</option>
-                    {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                  <ChevronDown style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#6b8f72', pointerEvents: 'none' }} />
-                </div>
-              </div>
-
-              {error && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef2f2', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: 13 }}>
-                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }} />
-                  {error}
-                  <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}>
-                    <X style={{ width: 13, height: 13 }} />
-                  </button>
-                </div>
-              )}
-
-              <button type="submit" disabled={saving || !newName.trim() || !newGrade}
+              <button type="submit" disabled={saving || !newName.trim()}
                 style={{
                   padding: '12px', borderRadius: 10, border: 'none',
-                  background: (saving || !newName.trim() || !newGrade) ? 'rgba(97,206,112,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)',
-                  color: (saving || !newName.trim() || !newGrade) ? 'rgba(255,255,255,0.5)' : 'white',
-                  fontSize: 14, fontWeight: 700, cursor: (saving || !newName.trim() || !newGrade) ? 'not-allowed' : 'pointer',
+                  background: (saving || !newName.trim()) ? 'rgba(97,206,112,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)',
+                  color: (saving || !newName.trim()) ? 'rgba(255,255,255,0.5)' : 'white',
+                  fontSize: 14, fontWeight: 700, cursor: (saving || !newName.trim()) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   fontFamily: '"Roboto Slab",serif', transition: 'all 0.2s',
-                  boxShadow: (saving || !newName.trim() || !newGrade) ? 'none' : '0 4px 16px rgba(97,206,112,0.35)',
+                  boxShadow: (saving || !newName.trim()) ? 'none' : '0 4px 16px rgba(97,206,112,0.35)',
                 }}>
                 {saving ? (
-                  <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} />Salvando...</>
+                  <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} />Criando...</>
                 ) : (
-                  <><Plus style={{ width: 15, height: 15 }} />Adicionar Disciplina</>
+                  <><Plus style={{ width: 15, height: 15 }} />Criar</>
                 )}
               </button>
             </form>
           </div>
 
-          {/* ── Lista por série ── */}
+          {/* ── Painel Central: Vincular a Séries ── */}
+          <div style={{ background: 'white', borderRadius: 18, border: '1.5px solid rgba(97,206,112,0.15)', padding: 24, boxShadow: '0 2px 16px rgba(0,0,0,0.04)', position: 'sticky', top: 84 }}>
+            <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 700, fontSize: 16, color: '#0a1a0d', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BookOpen style={{ width: 16, height: 16, color: '#23A455' }} />
+              Vincular Séries
+            </h3>
+
+            <form onSubmit={handleLinkDiscipline} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                  Disciplina
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <select value={selDiscipline} onChange={e => { setSelDiscipline(e.target.value); setSelectedGrades([]) }}
+                    style={{ width: '100%', padding: '11px 36px 11px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.2)', fontSize: 14, outline: 'none', appearance: 'none', fontFamily: 'inherit', color: selDiscipline ? '#0a1a0d' : '#9ca3af', background: 'white', cursor: 'pointer' }}
+                    onFocus={e => { e.target.style.borderColor = '#23A455'; e.target.style.boxShadow = '0 0 0 3px rgba(97,206,112,0.1)' }}
+                    onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
+                  >
+                    <option value="">Selecione</option>
+                    {uniqueDisciplines.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <ChevronDown style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#6b8f72', pointerEvents: 'none' }} />
+                </div>
+              </div>
+
+              {selDiscipline && availableGrades.length > 0 && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                    Séries ({selectedGrades.length} selecionadas)
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto', paddingRight: 8 }}>
+                    {availableGrades.map(grade => (
+                      <label key={grade} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 10px', borderRadius: 8, background: selectedGrades.includes(grade) ? '#f0faf2' : 'transparent', transition: 'background 0.15s' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedGrades.includes(grade)}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setSelectedGrades([...selectedGrades, grade])
+                            } else {
+                              setSelectedGrades(selectedGrades.filter(g => g !== grade))
+                            }
+                          }}
+                          style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#23A455' }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#3d5c42' }}>{grade}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selDiscipline && availableGrades.length === 0 && (
+                <div style={{ padding: '12px', background: '#f0faf2', borderRadius: 10, border: '1px solid rgba(97,206,112,0.2)', fontSize: 13, color: '#3d5c42' }}>
+                  ✓ Já está em todas as séries disponíveis
+                </div>
+              )}
+
+              <button type="submit" disabled={saving || !selDiscipline || selectedGrades.length === 0}
+                style={{
+                  padding: '12px', borderRadius: 10, border: 'none',
+                  background: (saving || !selDiscipline || selectedGrades.length === 0) ? 'rgba(97,206,112,0.2)' : 'linear-gradient(135deg,#23A455,#61CE70)',
+                  color: (saving || !selDiscipline || selectedGrades.length === 0) ? 'rgba(255,255,255,0.5)' : 'white',
+                  fontSize: 14, fontWeight: 700, cursor: (saving || !selDiscipline || selectedGrades.length === 0) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  fontFamily: '"Roboto Slab",serif', transition: 'all 0.2s',
+                  boxShadow: (saving || !selDiscipline || selectedGrades.length === 0) ? 'none' : '0 4px 16px rgba(97,206,112,0.35)',
+                }}>
+                {saving ? (
+                  <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} />Vinculando...</>
+                ) : (
+                  <><Plus style={{ width: 15, height: 15 }} />Vincular</>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* ── Painel Direito: Lista por série ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {loading ? <LoadingSpinner /> : grades.map(grade => {
               const subs = grouped[grade] || []

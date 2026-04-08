@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Printer, Filter, X, ChevronDown } from 'lucide-react'
 import { formatDateShort } from '@/lib/slots'
+import { extractTurma } from '@/lib/turmas'
 
 const GRADES = [
   'Educação Infantil',
@@ -20,19 +21,21 @@ export interface Filtros {
   dateTo:     string
   grade:      string
   discipline: string
+  turma:      string
 }
 
 interface FiltrosSemanaProps {
   filtros: Filtros
   onFiltros: (f: Filtros) => void
   disciplines: string[]   // lista dinâmica vinda dos agendamentos
+  turmas: string[]        // lista dinâmica de turmas
   totalFiltrado: number
   totalGeral: number
   onPrint: () => void
 }
 
 export default function FiltrosSemana({
-  filtros, onFiltros, disciplines,
+  filtros, onFiltros, disciplines, turmas,
   totalFiltrado, totalGeral, onPrint,
 }: FiltrosSemanaProps) {
   const [expanded, setExpanded] = useState(false)
@@ -42,11 +45,11 @@ export default function FiltrosSemana({
   }
 
   function clear() {
-    onFiltros({ search: '', dateFrom: '', dateTo: '', grade: '', discipline: '' })
+    onFiltros({ search: '', dateFrom: '', dateTo: '', grade: '', discipline: '', turma: '' })
   }
 
-  const hasFilter = filtros.dateFrom || filtros.dateTo || filtros.grade || filtros.discipline
-  const activeCount = [filtros.dateFrom, filtros.dateTo, filtros.grade, filtros.discipline].filter(Boolean).length
+  const hasFilter = filtros.dateFrom || filtros.dateTo || filtros.grade || filtros.discipline || filtros.turma
+  const activeCount = [filtros.dateFrom, filtros.dateTo, filtros.grade, filtros.discipline, filtros.turma].filter(Boolean).length
 
   return (
     <div className="no-print" style={{ background: 'white', borderRadius: 16, border: '1.5px solid rgba(97,206,112,0.15)', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
@@ -258,6 +261,34 @@ export default function FiltrosSemana({
                 </div>
               </div>
 
+              {/* Turma */}
+              {turmas.length > 0 && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                    Turma
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={filtros.turma}
+                      onChange={e => set('turma', e.target.value)}
+                      style={{
+                        width: '100%', padding: '8px 32px 8px 12px', borderRadius: 9,
+                        border: '1.5px solid rgba(97,206,112,0.2)',
+                        fontSize: 13, outline: 'none', background: 'white',
+                        appearance: 'none', fontFamily: 'inherit', color: filtros.turma ? '#0a1a0d' : '#9ca3af',
+                        cursor: 'pointer',
+                      }}
+                      onFocus={e => e.target.style.borderColor = '#23A455'}
+                      onBlur={e => e.target.style.borderColor = 'rgba(97,206,112,0.2)'}
+                    >
+                      <option value="">Todas as turmas</option>
+                      {turmas.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#6b8f72', pointerEvents: 'none' }} />
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* Resumo do filtro ativo */}
@@ -268,6 +299,7 @@ export default function FiltrosSemana({
                 {filtros.dateTo   && <span style={chip}>até {filtros.dateTo}</span>}
                 {filtros.grade    && <span style={chip}>{filtros.grade}</span>}
                 {filtros.discipline && <span style={chip}>{filtros.discipline}</span>}
+                {filtros.turma    && <span style={chip}>{filtros.turma}</span>}
               </div>
             )}
           </motion.div>
