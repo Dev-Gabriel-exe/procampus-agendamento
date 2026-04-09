@@ -23,8 +23,8 @@ export const TURMAS_POR_SERIE: Record<string, string[]> = {
   '9º Ano Fundamental':      ['Turma A', 'Turma B'],
 
   // ── Ensino Médio ──────────────────────────────────────────────
-  '1ª Série Médio':          ['Turma A'],
-  '2ª Série Médio':          ['Turma A'],
+  '1ª Série Médio':          ['Turma A', 'Turma B'],
+  '2ª Série Médio':          ['Turma A', 'Turma B'],
   '3ª Série Médio':          ['Turma A'],
 }
 
