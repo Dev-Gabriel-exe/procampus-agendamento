@@ -11,10 +11,11 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Paperclip, Clock, Filter,
   FolderOpen, FileText, Heart, Download, ExternalLink,
-  Search, SlidersHorizontal, BookMarked,
+  Search, SlidersHorizontal, BookMarked, Printer,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
+import PrintByTurma from '@/components/secretaria/PrintByTurma'
 import { extractTurma } from '@/lib/turmas'
 export const dynamic = 'force-dynamic'
 
@@ -179,6 +180,7 @@ export default function SegundaChamadaSecretariaPage() {
   const grades = role === 'fund1' ? GRADES_FUND1 : role === 'fund2' ? GRADES_FUND2 : GRADES_ALL
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('slots')
+  const [showPrintView, setShowPrintView] = useState(false)
 
   // Slots
   const [exams,    setExams]    = useState<ExamSchedule[]>([])
@@ -363,6 +365,18 @@ export default function SegundaChamadaSecretariaPage() {
     { PENDING: 0, APPROVED: 0, REJECTED: 0 } as Record<BookingStatus, number>
   )
 
+  // ── Função para impressão por turma ──
+  function getPrintData() {
+    const allBookings = exams.flatMap(e => e.bookings)
+    return allBookings.map(b => {
+      const subjects: string[] = []
+      if (b.reason === 'doenca') subjects.push('🩺 Doença')
+      else if (b.reason === 'luto') subjects.push('🕊️ Luto')
+      else if (b.justified) subjects.push('📋 Justificado')
+      return { name: b.studentName, grade: b.studentGrade, subjects }
+    })
+  }
+
   // ── Styles ────────────────────────────────────────────────────────────────
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 14px', borderRadius: 10,
@@ -377,7 +391,7 @@ export default function SegundaChamadaSecretariaPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
       <Toaster position="top-right" richColors closeButton />
-
+      {showPrintView && <PrintByTurma students={getPrintData()} title="Segunda Chamada por Turma" />}
       {/* Modais */}
       <AnimatePresence>
         {rejectTarget && <RejectModal studentName={rejectTarget.studentName} onConfirm={confirmReject} onCancel={() => setRejectTarget(null)} />}
@@ -464,6 +478,12 @@ export default function SegundaChamadaSecretariaPage() {
                     </button>
                   ))}
                 </div>
+              )}
+              {exams.flatMap(e => e.bookings).length > 0 && (
+                <button onClick={() => { setShowPrintView(true); setTimeout(() => window.print(), 100) }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(64,84,178,0.3)', background: '#eef1fb', color: '#4054B2', cursor: 'pointer', marginLeft: 'auto' }}>
+                  <Printer style={{ width: 13, height: 13 }} />Imprimir por Turma
+                </button>
               )}
             </div>
           )}

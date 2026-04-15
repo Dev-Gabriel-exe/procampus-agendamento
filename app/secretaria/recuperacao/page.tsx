@@ -11,10 +11,11 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Clock, BookMarked, FolderOpen,
   Search, SlidersHorizontal, Download, ExternalLink,
-  Paperclip, Filter, Copy, CalendarOff, CalendarCheck,
+  Paperclip, Filter, Copy, CalendarOff, CalendarCheck, Printer,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
+import PrintByTurma from '@/components/secretaria/PrintByTurma'
 import { extractTurma } from '@/lib/turmas'
 
 export const dynamic = 'force-dynamic'
@@ -188,6 +189,7 @@ export default function RecuperacaoSecretariaPage() {
   const grades = role === 'fund1' ? GRADES_FUND1 : role === 'fund2' ? GRADES_FUND2 : GRADES_ALL
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('slots')
+  const [showPrintView, setShowPrintView] = useState(false)
 
   // Slots
   const [schedules,     setSchedules]     = useState<RecoverySchedule[]>([])
@@ -487,12 +489,23 @@ export default function RecuperacaoSecretariaPage() {
 
   const pendingCompCount = comprovantes.filter(c => (c.status ?? 'PENDING') === 'PENDING').length
 
+  // ── Função para impressão por turma ──
+  function getPrintData() {
+    const allBookings = schedules.flatMap(s => s.bookings)
+    return allBookings.map(b => ({
+      name: b.studentName,
+      grade: b.studentGrade,
+      subjects: b.subjects ? b.subjects.split(',').map(x => x.trim()).filter(Boolean) : [],
+    }))
+  }
+
   const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.2)', fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#0a1a0d', background: 'white' }
   const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
       <Toaster position="top-right" richColors closeButton />
+      {showPrintView && <PrintByTurma students={getPrintData()} title="Recuperação por Turma" />}
       <AnimatePresence>
         {rejectTarget        && <RejectModal studentName={rejectTarget.studentName}        onConfirm={confirmReject}     onCancel={() => setRejectTarget(null)} />}
         {rejectTargetComp    && <RejectModal studentName={rejectTargetComp.studentName}    onConfirm={confirmRejectComp} onCancel={() => setRejectTargetComp(null)} />}
@@ -581,6 +594,12 @@ export default function RecuperacaoSecretariaPage() {
                 <button onClick={handleDeleteMultipleSlots}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: '1px solid #ef4444', background: '#fff5f5', color: '#ef4444', cursor: 'pointer' }}>
                   <Trash2 style={{ width: 12, height: 12 }} />Deletar {selectedSlotIds.size} slot{selectedSlotIds.size !== 1 ? 's' : ''}
+                </button>
+              )}
+              {schedules.flatMap(s => s.bookings).length > 0 && (
+                <button onClick={() => { setShowPrintView(true); setTimeout(() => window.print(), 100) }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(35,164,85,0.3)', background: '#e8f9eb', color: '#23A455', cursor: 'pointer', marginLeft: 'auto' }}>
+                  <Printer style={{ width: 13, height: 13 }} />Imprimir por Turma
                 </button>
               )}
             </div>
