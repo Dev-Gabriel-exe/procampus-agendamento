@@ -1,5 +1,5 @@
 // components/secretaria/PrintByTurma.tsx
-import { extractTurma } from '@/lib/turmas'
+import { extractTurma, extractGrade } from '@/lib/turmas'
 
 interface StudentWithSubjects {
   name: string
@@ -13,12 +13,17 @@ interface PrintByTurmaProps {
 }
 
 export default function PrintByTurma({ students, title }: PrintByTurmaProps) {
-  // Agrupa alunos por turma
+  // Agrupa alunos por turma formatada
   const groupedByTurma = students.reduce(
     (acc, student) => {
-      const turma = extractTurma(student.grade) || 'Sem turma'
-      if (!acc[turma]) acc[turma] = []
-      acc[turma].push(student)
+      const serie = extractGrade(student.grade) || 'Série desconhecida'
+      const turmaRaw = extractTurma(student.grade) || ''
+      // Formata: "Turma A" → "A" e combina: "6º Ano Fundamental" + "A" → "6º Ano A"
+      const turmaLetter = turmaRaw.replace('Turma ', '').trim()
+      const turmaFormatted = turmaLetter ? `${serie} ${turmaLetter}` : serie
+      
+      if (!acc[turmaFormatted]) acc[turmaFormatted] = []
+      acc[turmaFormatted].push(student)
       return acc
     },
     {} as Record<string, StudentWithSubjects[]>

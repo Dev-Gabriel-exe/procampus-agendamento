@@ -367,14 +367,36 @@ export default function SegundaChamadaSecretariaPage() {
 
   // ── Função para impressão por turma ──
   function getPrintData() {
-    const allBookings = exams.flatMap(e => e.bookings)
-    return allBookings.map(b => {
-      const subjects: string[] = []
-      if (b.reason === 'doenca') subjects.push('🩺 Doença')
-      else if (b.reason === 'luto') subjects.push('🕊️ Luto')
-      else if (b.justified) subjects.push('📋 Justificado')
-      return { name: b.studentName, grade: b.studentGrade, subjects }
+    const studentMap = new Map<string, { name: string; grade: string; justifications: Set<string> }>()
+    
+    exams.forEach(exam => {
+      exam.bookings.forEach(booking => {
+        // Chave única por aluno (nome + série/turma)
+        const key = `${booking.studentName}|${booking.studentGrade}`
+        if (!studentMap.has(key)) {
+          studentMap.set(key, {
+            name: booking.studentName,
+            grade: booking.studentGrade,
+            justifications: new Set(),
+          })
+        }
+        // Adiciona a justificativa específica para este exame
+        const student = studentMap.get(key)!
+        if (booking.reason === 'doenca') {
+          student.justifications.add('🩺 Doença')
+        } else if (booking.reason === 'luto') {
+          student.justifications.add('🕊️ Luto')
+        } else if (booking.justified) {
+          student.justifications.add('📋 Justificado')
+        }
+      })
     })
+    
+    return Array.from(studentMap.values()).map(student => ({
+      name: student.name,
+      grade: student.grade,
+      subjects: Array.from(student.justifications),
+    }))
   }
 
   // ── Styles ────────────────────────────────────────────────────────────────

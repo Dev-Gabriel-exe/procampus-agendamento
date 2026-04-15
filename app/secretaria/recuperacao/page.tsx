@@ -491,11 +491,29 @@ export default function RecuperacaoSecretariaPage() {
 
   // ── Função para impressão por turma ──
   function getPrintData() {
-    const allBookings = schedules.flatMap(s => s.bookings)
-    return allBookings.map(b => ({
-      name: b.studentName,
-      grade: b.studentGrade,
-      subjects: b.subjects ? b.subjects.split(',').map(x => x.trim()).filter(Boolean) : [],
+    const studentMap = new Map<string, { name: string; grade: string; disciplines: Set<string> }>()
+    
+    schedules.forEach(schedule => {
+      schedule.bookings.forEach(booking => {
+        // Chave única por aluno (nome + série/turma)
+        const key = `${booking.studentName}|${booking.studentGrade}`
+        if (!studentMap.has(key)) {
+          studentMap.set(key, {
+            name: booking.studentName,
+            grade: booking.studentGrade,
+            disciplines: new Set(),
+          })
+        }
+        // Adiciona a disciplina deste schedule
+        const student = studentMap.get(key)!
+        student.disciplines.add(schedule.subjectName)
+      })
+    })
+    
+    return Array.from(studentMap.values()).map(student => ({
+      name: student.name,
+      grade: student.grade,
+      subjects: Array.from(student.disciplines),
     }))
   }
 
