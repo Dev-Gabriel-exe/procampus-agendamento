@@ -505,7 +505,8 @@ export default function RecuperacaoSecretariaPage() {
           })
         }
         // Adiciona a disciplina deste schedule
-        const student = studentMap.get(key)!
+        const student = studentMap.get(key)!a
+        
         student.disciplines.add(schedule.subjectName)
       })
     })
