@@ -80,6 +80,7 @@ function computeJustified(b: ExamBooking) {
 function reasonLabel(reason?: string | null) {
   if (reason === 'doenca') return '🩺 Doença'
   if (reason === 'luto')   return '🕊️ Luto'
+  if (reason === 'autorizacao') return '✅ Autorizado'
   return null
 }
 
