@@ -8,14 +8,11 @@ import {
   ArrowLeft, ArrowRight, Check, ClipboardList,
   User, Mail, Phone, GraduationCap, CheckCircle,
   ChevronDown, MapPin, CalendarDays, Clock,
-  AlertCircle, FileText, Heart, Upload, Copy, CalendarPlus, Sun, Moon,
-  CalendarOff, CalendarCheck,
+  AlertCircle, FileText, Heart, Upload, Copy,
+  Sun, Moon, CalendarPlus,
 } from 'lucide-react'
+import { getTurmas, buildStudentGrade } from '@/lib/turmas'
 import { generateCalendarLink } from '@/lib/calendar-link'
-
-// ✅ Constantes
-const MAX_SUBJECTS = 4
-const PRICE_PER_SUBJECT = 30
 
 const ALL_GRADES = [
   'Educação Infantil',
@@ -24,19 +21,19 @@ const ALL_GRADES = [
   '1ª Série Médio','2ª Série Médio','3ª Série Médio',
 ]
 
-// ✅ Séries do Fund1 que precisam do seletor de turno
 const GRADES_FUND1 = new Set([
   'Educação Infantil',
   '1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental',
 ])
 
-const PIX_KEY   = 'financeiro@procampus.com.br'
-const PIX_NAME  = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
+const PIX_KEY          = 'financeiro@procampus.com.br'
+const PIX_NAME         = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
+const PRICE_PER_SUBJ   = 30  // R$ por disciplina (falta NÃO justificada)
 
-type Subject = { id: string; name: string }
+type Subject      = { id: string; name: string }
 type ExamSchedule = {
   id: string; subjectName: string; grade: string
-  date: string; startTime: string; endTime: string; registrationDeadline?: string | null; bookings: { id: string }[]
+  date: string; startTime: string; endTime: string; bookings: { id: string }[]
 }
 
 function formatDate(date: string) {
@@ -51,12 +48,6 @@ function maskPhoneBr(v: string) {
   if (d.length <= 7)  return `(${d.slice(0,2)}) ${d.slice(2)}`
   return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
 }
-function deadlineExpired(deadline: string | null | undefined): boolean {
-  if (!deadline) return false
-  const now = new Date()
-  const dl = new Date(deadline)
-  return now > dl
-}
 
 const slide = {
   enter:  (d: number) => ({ opacity: 0, x: d > 0 ? 40 : -40 }),
@@ -64,24 +55,11 @@ const slide = {
   exit:   (d: number) => ({ opacity: 0, x: d > 0 ? -40 : 40 }),
 }
 
-function DeadlineBadge({ deadline }: { deadline?: string | null }) {
-  if (!deadline) return null
-  const expired = deadlineExpired(deadline)
-  const d = new Date(deadline)
-  const label = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'America/Fortaleza' })
-  return (
-    <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 8px', borderRadius: 6, background: expired ? 'rgba(220,38,38,0.15)' : 'rgba(34,197,94,0.15)', color: expired ? '#fca5a5' : '#86efac', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-      {expired ? <><CalendarOff style={{ width: 13, height: 13 }} />Inscrições encerradas</> : <><CalendarCheck style={{ width: 13, height: 13 }} />Prazo: {label}</>}
-    </span>
-  )
-}
-
-function CopyPixButton({ value, price }: { value: string; price: number }) {
+// ── Copiar chave PIX ────────────────────────────────────────────────────────
+function CopyPixButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
-  const pixValue = `R$ ${price},00`
   async function handleCopy() {
-    try { await navigator.clipboard.writeText(value) }
-    catch {
+    try { await navigator.clipboard.writeText(value) } catch {
       const el = document.createElement('textarea'); el.value = value
       document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el)
     }
@@ -94,22 +72,19 @@ function CopyPixButton({ value, price }: { value: string; price: number }) {
         <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: 0, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Chave PIX</p>
         <p style={{ fontSize: 15, color: 'white', margin: '3px 0 0', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontWeight: 600, marginBottom: 2 }}>Valor</div>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: copied ? '#22c55e' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-          <AnimatePresence mode="wait">
-            {copied
-              ? <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Check style={{ width: 16, height: 16, color: 'white' }} /></motion.div>
-              : <motion.div key="text"  initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} style={{ fontSize: 12, fontWeight: 800, color: '#4ade80' }}>R$</motion.div>
-            }
-          </AnimatePresence>
-        </div>
-        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: '3px 0 0', whiteSpace: 'nowrap' }}>{pixValue}</p>
+      <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10, background: copied ? '#22c55e' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+        <AnimatePresence mode="wait">
+          {copied
+            ? <motion.div key="ck" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Check style={{ width: 16, height: 16, color: 'white' }} /></motion.div>
+            : <motion.div key="cp" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Copy style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.7)' }} /></motion.div>
+          }
+        </AnimatePresence>
       </div>
     </motion.button>
   )
 }
 
+// ── Indicador de steps ─────────────────────────────────────────────────────
 function Steps({ current }: { current: number }) {
   const labels = ['Prova', 'Justificativa', 'Dados']
   return (
@@ -148,29 +123,37 @@ export default function SegundaChamadaPage() {
   const [dir,  setDir]  = useState(1)
   function goTo(next: number) { setDir(next > step ? 1 : -1); setStep(next) }
 
-  // Step 1 - Multiple subjects
+  // ── Step 1 ────────────────────────────────────────────────────────────────
   const [selGrade,      setSelGrade]      = useState('')
-  const [selectedSubjects, setSelectedSubjects] = useState<Set<string>>(new Set())
+  const [selTurma,      setSelTurma]      = useState('')
   const [selTurno,      setSelTurno]      = useState<'manha' | 'tarde' | ''>('')
   const [allSubjects,   setAllSubjects]   = useState<Subject[]>([])
-  const [exams,         setExams]         = useState<ExamSchedule[]>([])
-  const [loadingExams,  setLoadingExams]  = useState(false)
+  const [selSubjects,   setSelSubjects]   = useState<string[]>([])    // nomes das disciplinas selecionadas
+  const [slotsPerSubj,  setSlotsPerSubj]  = useState<Record<string, ExamSchedule[]>>({}) // subjectName → slots disponíveis
+  const [selectedSlots, setSelectedSlots] = useState<Record<string, ExamSchedule>>({})   // subjectName → slot escolhido
+  const [loadingSlots,  setLoadingSlots]  = useState(false)
   const [hasSearched,   setHasSearched]   = useState(false)
-  const [selectedExams, setSelectedExams] = useState<Record<string, ExamSchedule>>({}) // Map subjectId -> exam
 
-  const isFund1Grade = GRADES_FUND1.has(selGrade)
-  const canSearch = selGrade && selectedSubjects.size > 0 && (!isFund1Grade || selTurno !== '')
-  const totalPrice = selectedSubjects.size * PRICE_PER_SUBJECT
+  const turmasDisponiveis = getTurmas(selGrade)
+  const isFund1Grade      = GRADES_FUND1.has(selGrade)
 
-  // Step 2
-  const [isJustified,    setIsJustified]    = useState<boolean | null>(null)
-  const [justReason,     setJustReason]     = useState<'doenca' | 'luto' | 'autorizacao' | null>(null)
-  const [lutoText,       setLutoText]       = useState('')
-  const [autorizacaoText, setAutorizacaoText] = useState('')
-  const [attachFile,     setAttachFile]     = useState<File | null>(null)
-  const [uploadingFile,  setUploadingFile]  = useState(false)
+  // Requer turno para Fund1
+  const canSearch = selGrade && selSubjects.length > 0 && (!isFund1Grade || selTurno !== '')
+  // Todos os horários escolhidos?
+  const allSlotsChosen = selSubjects.length > 0 && selSubjects.every(s => !!selectedSlots[s])
 
-  // Step 3
+  // ── Step 2 — Justificativa ────────────────────────────────────────────────
+  const [isJustified,     setIsJustified]     = useState<boolean | null>(null)
+  const [justReason,      setJustReason]      = useState<'doenca' | 'luto' | null>(null)
+  const [lutoText,        setLutoText]        = useState('')
+  const [attachFile,      setAttachFile]      = useState<File | null>(null)
+  const [uploadingFile,   setUploadingFile]   = useState(false)
+
+  // PIX dinâmico — só para falta NÃO justificada
+  const pixTotal    = selSubjects.length * PRICE_PER_SUBJ
+  const pixValueStr = `R$ ${pixTotal},00`
+
+  // ── Step 3 — Dados ────────────────────────────────────────────────────────
   const [parentName,  setParentName]  = useState('')
   const [parentEmail, setParentEmail] = useState('')
   const [parentPhone, setParentPhone] = useState('')
@@ -178,13 +161,10 @@ export default function SegundaChamadaPage() {
   const [submitting,  setSubmitting]  = useState(false)
   const [submitError, setSubmitError] = useState('')
 
+  // Reset ao trocar série
   useEffect(() => {
-    setSelectedSubjects(new Set())
-    setSelTurno('')
-    setExams([])
-    setSelectedExams({})
-    setHasSearched(false)
-    setAllSubjects([])
+    setAllSubjects([]); setSelSubjects([]); setSlotsPerSubj({})
+    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setSelTurno('')
     if (!selGrade) return
     ;(async () => {
       try {
@@ -196,42 +176,50 @@ export default function SegundaChamadaPage() {
     })()
   }, [selGrade])
 
+  // Limpar slots de disciplinas removidas
   useEffect(() => {
-    setExams([])
-    setSelectedExams({})
-    setHasSearched(false)
-  }, [selectedSubjects, selTurno])
+    setSlotsPerSubj(prev => {
+      const next: Record<string, ExamSchedule[]> = {}
+      selSubjects.forEach(s => { if (prev[s]) next[s] = prev[s] })
+      return next
+    })
+    setSelectedSlots(prev => {
+      const next: Record<string, ExamSchedule> = {}
+      selSubjects.forEach(s => { if (prev[s]) next[s] = prev[s] })
+      return next
+    })
+  }, [selSubjects])
 
-  async function loadExams() {
+  function toggleSubject(name: string) {
+    setSelSubjects(prev =>
+      prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]
+    )
+    setHasSearched(false)
+  }
+
+  async function loadSlots() {
     if (!canSearch) return
-    setLoadingExams(true)
-    setHasSearched(true)
+    setLoadingSlots(true); setHasSearched(true)
     try {
-      const subjIds = Array.from(selectedSubjects)
-      const promises = subjIds.map(subId => {
-        const turnoParam = isFund1Grade && selTurno ? `&turno=${selTurno}` : ''
-        const subj = allSubjects.find(s => s.id === subId)
-        if (!subj) return Promise.resolve(null)
-        return fetch(
-          `/api/segunda-chamada?public=true&grade=${encodeURIComponent(selGrade)}&subject=${encodeURIComponent(subj.name)}${turnoParam}`
-        ).then(r => r.json()).then(data => ({
-          subId,
-          exams: Array.isArray(data) ? data : [],
-        })).catch(() => ({ subId, exams: [] }))
-      })
-      const results = await Promise.all(promises)
-      const allExams: ExamSchedule[] = []
-      const examsMap: Record<string, ExamSchedule> = {}
-      results.forEach(r => {
-        if (r && r.exams.length > 0) {
-          r.exams.forEach((e: ExamSchedule) => allExams.push(e))
-          if (r.exams.length > 0) examsMap[r.subId] = r.exams[0] // Select first exam for each subject
-        }
-      })
-      setExams(allExams)
-      setSelectedExams(examsMap)
-    } catch { setExams([]); setSelectedExams({}) }
-    finally { setLoadingExams(false) }
+      const turnoParam = isFund1Grade && selTurno ? `&turno=${selTurno}` : ''
+      const results = await Promise.all(
+        selSubjects.map(async subjName => {
+          const res = await fetch(
+            `/api/segunda-chamada?public=true&grade=${encodeURIComponent(selGrade)}&subject=${encodeURIComponent(subjName)}${turnoParam}`
+          )
+          const data = await res.json()
+          return { subjName, slots: Array.isArray(data) ? data : [] as ExamSchedule[] }
+        })
+      )
+      const map: Record<string, ExamSchedule[]> = {}
+      results.forEach(r => { map[r.subjName] = r.slots })
+      setSlotsPerSubj(map)
+    } catch {
+      const map: Record<string, ExamSchedule[]> = {}
+      selSubjects.forEach(s => { map[s] = [] })
+      setSlotsPerSubj(map)
+    }
+    finally { setLoadingSlots(false) }
   }
 
   function step2Ok(): boolean {
@@ -240,72 +228,55 @@ export default function SegundaChamadaPage() {
     if (!justReason)  return false
     if (justReason === 'doenca') return !!attachFile
     if (justReason === 'luto')   return lutoText.trim().length > 10
-    if (justReason === 'autorizacao') return autorizacaoText.trim().length > 10
     return false
   }
 
-  const formOk =
-    parentName.trim().length > 3 &&
-    parentEmail.includes('@') &&
-    parentPhone.replace(/\D/g, '').length >= 10 &&
-    studentName.trim().length > 3
+  const formOk = parentName.trim().length > 3 && parentEmail.includes('@') && parentPhone.replace(/\D/g, '').length >= 10 && studentName.trim().length > 3
 
   async function handleSubmit() {
-    if (Object.keys(selectedExams).length === 0) return
-    setSubmitting(true)
-    setSubmitError('')
+    const entries = Object.entries(selectedSlots)
+    if (!entries.length) return
+    setSubmitting(true); setSubmitError('')
     try {
       let fileUrl: string | null = null
-      if (attachFile) {
-        setUploadingFile(true)
-        fileUrl = await uploadToCloudinary(attachFile)
-        setUploadingFile(false)
-      }
+      if (attachFile) { setUploadingFile(true); fileUrl = await uploadToCloudinary(attachFile); setUploadingFile(false) }
 
-      // Get all subject names for the subjects array
-      const selectedSubjectNames = Array.from(selectedSubjects)
-        .map(id => allSubjects.find(s => s.id === id)?.name)
-        .filter(Boolean) as string[]
-
-      const res = await fetch(`/api/segunda-chamada/${Object.values(selectedExams)[0]?.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parentName,
-          parentEmail,
-          parentPhone,
-          studentName,
-          studentGrade: selGrade,
-          subjects: selectedSubjectNames,
-          reason: justReason,
-          lutoText: justReason === 'luto' ? lutoText : null,
-          autorizacaoText: justReason === 'autorizacao' ? autorizacaoText : null,
-          fileUrl,
-        }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        setSubmitError(d.error || 'Erro ao inscrever.')
-        return
-      }
+      // Envia uma inscrição por disciplina
+      await Promise.all(
+        entries.map(([subject, slot]) =>
+          fetch(`/api/segunda-chamada/${slot.id}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              parentName, parentEmail, parentPhone, studentName,
+              studentGrade: buildStudentGrade(selGrade, selTurma),
+              subjects: subject,
+              justified: isJustified ?? false,
+              reason: justReason,
+              lutoText: justReason === 'luto' ? lutoText : null,
+              fileUrl,
+            }),
+          }).then(async r => {
+            if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erro ao inscrever.') }
+          })
+        )
+      )
       goTo(4)
-    } catch (err: any) {
-      setSubmitError(err?.message || 'Erro de conexão.')
-    }
-    finally {
-      setSubmitting(false)
-      setUploadingFile(false)
-    }
+    } catch (err: any) { setSubmitError(err?.message || 'Erro de conexão.') }
+    finally { setSubmitting(false); setUploadingFile(false) }
   }
 
+  // ── Estilos base ───────────────────────────────────────────────────────────
   const card: React.CSSProperties = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 18, padding: '18px 16px' }
   const inputBase: React.CSSProperties = { width: '100%', padding: '14px 16px', borderRadius: 14, border: '1.5px solid rgba(64,84,178,0.2)', background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: 16, outline: 'none', fontFamily: 'inherit', transition: 'all 0.2s', boxSizing: 'border-box' as const, WebkitAppearance: 'none' }
   const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }
-  const btnPrimary = (disabled = false): React.CSSProperties => ({ width: '100%', padding: '17px 16px', borderRadius: 14, border: 'none', background: disabled ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#4054B2,#6b7fe8)', color: disabled ? 'rgba(255,255,255,0.2)' : 'white', fontSize: 16, fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontFamily: '"Roboto Slab",serif', boxShadow: disabled ? 'none' : '0 8px 30px rgba(64,84,178,0.35)', transition: 'all 0.3s', WebkitAppearance: 'none', minHeight: 54 })
+  const btnPrimary = (disabled = false): React.CSSProperties => ({ width: '100%', padding: '17px 16px', borderRadius: 14, border: 'none', background: disabled ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#4054B2,#6b7fe8)', color: disabled ? 'rgba(255,255,255,0.2)' : 'white', fontSize: 16, fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontFamily: '"Roboto Slab",serif', boxShadow: disabled ? 'none' : '0 8px 30px rgba(64,84,178,0.35)', transition: 'all 0.3s', minHeight: 54 })
+  const btnBack: React.CSSProperties = { flex: 1, padding: '16px', borderRadius: 14, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54 }
   const choiceBtn = (active: boolean, color = '#4054B2'): React.CSSProperties => ({ flex: 1, padding: '16px 12px', borderRadius: 14, border: `2px solid ${active ? color : 'rgba(64,84,178,0.2)'}`, background: active ? `${color}22` : 'rgba(255,255,255,0.04)', color: active ? 'white' : 'rgba(255,255,255,0.55)', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minHeight: 80, justifyContent: 'center' })
 
   return (
     <div style={{ minHeight: '100vh', background: '#08091a', overscrollBehavior: 'none' }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: 'rgba(8,9,26,0.96)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(64,84,178,0.15)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
@@ -336,16 +307,22 @@ export default function SegundaChamadaPage() {
               {step === 1 ? 'Segunda Chamada' : step === 2 ? 'Justificativa' : 'Seus dados'}
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6, fontSize: 14, lineHeight: 1.4 }}>
-              {step === 1 ? 'Escolha as disciplinas e o horário' : step === 2 ? 'Informe o motivo da ausência' : 'Preencha para confirmar a inscrição'}
+              {step === 1 ? 'Escolha as disciplinas e os horários'
+                : step === 2 ? 'Informe o motivo da ausência'
+                : 'Preencha para confirmar a inscrição'}
             </p>
           </motion.div>
         )}
 
         <AnimatePresence mode="wait" custom={dir}>
 
-          {/* ══ STEP 1 ══ */}
+          {/* ══════════════════════════════════════════════════════════════════
+              STEP 1 — Série, turma, disciplinas, horários
+          ══════════════════════════════════════════════════════════════════ */}
           {step === 1 && (
-            <motion.div key="s1" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <motion.div key="s1" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
+              transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Série */}
               <div style={card}>
@@ -360,50 +337,49 @@ export default function SegundaChamadaPage() {
                 </div>
               </div>
 
-              {/* Disciplinas Multi-select */}
+              {/* Turma */}
+              <AnimatePresence>
+                {selGrade && turmasDisponiveis.length > 0 && (
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
+                    <label style={labelStyle}>Turma do aluno</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {turmasDisponiveis.map(t => (
+                        <button key={t} onClick={() => setSelTurma(t)}
+                          style={{ padding: '11px 18px', borderRadius: 100, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44, background: selTurma === t ? 'linear-gradient(135deg,#4054B2,#6b7fe8)' : 'rgba(255,255,255,0.06)', color: selTurma === t ? 'white' : 'rgba(255,255,255,0.65)', border: selTurma === t ? '2px solid transparent' : '1.5px solid rgba(64,84,178,0.2)', boxShadow: selTurma === t ? '0 4px 20px rgba(64,84,178,0.35)' : 'none' }}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Disciplinas */}
               <AnimatePresence>
                 {selGrade && allSubjects.length > 0 && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
-                    <label style={labelStyle}>Selecione as disciplinas (máximo 4)</label>
+                    <label style={labelStyle}>
+                      Disciplinas em falta
+                      {selSubjects.length > 0 && (
+                        <span style={{ marginLeft: 6, color: '#a0aff8', fontWeight: 400, textTransform: 'none' }}>
+                          ({selSubjects.length} selecionada{selSubjects.length > 1 ? 's' : ''})
+                        </span>
+                      )}
+                    </label>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', margin: '0 0 12px', lineHeight: 1.4 }}>
+                      Selecione todas as disciplinas que o aluno faltou para fazer segunda chamada.
+                    </p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {allSubjects.map(s => {
-                        const isSelected = selectedSubjects.has(s.id)
-                        const canSelect = isSelected || selectedSubjects.size < MAX_SUBJECTS
+                        const checked = selSubjects.includes(s.name)
                         return (
-                          <button
-                            key={s.id}
-                            disabled={!canSelect}
-                            onClick={() => {
-                              const newSet = new Set(selectedSubjects)
-                              if (newSet.has(s.id)) {
-                                newSet.delete(s.id)
-                              } else if (newSet.size < MAX_SUBJECTS) {
-                                newSet.add(s.id)
-                              }
-                              setSelectedSubjects(newSet)
-                            }}
-                            style={{
-                              padding: '11px 16px',
-                              borderRadius: 100,
-                              fontSize: 14,
-                              fontWeight: 600,
-                              cursor: canSelect ? 'pointer' : 'not-allowed',
-                              transition: 'all 0.2s',
-                              minHeight: 44,
-                              background: isSelected ? 'linear-gradient(135deg,#4054B2,#6b7fe8)' : 'rgba(255,255,255,0.06)',
-                              color: isSelected ? 'white' : canSelect ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.25)',
-                              border: isSelected ? '2px solid transparent' : canSelect ? '1.5px solid rgba(64,84,178,0.2)' : '1.5px solid rgba(255,255,255,0.08)',
-                              boxShadow: isSelected ? '0 4px 20px rgba(64,84,178,0.35)' : 'none',
-                              opacity: !canSelect && !isSelected ? 0.5 : 1,
-                            }}>
-                            {s.name}
+                          <button key={s.id} onClick={() => toggleSubject(s.name)}
+                            style={{ padding: '10px 14px', borderRadius: 100, fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44, background: checked ? 'linear-gradient(135deg,#4054B2,#6b7fe8)' : 'rgba(255,255,255,0.06)', color: checked ? 'white' : 'rgba(255,255,255,0.65)', border: checked ? '2px solid transparent' : '1.5px solid rgba(64,84,178,0.2)', boxShadow: checked ? '0 4px 20px rgba(64,84,178,0.35)' : 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {checked && <Check style={{ width: 13, height: 13 }} />}{s.name}
                           </button>
                         )
                       })}
                     </div>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '12px 0 0', textAlign: 'center' }}>
-                      {selectedSubjects.size} de {MAX_SUBJECTS} disciplinas selecionadas
-                    </p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -412,9 +388,9 @@ export default function SegundaChamadaPage() {
                 <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Nenhuma disciplina disponível para esta série.</p>
               )}
 
-              {/* Seletor de turno — só para Fund1 */}
+              {/* Turno — só Fund1 */}
               <AnimatePresence>
-                {selGrade && selectedSubjects.size > 0 && isFund1Grade && (
+                {selGrade && selSubjects.length > 0 && isFund1Grade && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
                     <label style={labelStyle}>Turno que o aluno estuda</label>
                     <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 14px', lineHeight: 1.5 }}>
@@ -438,115 +414,129 @@ export default function SegundaChamadaPage() {
                 )}
               </AnimatePresence>
 
-              {/* Preço dinâmico com badge de deadline */}
-              <AnimatePresence>
-                {selectedSubjects.size > 0 && (
-                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ ...card, background: 'rgba(64,84,178,0.1)', border: '1px solid rgba(64,84,178,0.25)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
-                      <div>
-                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valor total (sem pagamento se justificada)</p>
-                        <p style={{ fontSize: 24, fontWeight: 900, color: '#6b7fe8', margin: '4px 0 0', fontFamily: '"Roboto Slab",serif' }}>R$ {totalPrice},00</p>
-                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0', fontWeight: 500 }}>R$ 30 por disciplina</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Buscar */}
+              {/* Botão buscar */}
               <AnimatePresence>
                 {canSearch && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <button onClick={loadExams} style={btnPrimary(false)}>
+                    <button onClick={loadSlots} style={btnPrimary(false)}>
                       <ClipboardList style={{ width: 18, height: 18 }} />Ver horários disponíveis
                     </button>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {loadingExams && (
+              {loadingSlots && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid rgba(64,84,178,0.2)', borderTopColor: '#4054B2', animation: 'spin .7s linear infinite' }} />
                 </div>
               )}
 
-              {!loadingExams && exams.length > 0 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
-                    {exams.length} horário{exams.length !== 1 ? 's' : ''} disponível{exams.length !== 1 ? 'is' : ''}
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {exams.map((exam, idx) => {
-                      const subj = allSubjects.find(s => s.id === exam.id?.split('-')[0])
-                      const isSelected = selectedExams[exam.id] !== undefined
-                      const isDeadlineExpired = deadlineExpired(exam.registrationDeadline)
-                      return (
-                        <motion.div key={`${exam.id}-${idx}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(64,84,178,0.15)' }}>
-                          <button onClick={() => {
-                            const newMap = { ...selectedExams }
-                            if (newMap[exam.id]) delete newMap[exam.id]
-                            else newMap[exam.id] = exam
-                            setSelectedExams(newMap)
-                          }} disabled={isDeadlineExpired}
-                            style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0, padding: '14px', borderRadius: 0, cursor: isDeadlineExpired ? 'not-allowed' : 'pointer', transition: 'all 0.2s', minHeight: 0, background: isSelected ? 'rgba(64,84,178,0.2)' : 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(64,84,178,0.15)', opacity: isDeadlineExpired ? 0.5 : 1, textAlign: 'left' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%', gap: 10 }}>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                                <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: isSelected ? 'rgba(64,84,178,0.35)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-                                  <CalendarDays style={{ width: 16, height: 16, color: isSelected ? '#6b7fe8' : 'rgba(255,255,255,0.35)' }} />
-                                </div>
-                                <div>
-                                  <p style={{ fontWeight: 700, fontSize: 13, color: 'white', margin: 0, textTransform: 'capitalize' }}>{formatDate(exam.date)}</p>
-                                  <p style={{ fontSize: 12, margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 4, color: isSelected ? '#a0aff8' : 'rgba(255,255,255,0.38)' }}>
-                                    <Clock style={{ width: 11, height: 11 }} />{exam.startTime} – {exam.endTime}
-                                  </p>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                                {isSelected && <Check style={{ width: 18, height: 18, color: '#6b7fe8', flexShrink: 0 }} />}
-                                <DeadlineBadge deadline={exam.registrationDeadline} />
-                              </div>
-                            </div>
-                          </button>
-                        </motion.div>
-                      )
-                    })}
-                  </div>
+              {/* ── Slots agrupados por disciplina ── */}
+              {!loadingSlots && hasSearched && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {selSubjects.map(subject => {
+                    const slots  = slotsPerSubj[subject] ?? []
+                    const chosen = selectedSlots[subject]
+                    return (
+                      <div key={subject}>
+                        {/* Cabeçalho da disciplina */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                          <div style={{ flex: 1, height: 1, background: 'rgba(64,84,178,0.2)' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: chosen ? '#a0aff8' : 'rgba(255,255,255,0.55)' }}>{subject}</span>
+                            {chosen && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#a0aff8', background: 'rgba(64,84,178,0.2)', padding: '2px 8px', borderRadius: 100 }}>
+                                <Check style={{ width: 10, height: 10 }} />Selecionado
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ flex: 1, height: 1, background: 'rgba(64,84,178,0.2)' }} />
+                        </div>
+
+                        {slots.length === 0 ? (
+                          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', textAlign: 'center' }}>
+                            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', margin: 0 }}>Nenhum horário disponível para {subject}.</p>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {slots.map(slot => {
+                              const isSel = chosen?.id === slot.id
+                              return (
+                                <motion.button key={slot.id} onClick={() => setSelectedSlots(prev => ({ ...prev, [subject]: slot }))} whileTap={{ scale: 0.98 }}
+                                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s', minHeight: 68, background: isSel ? 'rgba(64,84,178,0.2)' : 'rgba(255,255,255,0.04)', border: isSel ? '2px solid rgba(64,84,178,0.6)' : '1.5px solid rgba(64,84,178,0.12)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: isSel ? 'rgba(64,84,178,0.35)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <CalendarDays style={{ width: 17, height: 17, color: isSel ? '#6b7fe8' : 'rgba(255,255,255,0.35)' }} />
+                                    </div>
+                                    <div>
+                                      <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0, textTransform: 'capitalize' }}>{formatDate(slot.date)}</p>
+                                      <p style={{ fontSize: 13, margin: '3px 0 0', display: 'flex', alignItems: 'center', gap: 4, color: isSel ? '#a0aff8' : 'rgba(255,255,255,0.38)' }}>
+                                        <Clock style={{ width: 12, height: 12 }} />{slot.startTime} – {slot.endTime}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {isSel
+                                    ? <Check style={{ width: 20, height: 20, color: '#6b7fe8', flexShrink: 0 }} />
+                                    : <ArrowRight style={{ width: 18, height: 18, color: 'rgba(255,255,255,0.18)', flexShrink: 0 }} />}
+                                </motion.button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Progresso */}
+                  {selSubjects.length > 1 && (
+                    <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
+                        {Object.keys(selectedSlots).length} de {selSubjects.length} horários escolhidos
+                      </span>
+                      {allSlotsChosen && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7fe8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <CheckCircle style={{ width: 13, height: 13 }} />Tudo pronto
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               )}
 
-              {!loadingExams && hasSearched && exams.length === 0 && (
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 14, padding: '16px 0' }}>
-                  Nenhum horário disponível para as disciplinas selecionadas{isFund1Grade && selTurno ? ` no turno selecionado.` : '.'}
-                </motion.p>
-              )}
-
-              <motion.button disabled={Object.keys(selectedExams).length === 0} onClick={() => goTo(2)} whileTap={{ scale: Object.keys(selectedExams).length > 0 ? 0.98 : 1 }} style={btnPrimary(Object.keys(selectedExams).length === 0)}>
+              <motion.button disabled={!allSlotsChosen} onClick={() => goTo(2)} whileTap={{ scale: allSlotsChosen ? 0.98 : 1 }} style={btnPrimary(!allSlotsChosen)}>
                 Continuar <ArrowRight style={{ width: 18, height: 18 }} />
               </motion.button>
             </motion.div>
           )}
 
-          {/* ══ STEP 2 ══ */}
+          {/* ══════════════════════════════════════════════════════════════════
+              STEP 2 — Justificativa
+          ══════════════════════════════════════════════════════════════════ */}
           {step === 2 && (
-            <motion.div key="s2" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {Object.keys(selectedExams).length > 0 && (
-                <div style={{ background: 'rgba(64,84,178,0.12)', border: '1px solid rgba(64,84,178,0.25)', borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {Object.values(selectedExams).map((exam, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(64,84,178,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <ClipboardList style={{ width: 16, height: 16, color: '#6b7fe8' }} />
-                      </div>
-                      <div>
-                        <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{exam.subjectName}</p>
-                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: '2px 0 0', textTransform: 'capitalize' }}>
-                          {formatDateShort(exam.date)} · {exam.startTime}–{exam.endTime}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <motion.div key="s2" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
+              transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+              {/* Resumo das disciplinas selecionadas */}
+              <div style={{ background: 'rgba(64,84,178,0.12)', border: '1px solid rgba(64,84,178,0.25)', borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <ClipboardList style={{ width: 15, height: 15, color: '#6b7fe8', flexShrink: 0 }} />
+                  <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selGrade}</p>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#a0aff8', background: 'rgba(64,84,178,0.2)', padding: '2px 8px', borderRadius: 5 }}>
+                    {selSubjects.length} disciplina{selSubjects.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                {Object.entries(selectedSlots).map(([subject, slot]) => (
+                  <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid rgba(64,84,178,0.15)' }}>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{subject}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
+                      {formatDateShort(slot.date)} · {slot.startTime}–{slot.endTime}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pergunta de justificativa */}
               <div style={card}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: 'white', margin: '0 0 14px' }}>A falta foi justificada?</p>
                 <div style={{ display: 'flex', gap: 10 }}>
@@ -554,30 +544,38 @@ export default function SegundaChamadaPage() {
                     <CheckCircle style={{ width: 24, height: 24, color: isJustified === true ? '#22c55e' : 'rgba(255,255,255,0.25)' }} />
                     <span>Sim</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>justificada</span>
                   </button>
-                  <button onClick={() => { setIsJustified(false); setJustReason(null); setLutoText(''); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(isJustified === false, '#ef4444')}>
+                  <button onClick={() => { setIsJustified(false); setJustReason(null); setLutoText(''); setAttachFile(null) }} style={choiceBtn(isJustified === false, '#ef4444')}>
                     <AlertCircle style={{ width: 24, height: 24, color: isJustified === false ? '#ef4444' : 'rgba(255,255,255,0.25)' }} />
                     <span>Não</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>sem motivo</span>
                   </button>
                 </div>
               </div>
 
+              {/* NÃO justificada → PIX */}
               <AnimatePresence>
                 {isJustified === false && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div style={{ ...card, borderColor: 'rgba(249,115,22,0.3)', background: 'rgba(249,115,22,0.06)' }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: '#fb923c', margin: '0 0 4px' }}>💸 Taxa de segunda chamada</p>
-                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', lineHeight: 1.5 }}>Para faltas não justificadas é necessário o pagamento antes da prova.</p>
+                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                        {selSubjects.length > 1
+                          ? `${selSubjects.length} disciplinas × R$ ${PRICE_PER_SUBJ},00 = ${pixValueStr}. Realize o pagamento via PIX e anexe o comprovante.`
+                          : 'Para faltas não justificadas é necessário o pagamento antes da prova.'}
+                      </p>
                       <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valor</p>
-                          <p style={{ fontSize: 22, fontWeight: 900, color: '#4ade80', margin: '2px 0 0', fontFamily: '"Roboto Slab",serif' }}>R$ {totalPrice},00</p>
+                          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valor total</p>
+                          <p style={{ fontSize: 26, fontWeight: 900, color: '#4ade80', margin: '2px 0 0', fontFamily: '"Roboto Slab",serif' }}>{pixValueStr}</p>
+                          {selSubjects.length > 1 && (
+                            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>{selSubjects.length} × R$ {PRICE_PER_SUBJ},00</p>
+                          )}
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0 }}>Favorecido</p>
-                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', margin: '2px 0 0', fontWeight: 600 }}>{PIX_NAME}</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', margin: '2px 0 0', fontWeight: 600, maxWidth: 150, textAlign: 'right' }}>{PIX_NAME}</p>
                         </div>
                       </div>
-                      <CopyPixButton value={PIX_KEY} price={totalPrice} />
+                      <CopyPixButton value={PIX_KEY} />
                       <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8, textAlign: 'center' }}>Toque na chave para copiar e colar no seu app de pagamento</p>
                     </div>
                     <div style={card}>
@@ -587,8 +585,12 @@ export default function SegundaChamadaPage() {
                           <Upload style={{ width: 18, height: 18, color: attachFile ? '#4ade80' : 'rgba(255,255,255,0.35)' }} />
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.5)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachFile ? attachFile.name : 'Anexar comprovante'}</p>
-                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>{attachFile ? 'Toque para trocar o arquivo' : 'PDF ou imagem da tela de pagamento'}</p>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.5)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {attachFile ? attachFile.name : 'Anexar comprovante'}
+                          </p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>
+                            {attachFile ? 'Toque para trocar o arquivo' : 'PDF ou imagem da tela de pagamento'}
+                          </p>
                         </div>
                         <input type="file" accept="image/*,.pdf" onChange={e => setAttachFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
                       </label>
@@ -597,25 +599,20 @@ export default function SegundaChamadaPage() {
                 )}
               </AnimatePresence>
 
+              {/* SIM justificada → motivo */}
               <AnimatePresence>
                 {isJustified === true && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div style={card}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: 'white', margin: '0 0 14px' }}>Qual o motivo?</p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <button onClick={() => { setJustReason('doenca'); setLutoText(''); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'doenca', '#3b82f6')}>
-                            <FileText style={{ width: 22, height: 22, color: justReason === 'doenca' ? '#60a5fa' : 'rgba(255,255,255,0.25)' }} />
-                            <span>Doença</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>atestado médico</span>
-                          </button>
-                          <button onClick={() => { setJustReason('luto'); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
-                            <Heart style={{ width: 22, height: 22, color: justReason === 'luto' ? '#a78bfa' : 'rgba(255,255,255,0.25)' }} />
-                            <span>Luto</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>perda familiar</span>
-                          </button>
-                        </div>
-                        <button onClick={() => { setJustReason('autorizacao'); setLutoText(''); setAttachFile(null) }} style={{ ...choiceBtn(justReason === 'autorizacao', '#10b981'), minHeight: 70, padding: '14px 12px' }}>
-                          <CheckCircle style={{ width: 22, height: 22, color: justReason === 'autorizacao' ? '#6ee7b7' : 'rgba(255,255,255,0.25)' }} />
-                          <span>Autorizado</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>pela coordenação</span>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={() => { setJustReason('doenca'); setLutoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'doenca', '#3b82f6')}>
+                          <FileText style={{ width: 22, height: 22, color: justReason === 'doenca' ? '#60a5fa' : 'rgba(255,255,255,0.25)' }} />
+                          <span>Doença</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>atestado médico</span>
+                        </button>
+                        <button onClick={() => { setJustReason('luto'); setAttachFile(null) }} style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
+                          <Heart style={{ width: 22, height: 22, color: justReason === 'luto' ? '#a78bfa' : 'rgba(255,255,255,0.25)' }} />
+                          <span>Luto</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>perda familiar</span>
                         </button>
                       </div>
                     </div>
@@ -628,7 +625,9 @@ export default function SegundaChamadaPage() {
                               <Upload style={{ width: 18, height: 18, color: attachFile ? '#4ade80' : 'rgba(255,255,255,0.35)' }} />
                             </div>
                             <div style={{ minWidth: 0 }}>
-                              <p style={{ fontSize: 14, fontWeight: 600, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.5)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachFile ? attachFile.name : 'Anexar atestado'}</p>
+                              <p style={{ fontSize: 14, fontWeight: 600, color: attachFile ? '#86efac' : 'rgba(255,255,255,0.5)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {attachFile ? attachFile.name : 'Anexar atestado'}
+                              </p>
                               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>PDF ou foto do atestado médico</p>
                             </div>
                             <input type="file" accept="image/*,.pdf" onChange={e => setAttachFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
@@ -654,71 +653,50 @@ export default function SegundaChamadaPage() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    <AnimatePresence>
-                      {justReason === 'autorizacao' && (
-                        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
-                          <label style={labelStyle}>Descrição da autorização</label>
-                          <textarea value={autorizacaoText} onChange={e => setAutorizacaoText(e.target.value)} placeholder="Descreva brevemente o motivo da autorização..." rows={4}
-                            style={{ ...inputBase, padding: '14px 16px', fontSize: 15, resize: 'none' }}
-                            onFocus={e => { e.target.style.borderColor = '#10b981'; e.target.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.15)' }}
-                            onBlur={e  => { e.target.style.borderColor = 'rgba(64,84,178,0.2)'; e.target.style.boxShadow = 'none' }} />
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                            <p style={{ fontSize: 12, color: autorizacaoText.trim().length > 10 ? '#4ade80' : 'rgba(255,255,255,0.25)', margin: 0 }}>
-                              {autorizacaoText.trim().length > 10 ? '✓ Descrição suficiente' : 'Mínimo de 10 caracteres'}
-                            </p>
-                            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0 }}>{autorizacaoText.length}</p>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <motion.button onClick={() => goTo(1)} whileTap={{ scale: 0.97 }} style={{ flex: 1, padding: '16px', borderRadius: 14, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54 }}>
+                <motion.button onClick={() => goTo(1)} whileTap={{ scale: 0.97 }} style={btnBack}>
                   <ArrowLeft style={{ width: 16, height: 16 }} />Voltar
                 </motion.button>
-                <motion.button disabled={!step2Ok()} onClick={() => goTo(3)} whileTap={{ scale: step2Ok() ? 0.97 : 1 }} style={{ ...btnPrimary(!step2Ok()), flex: 2 }}>
+                <motion.button disabled={!step2Ok()} onClick={() => goTo(3)} whileTap={{ scale: step2Ok() ? 0.97 : 1 }}
+                  style={{ ...btnPrimary(!step2Ok()), flex: 2 }}>
                   Continuar <ArrowRight style={{ width: 18, height: 18 }} />
                 </motion.button>
               </div>
             </motion.div>
           )}
 
-          {/* ══ STEP 3 ══ */}
+          {/* ══════════════════════════════════════════════════════════════════
+              STEP 3 — Dados
+          ══════════════════════════════════════════════════════════════════ */}
           {step === 3 && (
-            <motion.div key="s3" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {Object.values(selectedExams).length > 0 && (
-                <div style={{ background: 'rgba(64,84,178,0.1)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <ClipboardList style={{ width: 15, height: 15, color: '#6b7fe8', flexShrink: 0 }} />
-                    <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>Disciplinas — {selGrade}</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    {Array.from(selectedSubjects).map((subId) => {
-                      const subj = allSubjects.find(s => s.id === subId)
-                      return (
-                        <span key={subId} style={{ fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: 'rgba(64,84,178,0.2)', color: '#a0aff8' }}>
-                          {subj?.name}
-                        </span>
-                      )
-                    })}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                    {Array.from(selectedSubjects).map((subId, i, arr) => {
-                      const exam = selectedExams[subId]
-                      if (!exam) return null
-                      return (
-                        <span key={subId} style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
-                          {i > 0 && '• '}{formatDateShort(exam.date)} · {exam.startTime}–{exam.endTime}
-                        </span>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+            <motion.div key="s3" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
+              transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+              {/* Resumo compacto */}
+              <div style={{ background: 'rgba(64,84,178,0.1)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <ClipboardList style={{ width: 15, height: 15, color: '#6b7fe8', flexShrink: 0 }} />
+                  <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selGrade}</p>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isJustified ? '#86efac' : '#fca5a5', background: isJustified ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 5 }}>
+                    {isJustified ? (justReason === 'doenca' ? '✔ Doença' : '✔ Luto') : '✘ Não justificada'}
+                  </span>
+                </div>
+                {Object.entries(selectedSlots).map(([subject, slot]) => (
+                  <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid rgba(64,84,178,0.12)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#a0aff8' }}>{subject}</span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
+                      {formatDateShort(slot.date)} · {slot.startTime}–{slot.endTime}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Formulário */}
               <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {[
                   { label: 'Seu nome completo', value: parentName,  set: setParentName,  icon: User,          placeholder: 'Nome do responsável', type: 'text' },
@@ -730,7 +708,9 @@ export default function SegundaChamadaPage() {
                     <label style={labelStyle}>{field.label}</label>
                     <div style={{ position: 'relative' }}>
                       <field.icon style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 17, height: 17, color: 'rgba(255,255,255,0.28)', pointerEvents: 'none' }} />
-                      <input type={field.type} inputMode={field.type === 'tel' ? 'numeric' : field.type === 'email' ? 'email' : 'text'} autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'name'} value={field.value} onChange={e => field.set(e.target.value)} placeholder={field.placeholder}
+                      <input type={field.type} inputMode={field.type === 'tel' ? 'numeric' : field.type === 'email' ? 'email' : 'text'}
+                        autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'name'}
+                        value={field.value} onChange={e => field.set(e.target.value)} placeholder={field.placeholder}
                         style={{ ...inputBase, paddingLeft: 46 }}
                         onFocus={e => { e.target.style.borderColor = '#4054B2'; e.target.style.boxShadow = '0 0 0 3px rgba(64,84,178,0.15)'; e.target.style.background = 'rgba(255,255,255,0.09)' }}
                         onBlur={e  => { e.target.style.borderColor = 'rgba(64,84,178,0.2)'; e.target.style.boxShadow = 'none'; e.target.style.background = 'rgba(255,255,255,0.06)' }} />
@@ -739,78 +719,111 @@ export default function SegundaChamadaPage() {
                 ))}
               </div>
 
-              {submitError && <div style={{ background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)', color: '#fca5a5', padding: '14px 16px', borderRadius: 12, fontSize: 14 }}>{submitError}</div>}
+              {submitError && (
+                <div style={{ background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)', color: '#fca5a5', padding: '14px 16px', borderRadius: 12, fontSize: 14 }}>
+                  {submitError}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 10 }}>
-                <motion.button onClick={() => goTo(2)} whileTap={{ scale: 0.97 }} style={{ flex: 1, padding: '16px', borderRadius: 14, border: '1.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54 }}>
+                <motion.button onClick={() => goTo(2)} whileTap={{ scale: 0.97 }} style={btnBack}>
                   <ArrowLeft style={{ width: 16, height: 16 }} />Voltar
                 </motion.button>
-                <motion.button disabled={submitting || !formOk} onClick={handleSubmit} whileTap={{ scale: formOk && !submitting ? 0.97 : 1 }} style={{ ...btnPrimary(!formOk || submitting), flex: 2 }}>
+                <motion.button disabled={submitting || !formOk} onClick={handleSubmit} whileTap={{ scale: formOk && !submitting ? 0.97 : 1 }}
+                  style={{ ...btnPrimary(!formOk || submitting), flex: 2 }}>
                   {submitting
-                    ? <><div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} />{uploadingFile ? 'Enviando arquivo...' : 'Confirmando...'}</>
+                    ? <><div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin .7s linear infinite' }} />
+                        {uploadingFile ? 'Enviando arquivo...' : 'Confirmando...'}</>
                     : <><Check style={{ width: 18, height: 18 }} />Confirmar inscrição</>}
                 </motion.button>
               </div>
             </motion.div>
           )}
 
-          {/* ══ STEP 4 ══ */}
+          {/* ══════════════════════════════════════════════════════════════════
+              STEP 4 — Sucesso
+          ══════════════════════════════════════════════════════════════════ */}
           {step === 4 && (
-            <motion.div key="s4" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', paddingTop: 16 }}>
+            <motion.div key="s4" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', paddingTop: 16 }}>
+
               <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, delay: 0.15 }}
                 style={{ width: 90, height: 90, borderRadius: '50%', background: 'linear-gradient(135deg,#4054B2,#6b7fe8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 60px rgba(64,84,178,0.45)' }}>
                 <CheckCircle style={{ width: 46, height: 46, color: 'white' }} />
               </motion.div>
+
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 900, fontSize: 30, color: 'white', margin: 0 }}>Inscrito!</h2>
-                <p style={{ color: 'rgba(255,255,255,0.42)', marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>Confirmação enviada para<br /><strong style={{ color: 'rgba(255,255,255,0.75)' }}>{parentEmail}</strong></p>
+                <p style={{ color: 'rgba(255,255,255,0.42)', marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>
+                  Confirmação enviada para<br />
+                  <strong style={{ color: 'rgba(255,255,255,0.75)' }}>{parentEmail}</strong>
+                </p>
               </motion.div>
-              {Object.values(selectedExams).length > 0 && (
-                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 18, padding: '18px 16px' }}>
-                  {[
-                    { label: 'Aluno', value: studentName },
-                    { label: 'Disciplinas', value: Array.from(selectedSubjects).map(id => allSubjects.find(s => s.id === id)?.name).filter(Boolean).join(', ') },
-                    { label: 'Série', value: selGrade },
-                    { label: 'Data', value: formatDate(Object.values(selectedExams)[0]?.date || ''), highlight: true },
-                    { label: 'Horário', value: `${Object.values(selectedExams)[0]?.startTime || ''} – ${Object.values(selectedExams)[0]?.endTime || ''}`, highlight: true },
-                    { label: 'Situação', value: isJustified ? (justReason === 'doenca' ? 'Justificada — Doença' : justReason === 'luto' ? 'Justificada — Luto' : 'Autorizado pela coordenação') : 'Não justificada (PIX enviado)' },
-                  ].map((item, i, arr) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: i < arr.length - 1 ? 12 : 0, marginBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: item.highlight ? 700 : 500, textAlign: 'right', color: item.highlight ? '#6b7fe8' : 'rgba(255,255,255,0.75)', textTransform: item.highlight ? 'capitalize' as any : 'none' as any }}>{item.value}</span>
-                    </div>
-                  ))}
-                </motion.div>
-              )}
 
-              {Object.values(selectedExams)[0] && (
-                <motion.a
-                  initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
-                  href={generateCalendarLink({
-                    title: `Segunda Chamada — ${Array.from(selectedSubjects).map(id => allSubjects.find(s => s.id === id)?.name).filter(Boolean).join(', ')}`,
-                    date: Object.values(selectedExams)[0]?.date || '',
-                    startTime: Object.values(selectedExams)[0]?.startTime || '',
-                    endTime: Object.values(selectedExams)[0]?.endTime || '',
-                    description: `Segunda chamada de ${Array.from(selectedSubjects).map(id => allSubjects.find(s => s.id === id)?.name).filter(Boolean).join(', ')}\nAluno: ${studentName}\nSérie: ${selGrade}`,
-                  })}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ width: '100%', textDecoration: 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.15)', color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                    <CalendarPlus style={{ width: 18, height: 18, color: '#4ade80' }} />
-                    Adicionar ao Google Agenda
+              {/* Resumo das inscrições */}
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 18, padding: '18px 16px' }}>
+                {[
+                  { label: 'Aluno',  value: studentName },
+                  { label: 'Série',  value: selGrade },
+                  { label: 'Situação', value: isJustified ? (justReason === 'doenca' ? 'Justificada — Doença' : 'Justificada — Luto') : `Não justificada · ${pixValueStr} via PIX` },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', color: 'rgba(255,255,255,0.75)' }}>{item.value}</span>
                   </div>
-                </motion.a>
-              )}
-              
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} style={{ width: '100%', background: 'rgba(64,84,178,0.08)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left' }}>
+                ))}
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>
+                  {Object.keys(selectedSlots).length} inscrição{Object.keys(selectedSlots).length > 1 ? 'ões' : ''}
+                </p>
+                {Object.entries(selectedSlots).map(([subject, slot]) => (
+                  <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#6b7fe8' }}>{subject}</span>
+                    <span style={{ fontSize: 12, color: '#a0aff8', fontWeight: 600, textAlign: 'right', textTransform: 'capitalize' }}>
+                      {formatDate(slot.date)}<br />
+                      <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>{slot.startTime} – {slot.endTime}</span>
+                    </span>
+                  </div>
+                ))}
+              </motion.div>
+
+              {/* Botões de agenda — um por disciplina */}
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+                style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Object.entries(selectedSlots).map(([subject, slot]) => (
+                  <a key={subject}
+                    href={generateCalendarLink({
+                      title: `Segunda Chamada — ${subject}`,
+                      date: slot.date,
+                      startTime: slot.startTime,
+                      endTime: slot.endTime,
+                      description: `Segunda chamada de ${subject}\nAluno: ${studentName}\nTurma: ${buildStudentGrade(selGrade, selTurma)}`,
+                    })}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ textDecoration: 'none', width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.15)', color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                      <CalendarPlus style={{ width: 18, height: 18, color: '#6b7fe8' }} />
+                      {Object.keys(selectedSlots).length > 1 ? `Google Agenda — ${subject}` : 'Adicionar ao Google Agenda'}
+                    </div>
+                  </a>
+                ))}
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+                style={{ width: '100%', background: 'rgba(64,84,178,0.08)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left' }}>
                 <MapPin style={{ width: 16, height: 16, color: '#6b7fe8', flexShrink: 0, marginTop: 1 }} />
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 700, color: 'white', margin: 0 }}>Grupo Educacional Pro Campus</p>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', margin: '4px 0 0', lineHeight: 1.4 }}>Apresente-se com documento com foto e 10 minutos de antecedência.</p>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', margin: '4px 0 0', lineHeight: 1.4 }}>
+                    Apresente-se com documento com foto e 10 minutos de antecedência.
+                  </p>
                 </div>
               </motion.div>
+
               <Link href="/" style={{ textDecoration: 'none' }}>
-                <button style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontWeight: 500, fontSize: 14, cursor: 'pointer', padding: '8px 16px' }}>← Voltar para o início</button>
+                <button style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontWeight: 500, fontSize: 14, cursor: 'pointer', padding: '8px 16px' }}>
+                  ← Voltar para o início
+                </button>
               </Link>
             </motion.div>
           )}
