@@ -41,7 +41,7 @@ type ExamBooking = {
   id: string; studentName: string; studentGrade: string; parentName: string
   parentEmail: string; parentPhone: string; subjects: string; createdAt: string
   justified?: boolean | null; reason?: string | null; lutoText?: string | null
-  fileUrl?: string | null; status?: BookingStatus
+  autorizacaoText?: string | null; fileUrl?: string | null; status?: BookingStatus
 }
 type ExamSchedule = {
   id: string; subjectName: string; grade: string
@@ -74,7 +74,7 @@ function StatusBadge({ status }: { status?: BookingStatus }) {
 
 function computeJustified(b: ExamBooking) {
   if (b.justified !== null && b.justified !== undefined) return b.justified
-  return !!(b.reason || b.lutoText || b.fileUrl)
+  return !!(b.reason || b.lutoText || b.autorizacaoText || b.fileUrl)
 }
 
 function reasonLabel(reason?: string | null) {
@@ -404,6 +404,7 @@ export default function SegundaChamadaSecretariaPage() {
         const student = studentMap.get(key)!
         if (booking.reason === 'doenca') student.justifications.add('🩺 Doença')
         else if (booking.reason === 'luto') student.justifications.add('🕊️ Luto')
+        else if (booking.autorizacaoText) student.justifications.add('✅ Autorizado pelo Coordenador')
         else if (booking.justified) student.justifications.add('📋 Justificado')
       })
     })
@@ -818,6 +819,11 @@ export default function SegundaChamadaSecretariaPage() {
                                                           <span style={{ fontWeight: 600, color: '#6b7280' }}>Obs: </span>{b.lutoText}
                                                         </p>
                                                       )}
+                                                      {b.autorizacaoText && (
+                                                        <p style={{ fontSize: 11, color: '#374151', margin: '2px 0 0' }}>
+                                                          <span style={{ fontWeight: 600, color: '#6b7280' }}>Autorização: </span>{b.autorizacaoText}
+                                                        </p>
+                                                      )}
                                                     </div>
                                                     <div style={{ padding: '6px 12px', borderTop: `1px solid ${isJustified ? '#bbf7d0' : '#fecaca'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                                                       {b.fileUrl
@@ -1008,6 +1014,12 @@ export default function SegundaChamadaSecretariaPage() {
                                     <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 10, padding: '12px 14px' }}>
                                       <p style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>🕊️ Descrição</p>
                                       <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.5 }}>{b.lutoText}</p>
+                                    </div>
+                                  )}
+                                  {b.autorizacaoText && (
+                                    <div style={{ background: '#f0fdf4', border: '1px solid #dcfce7', borderRadius: 10, padding: '12px 14px' }}>
+                                      <p style={{ fontSize: 11, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>✅ Autorização da Coordenação</p>
+                                      <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.5 }}>{b.autorizacaoText}</p>
                                     </div>
                                   )}
                                   <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 10 }}>
