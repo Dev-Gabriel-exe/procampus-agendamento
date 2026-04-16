@@ -11,7 +11,7 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Clock, BookMarked, FolderOpen,
   Search, SlidersHorizontal, Download, ExternalLink,
-  Paperclip, Filter, Copy, FileText, Heart, Printer,
+  Paperclip, Filter, Copy, FileText, Heart, Printer, Check,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
@@ -185,6 +185,7 @@ export default function SegundaChamadaSecretariaPage() {
   const [expandedComp,     setExpandedComp]     = useState<string | null>(null)
   const [deleteTarget,     setDeleteTarget]     = useState<{ id: string; name: string } | null>(null)
   const [deletingComp,     setDeletingComp]     = useState<string | null>(null)
+  const [selectedCompIds,  setSelectedCompIds]  = useState<Set<string>>(new Set())
   const [compSearch,       setCompSearch]       = useState('')
   const [compFilter,       setCompFilter]       = useState<CompFilter>('all')
   const [compFilterTurma,  setCompFilterTurma]  = useState('')
@@ -348,14 +349,36 @@ export default function SegundaChamadaSecretariaPage() {
   async function confirmDeleteComp() {
     if (!deleteTarget) return
     const { id, name } = deleteTarget; setDeleteTarget(null)
-    setDeletingComp(id)
-    setComprovantes(prev => prev.filter(c => c.id !== id))
     try {
-      const res = await fetch(`/api/segunda-chamada/booking/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error()
-      toast.success(`Comprovante de ${name} removido.`)
+      // Se há seleções e este ID está selecionado, deletar todos os selecionados
+      if (selectedCompIds.size > 0 && selectedCompIds.has(id)) {
+        const count = selectedCompIds.size
+        const confirmed = window.confirm(`Deletar ${count} comprovante${count > 1 ? 's' : ''}? Esta ação não pode ser desfeita.`)
+        if (!confirmed) return
+        await Promise.all(Array.from(selectedCompIds).map(selectedId =>
+          fetch(`/api/segunda-chamada/comprovante/${selectedId}`, { method: 'DELETE' })
+        ))
+        setSelectedCompIds(new Set())
+        toast.success(`${count} comprovante${count > 1 ? 's' : ''} removido${count > 1 ? 's' : ''}.`)
+      } else {
+        // Deletar apenas este
+        setDeletingComp(id)
+        const res = await fetch(`/api/segunda-chamada/comprovante/${id}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error()
+        toast.success(`Comprovante de ${name} removido.`)
+      }
+      await loadComprovantes()
     } catch { toast.error('Falha ao remover.'); loadComprovantes() }
     finally { setDeletingComp(null) }
+  }
+
+  function toggleSelectComp(id: string) {
+    setSelectedCompIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) newSet.delete(id)
+      else newSet.add(id)
+      return newSet
+    })
   }
 
   // ── Agrupamentos ───────────────────────────────────────────────────────────
@@ -958,6 +981,25 @@ export default function SegundaChamadaSecretariaPage() {
                       style={{ background: 'white', borderRadius: 14, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.04)', transition: 'opacity 0.2s' }}>
 
                       <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        {/* Checkbox de seleção */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleSelectComp(b.id) }}
+                          title={selectedCompIds.has(b.id) ? 'Desselecionar' : 'Selecionar'}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 28, height: 28, borderRadius: 8,
+                            background: selectedCompIds.has(b.id) ? '#4054B2' : '#f3f4f6',
+                            border: selectedCompIds.has(b.id) ? '2px solid #2d3c8f' : '1.5px solid #e5e7eb',
+                            color: 'white', cursor: 'pointer',
+                            transition: 'all 0.2s', flexShrink: 0,
+                            padding: 0,
+                          }}
+                          onMouseEnter={e => { if (!selectedCompIds.has(b.id)) e.currentTarget.style.background = '#e5e7eb' }}
+                          onMouseLeave={e => { if (!selectedCompIds.has(b.id)) e.currentTarget.style.background = '#f3f4f6' }}
+                        >
+                          {selectedCompIds.has(b.id) && <Check style={{ width: 14, height: 14 }} />}
+                        </button>
                         <div style={{ width: 40, height: 40, borderRadius: 12, background: typeColor.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           {typeColor.icon}
                         </div>
@@ -978,9 +1020,9 @@ export default function SegundaChamadaSecretariaPage() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                           <button onClick={e => { e.stopPropagation(); setDeleteTarget({ id: b.id, name: b.parentName }) }} disabled={isDeleting}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #fee2e2', background: '#fef2f2', color: '#ef4444', cursor: isDeleting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: selectedCompIds.has(b.id) && selectedCompIds.size > 0 ? '1px solid #ef4444' : '1px solid #fee2e2', background: selectedCompIds.has(b.id) && selectedCompIds.size > 0 ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', cursor: isDeleting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             onMouseEnter={e => { if (!isDeleting) { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white' } }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444' }}>
+                            onMouseLeave={e => { e.currentTarget.style.background = selectedCompIds.has(b.id) && selectedCompIds.size > 0 ? 'rgba(239,68,68,0.1)' : '#fef2f2'; e.currentTarget.style.color = '#ef4444' }}>
                             <Trash2 style={{ width: 14, height: 14 }} />
                           </button>
                           <button onClick={() => setExpandedComp(isOpen ? null : b.id)}

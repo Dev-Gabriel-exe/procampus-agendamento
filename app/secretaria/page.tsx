@@ -115,6 +115,7 @@ export default function SecretariaPage() {
   const [appointments, setAppointments] = useState<AppointmentFull[]>([])
   const [loading, setLoading] = useState(true)
   const [filtros, setFiltros] = useState<Filtros>({ search: '', dateFrom: '', dateTo: '', grade: '', discipline: '', turma: '' })
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
@@ -133,9 +134,30 @@ export default function SecretariaPage() {
     fetchAppointments()
   }
 
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) newSet.delete(id)
+      else newSet.add(id)
+      return newSet
+    })
+  }
+
   async function handleDelete(id: string) {
-    await fetch(`/api/agendamentos/${id}`, { method: 'DELETE' })
-    fetchAppointments()
+    // Se há seleções e este ID está selecionado, deletar todos os selecionados
+    if (selected.size > 0 && selected.has(id)) {
+      const count = selected.size
+      if (!confirm(`Deletar ${count} agendamento${count > 1 ? 's' : ''}? Esta ação não pode ser desfeita.`)) return
+      await Promise.all(Array.from(selected).map(selectedId =>
+        fetch(`/api/agendamentos/${selectedId}`, { method: 'DELETE' })
+      ))
+      setSelected(new Set())
+      fetchAppointments()
+    } else {
+      // Deletar apenas este
+      await fetch(`/api/agendamentos/${id}`, { method: 'DELETE' })
+      fetchAppointments()
+    }
   }
 
   const filtered = appointments.filter(a => {
@@ -197,7 +219,7 @@ export default function SecretariaPage() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 14 }}>
                   <AnimatePresence>
-                    {appts.map((appt, i) => <AgendamentoCard key={appt.id} appt={appt} onCancel={handleCancel} onDelete={handleDelete} index={i} />)}
+                    {appts.map((appt, i) => <AgendamentoCard key={appt.id} appt={appt} onCancel={handleCancel} onDelete={handleDelete} index={i} isSelected={selected.has(appt.id)} onToggleSelect={toggleSelect} hasMultipleSelected={selected.size > 0} />)}
                   </AnimatePresence>
                 </div>
               </div>

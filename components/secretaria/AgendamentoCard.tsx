@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CalendarDays, Phone, Mail, MessageCircle,
-  XCircle, GraduationCap, Clock, Trash2, AlertTriangle
+  XCircle, GraduationCap, Clock, Trash2, AlertTriangle, Check
 } from 'lucide-react'
 import { generateWhatsAppLink } from '@/lib/whatsapp-link'
 import { formatDateShort } from '@/lib/slots'
@@ -139,12 +139,15 @@ function DeleteModal({
 }
 
 export default function AgendamentoCard({
-  appt, onCancel, onDelete, index = 0,
+  appt, onCancel, onDelete, index = 0, isSelected = false, onToggleSelect, hasMultipleSelected = false
 }: {
   appt: AppointmentFull
   onCancel: (id: string) => void
   onDelete?: (id: string) => void
   index?: number
+  isSelected?: boolean
+  onToggleSelect?: (id: string) => void
+  hasMultipleSelected?: boolean
 }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const teacher     = appt.availability.teacher
@@ -190,18 +193,32 @@ export default function AgendamentoCard({
         style={{
           background: 'white',
           borderRadius: 20,
-          border: isCancelled
+          border: isSelected
+            ? '2px solid #23A455'
+            : isCancelled
             ? '1.5px solid #fecaca'
             : isPast
             ? '1.5px solid rgba(0,0,0,0.08)'
             : '1.5px solid rgba(97,206,112,0.15)',
           overflow: 'hidden',
           opacity: (isCancelled || isPast) ? 0.65 : 1,
-          boxShadow: (isCancelled || isPast) ? 'none' : '0 2px 20px rgba(0,0,0,0.04)',
+          boxShadow: isSelected ? '0 0 0 3px rgba(35,164,85,0.1)' : (isCancelled || isPast) ? 'none' : '0 2px 20px rgba(0,0,0,0.04)',
           transition: 'all 0.3s',
+          position: 'relative',
         }}
         whileHover={!isCancelled && !isPast ? { y: -4, boxShadow: '0 16px 48px rgba(97,206,112,0.12)' } : {}}
       >
+        {/* Indicador de seleção */}
+        {isSelected && (
+          <div style={{
+            position: 'absolute', top: -1, right: -1,
+            width: 24, height: 24, borderRadius: '0 20px 0 0',
+            background: '#23A455', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 10,
+          }}>
+            <Check style={{ width: 14, height: 14, color: 'white' }} />
+          </div>
+        )}
         {/* Header */}
         <div style={{
           padding: '14px 20px',
@@ -209,10 +226,31 @@ export default function AgendamentoCard({
             ? '#fff5f5'
             : isPast
             ? '#f9fafb'
+            : isSelected
+            ? 'linear-gradient(135deg,#e8f9eb,#c3e6cb)'
             : 'linear-gradient(135deg,#1a7a2e,#23A455)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {onToggleSelect && !isCancelled && !isPast && (
+              <button
+                onClick={() => onToggleSelect(appt.id)}
+                title={isSelected ? 'Desselecionar' : 'Selecionar'}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 28, height: 28, borderRadius: 8,
+                  background: isSelected ? '#23A455' : 'rgba(255,255,255,0.2)',
+                  border: isSelected ? '2px solid white' : '1.5px solid rgba(255,255,255,0.4)',
+                  color: 'white', cursor: 'pointer',
+                  transition: 'all 0.2s', flexShrink: 0,
+                  padding: 0,
+                }}
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.3)' }}
+                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
+              >
+                {isSelected && <Check style={{ width: 14, height: 14 }} />}
+              </button>
+            )}
             <CalendarDays style={{
               width: 15, height: 15,
               color: isCancelled ? '#f87171' : isPast ? '#9ca3af' : 'rgba(255,255,255,0.8)',
@@ -233,11 +271,11 @@ export default function AgendamentoCard({
               {isCancelled ? 'Cancelado' : isPast ? 'Realizado' : '20 min'}
             </Badge>
 
-            {/* Botão apagar — só para cancelados e passados */}
-            {canDelete && onDelete && (
+            {/* Botão apagar — para cancelados, passados, ou quando selecionado com múltiplos */}
+            {(canDelete || (hasMultipleSelected && isSelected)) && onDelete && (
               <button
                 onClick={() => setShowDeleteModal(true)}
-                title="Apagar agendamento"
+                title={hasMultipleSelected && isSelected ? 'Apagar selecionados' : 'Apagar agendamento'}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 28, height: 28, borderRadius: 8,
