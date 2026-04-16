@@ -543,11 +543,11 @@ export default function SegundaChamadaPage() {
               <div style={card}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: 'white', margin: '0 0 14px' }}>A falta foi justificada?</p>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => { setIsJustified(true); setAttachFile(null) }} style={choiceBtn(isJustified === true, '#22c55e')}>
+                  <button onClick={() => { setIsJustified(true); setJustReason(null); setLutoText(''); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(isJustified === true, '#22c55e')}>
                     <CheckCircle style={{ width: 24, height: 24, color: isJustified === true ? '#22c55e' : 'rgba(255,255,255,0.25)' }} />
                     <span>Sim</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>justificada</span>
                   </button>
-                  <button onClick={() => { setIsJustified(false); setJustReason(null); setLutoText(''); setAttachFile(null) }} style={choiceBtn(isJustified === false, '#ef4444')}>
+                  <button onClick={() => { setIsJustified(false); setJustReason(null); setLutoText(''); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(isJustified === false, '#ef4444')}>
                     <AlertCircle style={{ width: 24, height: 24, color: isJustified === false ? '#ef4444' : 'rgba(255,255,255,0.25)' }} />
                     <span>Não</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>sem motivo</span>
                   </button>
@@ -613,11 +613,11 @@ export default function SegundaChamadaPage() {
                           <FileText style={{ width: 22, height: 22, color: justReason === 'doenca' ? '#60a5fa' : 'rgba(255,255,255,0.25)' }} />
                           <span>Doença</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>atestado médico</span>
                         </button>
-                        <button onClick={() => { setJustReason('luto'); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
+                        <button onClick={() => { setJustReason('luto'); setLutoText(''); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
                           <Heart style={{ width: 22, height: 22, color: justReason === 'luto' ? '#a78bfa' : 'rgba(255,255,255,0.25)' }} />
                           <span>Luto</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>perda familiar</span>
                         </button>
-                        <button onClick={() => { setJustReason('autorizacao'); setLutoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'autorizacao', '#10b981')}>
+                        <button onClick={() => { setJustReason('autorizacao'); setLutoText(''); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'autorizacao', '#10b981')}>
                           <CheckCircle style={{ width: 22, height: 22, color: justReason === 'autorizacao' ? '#4ade80' : 'rgba(255,255,255,0.25)' }} />
                           <span>Autorizado</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>autorização coordenação</span>
                         </button>
@@ -705,7 +705,7 @@ export default function SegundaChamadaPage() {
                   <ClipboardList style={{ width: 15, height: 15, color: '#6b7fe8', flexShrink: 0 }} />
                   <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selGrade}</p>
                   <span style={{ fontSize: 11, fontWeight: 700, color: isJustified ? '#86efac' : '#fca5a5', background: isJustified ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 5 }}>
-                    {isJustified ? (justReason === 'doenca' ? '✔ Doença' : '✔ Luto') : '✘ Não justificada'}
+                    {isJustified ? (justReason === 'doenca' ? '✔ Doença' : justReason === 'luto' ? '✔ Luto' : '✔ Autorizado') : '✘ Não justificada'}
                   </span>
                 </div>
                 {Object.entries(selectedSlots).map(([subject, slot]) => (
