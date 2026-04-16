@@ -59,9 +59,6 @@ const STATUS_META: Record<BookingStatus, { label: string; bg: string; color: str
   REJECTED: { label: 'Reprovado', bg: '#fee2e2', color: '#991b1b', border: '#fecaca', icon: <XCircle    style={{ width: 10, height: 10 }} /> },
 }
 
-const PIX_KEY  = 'financeiro@procampus.com.br'
-const PIX_NAME = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
-
 // ── helpers ──────────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status?: BookingStatus }) {
   const s = STATUS_META[status ?? 'PENDING']
@@ -195,7 +192,7 @@ export default function SegundaChamadaSecretariaPage() {
   const [startTime,    setStartTime]    = useState('')
   const [endTime,      setEndTime]      = useState('')
   const [regDeadline,  setRegDeadline]  = useState('')
-  const [loteSelecao,  setLoteSelecao]  = useState<Record<string, string[]>>({}) // grade → [subjectId]
+  const [loteSelecao,  setLoteSelecao]  = useState<Record<string, string[]>>({})
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState('')
 
@@ -287,12 +284,14 @@ export default function SegundaChamadaSecretariaPage() {
     if (!confirm('Remover este slot? Todas as inscrições vinculadas também serão removidas.')) return
     const res = await fetch(`/api/segunda-chamada/${id}`, { method: 'DELETE' })
     if (!res.ok) { toast.error('Falha ao remover slot.'); return }
-    toast.success('Slot removido.'); loadData()
+    toast.success('Slot removido.')
+    setSelectedSlotIds(prev => { const next = new Set(prev); next.delete(id); return next })
+    loadData()
   }
 
   async function handleDeleteMultipleSlots() {
     if (selectedSlotIds.size === 0) return
-    if (!confirm(`Remover ${selectedSlotIds.size} slot${selectedSlotIds.size !== 1 ? 's' : ''}?`)) return
+    if (!confirm(`Remover ${selectedSlotIds.size} slot${selectedSlotIds.size !== 1 ? 's' : ''}? Todas as inscrições vinculadas também serão removidas.`)) return
     let successCount = 0
     for (const id of selectedSlotIds) {
       const res = await fetch(`/api/segunda-chamada/${id}`, { method: 'DELETE' })
@@ -307,6 +306,17 @@ export default function SegundaChamadaSecretariaPage() {
     const next = new Set(selectedSlotIds)
     if (next.has(slotId)) next.delete(slotId); else next.add(slotId)
     setSelectedSlotIds(next)
+  }
+
+  function toggleAllSlotsInGrade(gradeData: Record<string, { subjectName: string; slots: ExamSchedule[] }>) {
+    const allIds = Object.values(gradeData).flatMap(d => d.slots.map(s => s.id))
+    const allSelected = allIds.every(id => selectedSlotIds.has(id))
+    setSelectedSlotIds(prev => {
+      const next = new Set(prev)
+      if (allSelected) allIds.forEach(id => next.delete(id))
+      else allIds.forEach(id => next.add(id))
+      return next
+    })
   }
 
   async function confirmDeleteBooking() {
@@ -350,7 +360,6 @@ export default function SegundaChamadaSecretariaPage() {
     if (!deleteTarget) return
     const { id, name } = deleteTarget; setDeleteTarget(null)
     try {
-      // Se há seleções e este ID está selecionado, deletar todos os selecionados
       if (selectedCompIds.size > 0 && selectedCompIds.has(id)) {
         const count = selectedCompIds.size
         const confirmed = window.confirm(`Deletar ${count} comprovante${count > 1 ? 's' : ''}? Esta ação não pode ser desfeita.`)
@@ -361,7 +370,6 @@ export default function SegundaChamadaSecretariaPage() {
         setSelectedCompIds(new Set())
         toast.success(`${count} comprovante${count > 1 ? 's' : ''} removido${count > 1 ? 's' : ''}.`)
       } else {
-        // Deletar apenas este
         setDeletingComp(id)
         const res = await fetch(`/api/segunda-chamada/comprovante/${id}`, { method: 'DELETE' })
         if (!res.ok) throw new Error()
@@ -382,7 +390,6 @@ export default function SegundaChamadaSecretariaPage() {
   }
 
   // ── Agrupamentos ───────────────────────────────────────────────────────────
-  // Por série → disciplina → slots
   const groupedByGrade = exams.reduce((acc, e) => {
     const g = e.grade; const dk = e.subjectName
     if (!acc[g]) acc[g] = {}
@@ -419,6 +426,8 @@ export default function SegundaChamadaSecretariaPage() {
 
   const pendingCompCount = comprovantes.filter(c => (c.status ?? 'PENDING') === 'PENDING').length
 
+  const totalSlots = exams.length
+
   function getPrintData() {
     const studentMap = new Map<string, { name: string; grade: string; justifications: Set<string> }>()
     exams.forEach(exam => {
@@ -443,8 +452,8 @@ export default function SegundaChamadaSecretariaPage() {
       <Toaster position="top-right" richColors closeButton />
       {showPrintView && <PrintByTurma students={getPrintData()} title="Segunda Chamada por Turma" />}
       <AnimatePresence>
-        {rejectTarget        && <RejectModal studentName={rejectTarget.studentName}        onConfirm={confirmReject}      onCancel={() => setRejectTarget(null)} />}
-        {deleteTarget        && <DeleteModal name={deleteTarget.name}        onConfirm={confirmDeleteComp}   onCancel={() => setDeleteTarget(null)} />}
+        {rejectTarget        && <RejectModal studentName={rejectTarget.studentName}        onConfirm={confirmReject}       onCancel={() => setRejectTarget(null)} />}
+        {deleteTarget        && <DeleteModal name={deleteTarget.name}        onConfirm={confirmDeleteComp}    onCancel={() => setDeleteTarget(null)} />}
         {deleteBookingTarget && <DeleteModal name={deleteBookingTarget.name} onConfirm={confirmDeleteBooking} onCancel={() => setDeleteBookingTarget(null)} />}
       </AnimatePresence>
 
@@ -483,6 +492,7 @@ export default function SegundaChamadaSecretariaPage() {
           <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d', margin: 0 }}>Segunda Chamada</h2>
           <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Gerencie slots, analise justificativas e aprove ou reprove inscrições</p>
 
+          {/* ── Tabs ── */}
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {([
               { key: 'slots',        label: 'Slots & Inscrições', icon: ClipboardList },
@@ -496,45 +506,71 @@ export default function SegundaChamadaSecretariaPage() {
             ))}
           </div>
 
-          {activeTab === 'slots' && !loading && (globalCounts.PENDING + globalCounts.APPROVED + globalCounts.REJECTED) > 0 && (
-            <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {(['PENDING','APPROVED','REJECTED'] as BookingStatus[]).map(s => (
-                  <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: STATUS_META[s].color, background: STATUS_META[s].bg, padding: '5px 12px', borderRadius: 8, border: `1px solid ${STATUS_META[s].border}` }}>
-                    {STATUS_META[s].icon}{globalCounts[s]} {STATUS_META[s].label}{globalCounts[s] !== 1 ? 's' : ''}
-                  </span>
-                ))}
-                <button onClick={() => setFilterPending(f => !f)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: filterPending ? '1px solid #4054B2' : '1px solid rgba(64,84,178,0.2)', background: filterPending ? '#4054B2' : 'white', color: filterPending ? 'white' : '#4054B2', cursor: 'pointer' }}>
-                  <Filter style={{ width: 12, height: 12 }} />{filterPending ? 'Mostrando só pendentes' : 'Mostrar só pendentes'}
-                </button>
-              </div>
-              {todasTurmasSlots.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <span style={{ fontSize: 12, color: '#6b8f72', fontWeight: 600 }}>Turma:</span>
-                  <button onClick={() => setSlotFilterTurma('')}
-                    style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: !slotFilterTurma ? '1px solid #4054B2' : '1px solid #e5e7eb', background: !slotFilterTurma ? '#eef1fb' : 'white', color: !slotFilterTurma ? '#4054B2' : '#6b7280' }}>
-                    Todas
-                  </button>
-                  {todasTurmasSlots.map(t => (
-                    <button key={t} onClick={() => setSlotFilterTurma(t === slotFilterTurma ? '' : t)}
-                      style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: slotFilterTurma === t ? '1px solid #4054B2' : '1px solid #e5e7eb', background: slotFilterTurma === t ? '#eef1fb' : 'white', color: slotFilterTurma === t ? '#4054B2' : '#6b7280' }}>
-                      {t}
-                    </button>
+          {/* ── Barra de filtros/ações da aba Slots ── */}
+          {activeTab === 'slots' && !loading && (
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Linha 1: badges de status + filtro pendente + filtro turma + imprimir */}
+              {(globalCounts.PENDING + globalCounts.APPROVED + globalCounts.REJECTED) > 0 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {(['PENDING','APPROVED','REJECTED'] as BookingStatus[]).map(s => (
+                    <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: STATUS_META[s].color, background: STATUS_META[s].bg, padding: '5px 12px', borderRadius: 8, border: `1px solid ${STATUS_META[s].border}` }}>
+                      {STATUS_META[s].icon}{globalCounts[s]} {STATUS_META[s].label}{globalCounts[s] !== 1 ? 's' : ''}
+                    </span>
                   ))}
+                  <button onClick={() => setFilterPending(f => !f)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: filterPending ? '1px solid #4054B2' : '1px solid rgba(64,84,178,0.2)', background: filterPending ? '#4054B2' : 'white', color: filterPending ? 'white' : '#4054B2', cursor: 'pointer' }}>
+                    <Filter style={{ width: 12, height: 12 }} />{filterPending ? 'Mostrando só pendentes' : 'Mostrar só pendentes'}
+                  </button>
+                  {todasTurmasSlots.length > 0 && (
+                    <>
+                      <span style={{ fontSize: 12, color: '#6b8f72', fontWeight: 600 }}>Turma:</span>
+                      <button onClick={() => setSlotFilterTurma('')}
+                        style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: !slotFilterTurma ? '1px solid #4054B2' : '1px solid #e5e7eb', background: !slotFilterTurma ? '#eef1fb' : 'white', color: !slotFilterTurma ? '#4054B2' : '#6b7280' }}>
+                        Todas
+                      </button>
+                      {todasTurmasSlots.map(t => (
+                        <button key={t} onClick={() => setSlotFilterTurma(t === slotFilterTurma ? '' : t)}
+                          style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: slotFilterTurma === t ? '1px solid #4054B2' : '1px solid #e5e7eb', background: slotFilterTurma === t ? '#eef1fb' : 'white', color: slotFilterTurma === t ? '#4054B2' : '#6b7280' }}>
+                          {t}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {exams.flatMap(e => e.bookings).length > 0 && (
+                    <button onClick={() => { setShowPrintView(true); setTimeout(() => window.print(), 100) }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(64,84,178,0.3)', background: '#eef1fb', color: '#4054B2', cursor: 'pointer', marginLeft: 'auto' }}>
+                      <Printer style={{ width: 13, height: 13 }} />Imprimir por Turma
+                    </button>
+                  )}
                 </div>
               )}
-              {selectedSlotIds.size > 0 && (
-                <button onClick={handleDeleteMultipleSlots}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: '1px solid #ef4444', background: '#fff5f5', color: '#ef4444', cursor: 'pointer' }}>
-                  <Trash2 style={{ width: 12, height: 12 }} />Deletar {selectedSlotIds.size} slot{selectedSlotIds.size !== 1 ? 's' : ''}
-                </button>
-              )}
-              {exams.flatMap(e => e.bookings).length > 0 && (
-                <button onClick={() => { setShowPrintView(true); setTimeout(() => window.print(), 100) }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(64,84,178,0.3)', background: '#eef1fb', color: '#4054B2', cursor: 'pointer', marginLeft: 'auto' }}>
-                  <Printer style={{ width: 13, height: 13 }} />Imprimir por Turma
-                </button>
+
+              {/* Linha 2: barra de seleção em lote — sempre visível quando há slots */}
+              {totalSlots > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: selectedSlotIds.size > 0 ? '#fff5f5' : '#f7f9fe', borderRadius: 10, border: selectedSlotIds.size > 0 ? '1.5px solid #fca5a5' : '1.5px solid rgba(64,84,178,0.12)', transition: 'all 0.2s' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ClipboardList style={{ width: 13, height: 13, color: selectedSlotIds.size > 0 ? '#ef4444' : '#6b8f72' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: selectedSlotIds.size > 0 ? '#ef4444' : '#6b8f72' }}>
+                      {selectedSlotIds.size > 0
+                        ? `${selectedSlotIds.size} slot${selectedSlotIds.size !== 1 ? 's' : ''} selecionado${selectedSlotIds.size !== 1 ? 's' : ''}`
+                        : `Marque os checkboxes nos slots para selecioná-los`}
+                    </span>
+                  </div>
+                  {selectedSlotIds.size > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                      <button onClick={() => setSelectedSlotIds(new Set())}
+                        style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', background: 'white', border: '1px solid #e5e7eb', padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>
+                        Cancelar seleção
+                      </button>
+                      <button onClick={handleDeleteMultipleSlots}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', boxShadow: '0 2px 8px rgba(239,68,68,0.3)' }}>
+                        <Trash2 style={{ width: 13, height: 13 }} />
+                        Deletar {selectedSlotIds.size} slot{selectedSlotIds.size !== 1 ? 's' : ''}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -693,10 +729,13 @@ export default function SegundaChamadaSecretariaPage() {
                 const pendingCountGrade   = allBookingsForGrade.filter(b => (b.status ?? 'PENDING') === 'PENDING').length
                 if (filterPending && pendingCountGrade === 0) return null
                 const isOpen = expandedGrade === grade
+                const allSlotsInGrade = Object.values(gradeData).flatMap(d => d.slots)
+                const allGradeSelected = allSlotsInGrade.length > 0 && allSlotsInGrade.every(s => selectedSlotIds.has(s.id))
+                const someGradeSelected = allSlotsInGrade.some(s => selectedSlotIds.has(s.id))
 
                 return (
                   <motion.div key={grade} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                    style={{ background: 'white', borderRadius: 16, border: '1.5px solid rgba(64,84,178,0.15)', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+                    style={{ background: 'white', borderRadius: 16, border: `1.5px solid ${someGradeSelected ? 'rgba(239,68,68,0.3)' : 'rgba(64,84,178,0.15)'}`, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', transition: 'border-color 0.2s' }}>
                     <button onClick={() => setExpandedGrade(isOpen ? null : grade)}
                       style={{ width: '100%', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -708,6 +747,9 @@ export default function SegundaChamadaSecretariaPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                             <span style={{ fontSize: 12, fontWeight: 600, color: '#4054B2', background: '#eef1fb', borderRadius: 999, padding: '4px 10px' }}>
                               {Object.keys(gradeData).length} disciplina{Object.keys(gradeData).length !== 1 ? 's' : ''}
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', borderRadius: 999, padding: '4px 10px' }}>
+                              {allSlotsInGrade.length} slot{allSlotsInGrade.length !== 1 ? 's' : ''}
                             </span>
                             {allBookingsForGrade.length > 0 && (
                               <span style={{ fontSize: 12, fontWeight: 600, color: '#23A455', background: '#e8f9eb', borderRadius: 999, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -722,9 +764,20 @@ export default function SegundaChamadaSecretariaPage() {
                           </div>
                         </div>
                       </div>
-                      <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                        <ChevronDown style={{ width: 15, height: 15, color: '#6b8f72' }} />
-                      </motion.div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {/* Botão selecionar todos da série */}
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); toggleAllSlotsInGrade(gradeData) }}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 7, cursor: 'pointer', border: allGradeSelected ? '1px solid #ef4444' : '1px solid #e5e7eb', background: allGradeSelected ? '#fff5f5' : 'white', color: allGradeSelected ? '#ef4444' : '#6b7280', whiteSpace: 'nowrap', transition: 'all 0.15s' }}
+                          title={allGradeSelected ? 'Desmarcar todos os slots desta série' : 'Selecionar todos os slots desta série'}
+                        >
+                          {allGradeSelected ? 'Desmarcar todos' : 'Selecionar todos'}
+                        </button>
+                        <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                          <ChevronDown style={{ width: 15, height: 15, color: '#6b8f72' }} />
+                        </motion.div>
+                      </div>
                     </button>
 
                     <AnimatePresence>
@@ -754,6 +807,7 @@ export default function SegundaChamadaSecretariaPage() {
                                   <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                                     {disciplineGroup.slots.map(slot => {
                                       const expired = deadlineExpired(slot.registrationDeadline)
+                                      const isSlotSelected = selectedSlotIds.has(slot.id)
                                       const vis = (() => {
                                         let filtered = filterPending
                                           ? slot.bookings.filter(b => (b.status ?? 'PENDING') === 'PENDING')
@@ -762,9 +816,9 @@ export default function SegundaChamadaSecretariaPage() {
                                         return filtered
                                       })()
                                       return (
-                                        <div key={slot.id} style={{ background: '#fafafa', borderRadius: 10, border: `1px solid ${expired ? '#fecaca' : 'rgba(64,84,178,0.12)'}`, overflow: 'hidden' }}>
+                                        <div key={slot.id} style={{ background: isSlotSelected ? '#fff5f5' : '#fafafa', borderRadius: 10, border: isSlotSelected ? '2px solid #fca5a5' : `1px solid ${expired ? '#fecaca' : 'rgba(64,84,178,0.12)'}`, overflow: 'hidden', transition: 'all 0.15s' }}>
                                           {/* Cabeçalho do slot */}
-                                          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: expired ? '#fff5f5' : '#f7f9fe' }}>
+                                          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: isSlotSelected ? '#fff0f0' : expired ? '#fff5f5' : '#f7f9fe' }}>
                                             <div>
                                               <p style={{ fontWeight: 600, fontSize: 13, color: '#0a1a0d', margin: 0, textTransform: 'capitalize' }}>{formatDate(slot.date)}</p>
                                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
@@ -776,9 +830,18 @@ export default function SegundaChamadaSecretariaPage() {
                                                 )}
                                               </div>
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                                              <input type="checkbox" checked={selectedSlotIds.has(slot.id)} onChange={() => toggleSlotSelection(slot.id)}
-                                                style={{ cursor: 'pointer', width: 14, height: 14 }} title="Selecionar para deleção em massa" />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                              {/* Checkbox de seleção — maior e com destaque */}
+                                              <button
+                                                type="button"
+                                                onClick={() => toggleSlotSelection(slot.id)}
+                                                title={isSlotSelected ? 'Desmarcar slot' : 'Selecionar para deletar'}
+                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6, background: isSlotSelected ? '#ef4444' : 'white', border: isSlotSelected ? '2px solid #dc2626' : '2px solid #d1d5db', cursor: 'pointer', color: 'white', transition: 'all 0.15s', flexShrink: 0, padding: 0 }}
+                                                onMouseEnter={e => { if (!isSlotSelected) { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.background = '#fef2f2' } }}
+                                                onMouseLeave={e => { if (!isSlotSelected) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.background = 'white' } }}
+                                              >
+                                                {isSlotSelected && <Check style={{ width: 13, height: 13 }} />}
+                                              </button>
                                               <span style={{ fontSize: 11, color: '#4054B2', background: '#eef1fb', borderRadius: 999, padding: '2px 8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3, border: '1px solid rgba(64,84,178,0.2)' }}>
                                                 <Users2 style={{ width: 10, height: 10 }} />{slot.bookings.length}
                                               </span>
@@ -980,8 +1043,8 @@ export default function SegundaChamadaSecretariaPage() {
                     <motion.div key={b.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: isDeleting ? 0.4 : 1, y: 0 }} layout
                       style={{ background: 'white', borderRadius: 14, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.04)', transition: 'opacity 0.2s' }}>
 
+                      {/* ── Cabeçalho do comprovante ── */}
                       <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         {/* Checkbox de seleção */}
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleSelectComp(b.id) }}
@@ -1000,9 +1063,11 @@ export default function SegundaChamadaSecretariaPage() {
                         >
                           {selectedCompIds.has(b.id) && <Check style={{ width: 14, height: 14 }} />}
                         </button>
+
                         <div style={{ width: 40, height: 40, borderRadius: 12, background: typeColor.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           {typeColor.icon}
                         </div>
+
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 14, fontWeight: 700, color: '#0a1a0d' }}>{b.parentName}</span>
@@ -1018,6 +1083,7 @@ export default function SegundaChamadaSecretariaPage() {
                             {formatDateShort(b.examSchedule.date)}
                           </p>
                         </div>
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                           <button onClick={e => { e.stopPropagation(); setDeleteTarget({ id: b.id, name: b.parentName }) }} disabled={isDeleting}
                             style={{ width: 32, height: 32, borderRadius: 8, border: selectedCompIds.has(b.id) && selectedCompIds.size > 0 ? '1px solid #ef4444' : '1px solid #fee2e2', background: selectedCompIds.has(b.id) && selectedCompIds.size > 0 ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', cursor: isDeleting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1033,8 +1099,8 @@ export default function SegundaChamadaSecretariaPage() {
                           </button>
                         </div>
                       </div>
-                      </div>
 
+                      {/* ── Detalhe expandido ── */}
                       <AnimatePresence>
                         {isOpen && (
                           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
