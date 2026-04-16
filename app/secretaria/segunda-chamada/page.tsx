@@ -1033,6 +1033,7 @@ export default function SegundaChamadaSecretariaPage() {
                           </button>
                         </div>
                       </div>
+                      </div>
 
                       <AnimatePresence>
                         {isOpen && (
