@@ -144,8 +144,9 @@ export default function SegundaChamadaPage() {
 
   // ── Step 2 — Justificativa ────────────────────────────────────────────────
   const [isJustified,     setIsJustified]     = useState<boolean | null>(null)
-  const [justReason,      setJustReason]      = useState<'doenca' | 'luto' | null>(null)
+  const [justReason,      setJustReason]      = useState<'doenca' | 'luto' | 'autorizacao' | null>(null)
   const [lutoText,        setLutoText]        = useState('')
+  const [autorizacaoText, setAutorizacaoText] = useState('')
   const [attachFile,      setAttachFile]      = useState<File | null>(null)
   const [uploadingFile,   setUploadingFile]   = useState(false)
 
@@ -228,6 +229,7 @@ export default function SegundaChamadaPage() {
     if (!justReason)  return false
     if (justReason === 'doenca') return !!attachFile
     if (justReason === 'luto')   return lutoText.trim().length > 10
+    if (justReason === 'autorizacao') return autorizacaoText.trim().length > 10
     return false
   }
 
@@ -253,6 +255,7 @@ export default function SegundaChamadaPage() {
               justified: isJustified ?? false,
               reason: justReason,
               lutoText: justReason === 'luto' ? lutoText : null,
+              autorizacaoText: justReason === 'autorizacao' ? autorizacaoText : null,
               fileUrl,
             }),
           }).then(async r => {
@@ -606,13 +609,17 @@ export default function SegundaChamadaPage() {
                     <div style={card}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: 'white', margin: '0 0 14px' }}>Qual o motivo?</p>
                       <div style={{ display: 'flex', gap: 10 }}>
-                        <button onClick={() => { setJustReason('doenca'); setLutoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'doenca', '#3b82f6')}>
+                        <button onClick={() => { setJustReason('doenca'); setLutoText(''); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'doenca', '#3b82f6')}>
                           <FileText style={{ width: 22, height: 22, color: justReason === 'doenca' ? '#60a5fa' : 'rgba(255,255,255,0.25)' }} />
                           <span>Doença</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>atestado médico</span>
                         </button>
-                        <button onClick={() => { setJustReason('luto'); setAttachFile(null) }} style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
+                        <button onClick={() => { setJustReason('luto'); setAutorizacaoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'luto', '#8b5cf6')}>
                           <Heart style={{ width: 22, height: 22, color: justReason === 'luto' ? '#a78bfa' : 'rgba(255,255,255,0.25)' }} />
                           <span>Luto</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>perda familiar</span>
+                        </button>
+                        <button onClick={() => { setJustReason('autorizacao'); setLutoText(''); setAttachFile(null) }} style={choiceBtn(justReason === 'autorizacao', '#10b981')}>
+                          <CheckCircle style={{ width: 22, height: 22, color: justReason === 'autorizacao' ? '#4ade80' : 'rgba(255,255,255,0.25)' }} />
+                          <span>Autorizado</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>autorização coordenação</span>
                         </button>
                       </div>
                     </div>
@@ -649,6 +656,21 @@ export default function SegundaChamadaPage() {
                               {lutoText.trim().length > 10 ? '✓ Descrição suficiente' : 'Mínimo de 10 caracteres'}
                             </p>
                             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0 }}>{lutoText.length}</p>
+                          </div>
+                        </motion.div>
+                      )}
+                      {justReason === 'autorizacao' && (
+                        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
+                          <label style={labelStyle}>Explique a autorização da coordenação</label>
+                          <textarea value={autorizacaoText} onChange={e => setAutorizacaoText(e.target.value)} placeholder="Descreva o motivo da autorização recebida..." rows={4}
+                            style={{ ...inputBase, padding: '14px 16px', fontSize: 15, resize: 'none' }}
+                            onFocus={e => { e.target.style.borderColor = '#10b981'; e.target.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.15)' }}
+                            onBlur={e  => { e.target.style.borderColor = 'rgba(64,84,178,0.2)'; e.target.style.boxShadow = 'none' }} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                            <p style={{ fontSize: 12, color: autorizacaoText.trim().length > 10 ? '#4ade80' : 'rgba(255,255,255,0.25)', margin: 0 }}>
+                              {autorizacaoText.trim().length > 10 ? '✓ Descrição suficiente' : 'Mínimo de 10 caracteres'}
+                            </p>
+                            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0 }}>{autorizacaoText.length}</p>
                           </div>
                         </motion.div>
                       )}

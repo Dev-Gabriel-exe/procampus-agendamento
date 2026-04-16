@@ -949,7 +949,9 @@ export default function SegundaChamadaSecretariaPage() {
                     ? { bg: '#eff6ff', color: '#1d4ed8', icon: <FileText style={{ width: 16, height: 16, color: '#3b82f6' }} /> }
                     : b.reason === 'luto'
                       ? { bg: '#f5f3ff', color: '#7c3aed', icon: <Heart style={{ width: 16, height: 16, color: '#8b5cf6' }} /> }
-                      : { bg: '#fff7ed', color: '#c2410c', icon: <FolderOpen style={{ width: 16, height: 16, color: '#f97316' }} /> }
+                      : b.reason === 'autorizacao'
+                        ? { bg: '#f0fdf4', color: '#10b981', icon: <CheckCircle style={{ width: 16, height: 16, color: '#10b981' }} /> }
+                        : { bg: '#fff7ed', color: '#c2410c', icon: <FolderOpen style={{ width: 16, height: 16, color: '#f97316' }} /> }
 
                   return (
                     <motion.div key={b.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: isDeleting ? 0.4 : 1, y: 0 }} layout
