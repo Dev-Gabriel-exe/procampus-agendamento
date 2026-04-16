@@ -696,18 +696,25 @@ export default function SegundaChamadaPage() {
                     <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>Disciplinas — {selGrade}</p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    {Object.values(selectedExams).map((exam, i) => (
-                      <span key={i} style={{ fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: 'rgba(64,84,178,0.2)', color: '#a0aff8' }}>
-                        {exam.subjectName}
-                      </span>
-                    ))}
+                    {Array.from(selectedSubjects).map((subId) => {
+                      const subj = allSubjects.find(s => s.id === subId)
+                      return (
+                        <span key={subId} style={{ fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: 'rgba(64,84,178,0.2)', color: '#a0aff8' }}>
+                          {subj?.name}
+                        </span>
+                      )
+                    })}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                    {Object.values(selectedExams).map((exam, i) => (
-                      <span key={i} style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
-                        {i > 0 && '•'} {formatDateShort(exam.date)} · {exam.startTime}–{exam.endTime}
-                      </span>
-                    ))}
+                    {Array.from(selectedSubjects).map((subId, i, arr) => {
+                      const exam = selectedExams[subId]
+                      if (!exam) return null
+                      return (
+                        <span key={subId} style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
+                          {i > 0 && '• '}{formatDateShort(exam.date)} · {exam.startTime}–{exam.endTime}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
               )}
