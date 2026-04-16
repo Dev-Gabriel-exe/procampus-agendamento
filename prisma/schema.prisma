@@ -79,18 +79,19 @@ model Appointment {
 // ── Segunda Chamada ──────────────────────────────────────
 
 model ExamSchedule {
-  id          String        @id @default(cuid())
-  subject     Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  subjectId   String
-  subjectName String
-  grade       String
-  date        DateTime
-  startTime   String
-  endTime     String
-  role        String        @default("geral")
-  active      Boolean       @default(true)
-  bookings    ExamBooking[]
-  createdAt   DateTime      @default(now())
+  id                       String        @id @default(cuid())
+  subject                  Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId                String
+  subjectName              String
+  grade                    String
+  date                     DateTime
+  startTime                String
+  endTime                  String
+  role                     String        @default("geral")
+  active                   Boolean       @default(true)
+  registrationDeadline     DateTime?     // prazo de inscrições (novo)
+  bookings                 ExamBooking[]
+  createdAt                DateTime      @default(now())
 }
 
 model ExamBooking {
@@ -102,10 +103,12 @@ model ExamBooking {
   parentPhone    String
   studentName    String
   studentGrade   String
+  subjects       String       @default("")      // CSV de disciplinas selecionadas (novo)
   status         String       @default("PENDING")
   justified      Boolean?
-  reason         String?
+  reason         String?      // 'doenca' | 'luto' | 'autorizacao'
   lutoText       String?
+  autorizacaoText String?     // novo: descrição da autorização
   fileUrl        String?
   createdAt      DateTime     @default(now())
 }

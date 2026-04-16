@@ -14,7 +14,7 @@ function createTransport() {
   })
 }
 
-// ── POST público — pai se inscreve ────────────────────────────────────────
+// ── POST público — pai se inscreve para UMA ou MÚLTIPLAS disciplinas ────────
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -22,9 +22,17 @@ export async function POST(
   try {
     const body = await req.json()
     const {
-      parentName, parentEmail, parentPhone,
-      studentName, studentGrade,
-      justified, reason, lutoText, fileUrl,
+      parentName,
+      parentEmail,
+      parentPhone,
+      studentName,
+      studentGrade,
+      subjects,           // novo: array de IDs/nomes de disciplinas
+      justified,
+      reason,             // 'doenca' | 'luto' | 'autorizacao' | null
+      lutoText,
+      autorizacaoText,   // novo: descrição da autorização
+      fileUrl,
     } = body
 
     if (!parentName || !parentEmail || !parentPhone || !studentName) {
@@ -36,6 +44,9 @@ export async function POST(
       return NextResponse.json({ error: 'Slot inválido ou inativo.' }, { status: 404 })
     }
 
+    // Converte array de disciplinas para CSV
+    const subjectsStr = Array.isArray(subjects) ? subjects.join(',') : (subjects || exam.subjectName)
+
     const booking = await prisma.examBooking.create({
       data: {
         examScheduleId: params.id,
@@ -44,11 +55,13 @@ export async function POST(
         parentPhone,
         studentName,
         studentGrade: studentGrade || exam.grade,
-        status:    'PENDING',
-        justified: justified  ?? false,
-        reason:    reason     ?? null,
-        lutoText:  justLutoText(reason, lutoText),
-        fileUrl:   fileUrl    ?? null,
+        subjects: subjectsStr,           // novo: armazena CSV
+        status: 'PENDING',
+        justified: justified ?? false,
+        reason: reason ?? null,
+        lutoText: reason === 'luto' ? lutoText : null,
+        autorizacaoText: reason === 'autorizacao' ? autorizacaoText : null,
+        fileUrl: fileUrl ?? null,
       },
     })
 
@@ -57,10 +70,17 @@ export async function POST(
       const transporter = createTransport()
       const dateFormatted = formatDateShort(exam.date.toISOString())
       await transporter.sendMail({
-        from:    `"Pro Campus" <${process.env.GMAIL_USER}>`,
-        to:      parentEmail,
+        from: `"Pro Campus" <${process.env.GMAIL_USER}>`,
+        to: parentEmail,
         subject: '📄 Solicitação de Segunda Chamada recebida — Pro Campus',
-        html:    buildReceivedEmail({ parentName, studentName, subjectName: exam.subjectName, date: dateFormatted, startTime: exam.startTime, endTime: exam.endTime }),
+        html: buildReceivedEmail({
+          parentName,
+          studentName,
+          subjectName: subjectsStr,
+          date: dateFormatted,
+          startTime: exam.startTime,
+          endTime: exam.endTime,
+        }),
       })
     } catch (err) {
       console.error('Erro ao enviar e-mail de recebimento:', err)
@@ -71,11 +91,6 @@ export async function POST(
     console.error(e)
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
-}
-
-function justLutoText(reason: string | null, lutoText: string | null): string | null {
-  if (reason === 'luto') return lutoText ?? null
-  return null
 }
 
 // ── DELETE — secretaria remove slot ──────────────────────────────────────
@@ -89,7 +104,7 @@ export async function DELETE(
   try {
     await prisma.examSchedule.update({
       where: { id: params.id },
-      data:  { active: false },
+      data: { active: false },
     })
     return NextResponse.json({ ok: true })
   } catch (e) {

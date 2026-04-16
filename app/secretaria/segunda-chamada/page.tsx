@@ -11,12 +11,14 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Paperclip, Clock, Filter,
   FolderOpen, FileText, Heart, Download, ExternalLink,
-  Search, SlidersHorizontal, BookMarked, Printer,
+  Search, SlidersHorizontal, BookMarked, Printer, CalendarOff,
+  CalendarCheck, Copy,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 import PrintByTurma from '@/components/secretaria/PrintByTurma'
 import { extractTurma } from '@/lib/turmas'
+
 export const dynamic = 'force-dynamic'
 
 const GRADES_FUND1 = ['Educação Infantil','1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental']
@@ -24,33 +26,35 @@ const GRADES_FUND2 = ['6º Ano Fundamental','7º Ano Fundamental','8º Ano Funda
 const GRADES_ALL   = [...GRADES_FUND1, ...GRADES_FUND2]
 
 const NAV_ITEMS = [
-  { href: '/secretaria',                 icon: CalendarDays,  label: 'Agendamentos',    key: 'dashboard' },
-  { href: '/secretaria/professores',     icon: Users,         label: 'Professores',     key: 'professores' },
-  { href: '/secretaria/disciplinas',     icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
-  { href: '/secretaria/segunda-chamada', icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
-  { href: '/secretaria/recuperacao', icon: BookMarked, label: 'Recuperação', key: 'recuperacao' },
+  { href: '/secretaria',                  icon: CalendarDays,  label: 'Agendamentos',    key: 'dashboard' },
+  { href: '/secretaria/professores',      icon: Users,         label: 'Professores',     key: 'professores' },
+  { href: '/secretaria/disciplinas',      icon: BookOpen,      label: 'Disciplinas',     key: 'disciplinas' },
+  { href: '/secretaria/segunda-chamada',  icon: ClipboardList, label: 'Segunda Chamada', key: 'segunda-chamada' },
+  { href: '/secretaria/recuperacao',      icon: BookMarked,    label: 'Recuperação',     key: 'recuperacao' },
 ]
 
 type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 type ActiveTab     = 'slots' | 'comprovantes'
 type CompFilter    = 'all' | 'PENDING' | 'APPROVED' | 'REJECTED'
+type Subject       = { id: string; name: string; grade: string }
 
 type ExamBooking = {
   id: string
   studentName: string
-  studentGrade: string  
+  studentGrade: string
   parentName: string
   parentEmail: string
   parentPhone: string
+  subjects: string
   createdAt: string
   justified?: boolean | null
   reason?: string | null
   lutoText?: string | null
+  autorizacaoText?: string | null
   fileUrl?: string | null
   status?: BookingStatus
 }
 
-type Subject      = { id: string; name: string; grade: string }
 type ExamSchedule = { id: string; subjectName: string; grade: string; date: string; startTime: string; endTime: string; active: boolean; bookings: ExamBooking[] }
 
 type ComprovanteBooking = ExamBooking & {
