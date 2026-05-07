@@ -204,7 +204,7 @@ export default function SecretariaPage() {
             .sort(([a], [b]) => {
               const dA = filtered.find(f => new Date(f.date).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Fortaleza' }) === a)!
               const dB = filtered.find(f => new Date(f.date).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Fortaleza' }) === b)!
-              return new Date(dA.date).getTime() - new Date(dB.date).getTime()
+              return new Date(dB.date).getTime() - new Date(dA.date).getTime()
             })
             .map(([dateLabel, appts]) => (
               <div key={dateLabel}>
