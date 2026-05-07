@@ -153,7 +153,12 @@ export default function AgendamentoCard({
   const teacher     = appt.availability.teacher
   const date        = formatDateShort(appt.date)
   const isCancelled = appt.status === 'cancelled'
-  const isPast      = new Date(appt.date) < new Date() && !isCancelled
+  
+  // Calcula se o agendamento já passou, considerando data E hora
+  const appointmentDateTime = new Date(appt.date)
+  const [hours, minutes] = appt.startTime.split(':').map(Number)
+  appointmentDateTime.setHours(hours, minutes, 0, 0)
+  const isPast = appointmentDateTime < new Date() && !isCancelled
 
   const waLink = generateWhatsAppLink({
     phone:       teacher.phone,
@@ -341,7 +346,7 @@ export default function AgendamentoCard({
             </span>
           </div>
 
-          {!isCancelled && !isPast && (
+          {!isCancelled && (
             <div style={{ display: 'flex', gap: 8 }} className="no-print">
               <a href={waLink} target="_blank" rel="noopener noreferrer" style={{ flex: 1 }}>
                 <button style={{
@@ -358,20 +363,22 @@ export default function AgendamentoCard({
                   WhatsApp Prof.
                 </button>
               </a>
-              <button onClick={() => onCancel(appt.id)} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                background: '#fef2f2', color: '#dc2626',
-                border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 12, padding: '10px 14px',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                transition: 'all 0.2s', flexShrink: 0,
-              }}
-                onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
-                onMouseLeave={e => e.currentTarget.style.background = '#fef2f2'}
-              >
-                <XCircle style={{ width: 14, height: 14 }} />
-                Cancelar
-              </button>
+              {!isPast && (
+                <button onClick={() => onCancel(appt.id)} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  background: '#fef2f2', color: '#dc2626',
+                  border: '1px solid rgba(239,68,68,0.2)',
+                  borderRadius: 12, padding: '10px 14px',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.2s', flexShrink: 0,
+                }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fef2f2'}
+                >
+                  <XCircle style={{ width: 14, height: 14 }} />
+                  Cancelar
+                </button>
+              )}
             </div>
           )}
         </div>
