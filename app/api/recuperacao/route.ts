@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   const role = (session.user as any)?.role ?? 'geral'
 
   try {
-    const where: any = { active: true }
+    const where: any = { active: true, archived: false }
     if (!isGeral(role)) {
       const allowed = getGradesForRole(role)
       where.grade = { in: allowed }

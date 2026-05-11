@@ -73,6 +73,8 @@ model Appointment {
   studentGrade   String
   subjectName    String       @default("")
   status         String       @default("confirmed")
+  archived       Boolean      @default(false)
+  archivedAt     DateTime?
   createdAt      DateTime     @default(now())
 }
 
@@ -90,6 +92,8 @@ model ExamSchedule {
   role                     String        @default("geral")
   active                   Boolean       @default(true)
   registrationDeadline     DateTime?     // prazo de inscrições (novo)
+  archived                 Boolean       @default(false)
+  archivedAt               DateTime?
   bookings                 ExamBooking[]
   createdAt                DateTime      @default(now())
 }
@@ -130,6 +134,8 @@ model RecoverySchedule {
   endTime      String
   role         String            @default("geral")
   active       Boolean           @default(true)
+  archived     Boolean           @default(false)
+  archivedAt   DateTime?
   bookings     RecoveryBooking[]
   createdAt    DateTime          @default(now())
   registrationDeadline  DateTime?

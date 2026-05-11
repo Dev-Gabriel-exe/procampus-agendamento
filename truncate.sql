@@ -1,0 +1,1 @@
+﻿TRUNCATE TABLE public."Appointment", public."ExamBooking", public."RecoveryBooking", public."TeacherSubject", public."Availability", public."ExamSchedule", public."RecoverySchedule", public."Teacher", public."Subject", public."Secretary" CASCADE;

@@ -12,10 +12,12 @@ import {
   CheckCircle, XCircle, Clock, BookMarked, FolderOpen,
   Search, SlidersHorizontal, Download, ExternalLink,
   Paperclip, Filter, Copy, CalendarOff, CalendarCheck, Printer,
+  Archive, ArchiveRestore,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 import PrintByTurma from '@/components/secretaria/PrintByTurma'
+import ArchiveModal from '@/components/secretaria/ArchiveModal'
 import { extractTurma } from '@/lib/turmas'
 
 export const dynamic = 'force-dynamic'
@@ -203,6 +205,12 @@ export default function RecuperacaoSecretariaPage() {
   const [slotFilterTurma, setSlotFilterTurma] = useState('')
   const [selectedSlotIds, setSelectedSlotIds] = useState<Set<string>>(new Set())
 
+  // Archive
+  const [showArchiveModal,   setShowArchiveModal]   = useState(false)
+  const [showUnarchiveModal, setShowUnarchiveModal] = useState(false)
+  const [archivedSlots,      setArchivedSlots]      = useState<RecoverySchedule[]>([])
+  const [archiveLoading,     setArchiveLoading]     = useState(false)
+
   // Delete inscrição dentro do slot
   const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
   const [deletingBooking,     setDeletingBooking]     = useState<string | null>(null)
@@ -368,6 +376,36 @@ export default function RecuperacaoSecretariaPage() {
     setSelectedSlotIds(newSelected)
   }
 
+  // ── Archive ───────────────────────────────────────────────────────────────
+  async function fetchArchivedSlots() {
+    const res = await fetch('/api/recuperacao/archive')
+    setArchivedSlots(await res.json())
+  }
+
+  async function handleArchiveSlots(ids: string[]) {
+    setArchiveLoading(true)
+    await fetch('/api/recuperacao/archive', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, archived: true }),
+    })
+    setArchiveLoading(false)
+    setShowArchiveModal(false)
+    loadData()
+  }
+
+  async function handleUnarchiveSlots(ids: string[]) {
+    setArchiveLoading(true)
+    await fetch('/api/recuperacao/archive', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, archived: false }),
+    })
+    setArchiveLoading(false)
+    setShowUnarchiveModal(false)
+    loadData()
+  }
+
   async function confirmDeleteBooking() {
     if (!deleteBookingTarget) return
     const { id, name } = deleteBookingTarget; setDeleteBookingTarget(null)
@@ -530,6 +568,32 @@ export default function RecuperacaoSecretariaPage() {
         {rejectTargetComp    && <RejectModal studentName={rejectTargetComp.studentName}    onConfirm={confirmRejectComp} onCancel={() => setRejectTargetComp(null)} />}
         {deleteTarget        && <DeleteModal name={deleteTarget.name}        onConfirm={confirmDeleteComp}   onCancel={() => setDeleteTarget(null)} />}
         {deleteBookingTarget && <DeleteModal name={deleteBookingTarget.name} onConfirm={confirmDeleteBooking} onCancel={() => setDeleteBookingTarget(null)} />}
+        {showArchiveModal && (
+          <ArchiveModal
+            mode="archive"
+            items={schedules.map(s => ({
+              id: s.id,
+              label: `${s.subjectName} — ${s.grade}`,
+              sublabel: `${formatDate(s.date)} · ${s.startTime}–${s.endTime} · ${s.type === 'normal' ? '💰 Normal' : '✅ Paralela'} · ${s.bookings.length} inscrito(s)`,
+            }))}
+            onConfirm={handleArchiveSlots}
+            onCancel={() => setShowArchiveModal(false)}
+            loading={archiveLoading}
+          />
+        )}
+        {showUnarchiveModal && (
+          <ArchiveModal
+            mode="unarchive"
+            items={archivedSlots.map(s => ({
+              id: s.id,
+              label: `${s.subjectName} — ${s.grade}`,
+              sublabel: `${formatDate(s.date)} · ${s.startTime}–${s.endTime} · ${s.type === 'normal' ? '💰 Normal' : '✅ Paralela'}`,
+            }))}
+            onConfirm={handleUnarchiveSlots}
+            onCancel={() => setShowUnarchiveModal(false)}
+            loading={archiveLoading}
+          />
+        )}
       </AnimatePresence>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -621,6 +685,16 @@ export default function RecuperacaoSecretariaPage() {
                   <Printer style={{ width: 13, height: 13 }} />Imprimir por Turma
                 </button>
               )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setShowArchiveModal(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(35,164,85,0.25)', background: '#e8f9eb', color: '#23A455', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  <Archive style={{ width: 12, height: 12 }} />Arquivar
+                </button>
+                <button onClick={() => { fetchArchivedSlots(); setShowUnarchiveModal(true) }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(97,206,112,0.3)', background: 'white', color: '#6b8f72', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  <ArchiveRestore style={{ width: 12, height: 12 }} />Arquivados
+                </button>
+              </div>
             </div>
           )}
         </div>

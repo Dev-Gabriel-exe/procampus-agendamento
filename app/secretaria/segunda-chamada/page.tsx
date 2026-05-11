@@ -12,10 +12,12 @@ import {
   CheckCircle, XCircle, Clock, BookMarked, FolderOpen,
   Search, SlidersHorizontal, Download, ExternalLink,
   Paperclip, Filter, Copy, FileText, Heart, Printer, Check,
+  Archive, ArchiveRestore,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 import PrintByTurma from '@/components/secretaria/PrintByTurma'
+import ArchiveModal from '@/components/secretaria/ArchiveModal'
 import { extractTurma } from '@/lib/turmas'
 
 export const dynamic = 'force-dynamic'
@@ -171,6 +173,10 @@ export default function SegundaChamadaSecretariaPage() {
   const [filterPending, setFilterPending] = useState(false)
   const [slotFilterTurma, setSlotFilterTurma] = useState('')
   const [selectedSlotIds, setSelectedSlotIds] = useState<Set<string>>(new Set())
+  const [showArchiveModal,   setShowArchiveModal]   = useState(false)
+  const [showUnarchiveModal, setShowUnarchiveModal] = useState(false)
+  const [archivedSlots,      setArchivedSlots]      = useState<ExamSchedule[]>([])
+  const [archiveLoading,     setArchiveLoading]     = useState(false)
 
   // Delete inscrição
   const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
@@ -221,6 +227,35 @@ export default function SegundaChamadaSecretariaPage() {
 
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (activeTab === 'comprovantes') loadComprovantes() }, [activeTab, loadComprovantes])
+
+  async function fetchArchivedSlots() {
+    const res = await fetch('/api/segunda-chamada/archive')
+    setArchivedSlots(await res.json())
+  }
+
+  async function handleArchiveSlots(ids: string[]) {
+    setArchiveLoading(true)
+    await fetch('/api/segunda-chamada/archive', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, archived: true }),
+    })
+    setArchiveLoading(false)
+    setShowArchiveModal(false)
+    loadData()
+  }
+
+  async function handleUnarchiveSlots(ids: string[]) {
+    setArchiveLoading(true)
+    await fetch('/api/segunda-chamada/archive', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, archived: false }),
+    })
+    setArchiveLoading(false)
+    setShowUnarchiveModal(false)
+    loadData()
+  }
 
   // ── Copiar data e horário ──────────────────────────────────────────────────
   function handleCopySlot(slot: ExamSchedule) {
@@ -455,6 +490,32 @@ export default function SegundaChamadaSecretariaPage() {
         {rejectTarget        && <RejectModal studentName={rejectTarget.studentName}        onConfirm={confirmReject}       onCancel={() => setRejectTarget(null)} />}
         {deleteTarget        && <DeleteModal name={deleteTarget.name}        onConfirm={confirmDeleteComp}    onCancel={() => setDeleteTarget(null)} />}
         {deleteBookingTarget && <DeleteModal name={deleteBookingTarget.name} onConfirm={confirmDeleteBooking} onCancel={() => setDeleteBookingTarget(null)} />}
+        {showArchiveModal && (
+          <ArchiveModal
+            mode="archive"
+            items={exams.map(e => ({
+              id: e.id,
+              label: `${e.subjectName} — ${e.grade}`,
+              sublabel: `${formatDate(e.date)} · ${e.startTime}–${e.endTime} · ${e.bookings.length} inscrito(s)`,
+            }))}
+            onConfirm={handleArchiveSlots}
+            onCancel={() => setShowArchiveModal(false)}
+            loading={archiveLoading}
+          />
+        )}
+        {showUnarchiveModal && (
+          <ArchiveModal
+            mode="unarchive"
+            items={archivedSlots.map(e => ({
+              id: e.id,
+              label: `${e.subjectName} — ${e.grade}`,
+              sublabel: `${formatDate(e.date)} · ${e.startTime}–${e.endTime}`,
+            }))}
+            onConfirm={handleUnarchiveSlots}
+            onCancel={() => setShowUnarchiveModal(false)}
+            loading={archiveLoading}
+          />
+        )}
       </AnimatePresence>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -543,6 +604,16 @@ export default function SegundaChamadaSecretariaPage() {
                       <Printer style={{ width: 13, height: 13 }} />Imprimir por Turma
                     </button>
                   )}
+                  <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                    <button onClick={() => setShowArchiveModal(true)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(64,84,178,0.25)', background: '#eef1fb', color: '#4054B2', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      <Archive style={{ width: 12, height: 12 }} />Arquivar
+                    </button>
+                    <button onClick={() => { fetchArchivedSlots(); setShowUnarchiveModal(true) }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(97,206,112,0.3)', background: '#e8f9eb', color: '#23A455', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      <ArchiveRestore style={{ width: 12, height: 12 }} />Arquivados
+                    </button>
+                  </div>
                 </div>
               )}
 

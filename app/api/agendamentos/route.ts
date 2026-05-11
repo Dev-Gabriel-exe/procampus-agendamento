@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const weekStart = searchParams.get('weekStart')
     const weekEnd   = searchParams.get('weekEnd')
 
-    const where: any = {}
+    const where: any = { archived: false }
     if (weekStart && weekEnd) {
       where.date = { gte: new Date(weekStart), lte: new Date(weekEnd) }
     }

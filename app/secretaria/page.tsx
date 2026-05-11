@@ -5,12 +5,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { CalendarDays, Users, LogOut, CheckCircle, XCircle, Clock, Menu, X, BookOpen, ClipboardList, BookMarked } from 'lucide-react'
+import { CalendarDays, Users, LogOut, CheckCircle, XCircle, Clock, Menu, X, BookOpen, ClipboardList, BookMarked, Archive, ArchiveRestore } from 'lucide-react'
 import AgendamentoCard from '@/components/secretaria/AgendamentoCard'
 import FiltrosSemana, { type Filtros } from '@/components/secretaria/FiltrosSemana'
 import PrintView from '@/components/secretaria/PrintView'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
+import ArchiveModal from '@/components/secretaria/ArchiveModal'
 import { extractTurma } from '@/lib/turmas'
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +117,10 @@ export default function SecretariaPage() {
   const [loading, setLoading] = useState(true)
   const [filtros, setFiltros] = useState<Filtros>({ search: '', dateFrom: '', dateTo: '', grade: '', discipline: '', turma: '' })
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [showArchiveModal,   setShowArchiveModal]   = useState(false)
+  const [showUnarchiveModal, setShowUnarchiveModal] = useState(false)
+  const [archived,           setArchived]           = useState<AppointmentFull[]>([])
+  const [archiveLoading,     setArchiveLoading]     = useState(false)
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
@@ -160,6 +165,35 @@ export default function SecretariaPage() {
     }
   }
 
+  async function fetchArchived() {
+    const res = await fetch('/api/agendamentos/archive')
+    setArchived(await res.json())
+  }
+
+  async function handleArchive(ids: string[]) {
+    setArchiveLoading(true)
+    await fetch('/api/agendamentos/archive', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, archived: true }),
+    })
+    setArchiveLoading(false)
+    setShowArchiveModal(false)
+    fetchAppointments()
+  }
+
+  async function handleUnarchive(ids: string[]) {
+    setArchiveLoading(true)
+    await fetch('/api/agendamentos/archive', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, archived: false }),
+    })
+    setArchiveLoading(false)
+    setShowUnarchiveModal(false)
+    fetchAppointments()
+  }
+
   const filtered = appointments.filter(a => {
     const q = filtros.search.toLowerCase()
     if (q && !(a.parentName.toLowerCase().includes(q) || a.studentName.toLowerCase().includes(q) || a.availability.teacher.name.toLowerCase().includes(q) || a.studentGrade.toLowerCase().includes(q))) return false
@@ -182,6 +216,16 @@ export default function SecretariaPage() {
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 40px' }}>
         <div style={{ marginBottom: 16 }}>
           <FiltrosSemana filtros={filtros} onFiltros={setFiltros} disciplines={disciplines} turmas={turmas} totalFiltrado={filtered.length} totalGeral={appointments.length} onPrint={() => window.print()} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }} className="no-print">
+          <button onClick={() => setShowArchiveModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1.5px solid rgba(64,84,178,0.25)', background: '#eef1fb', color: '#4054B2', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <Archive style={{ width: 13, height: 13 }} />Arquivar antigos
+          </button>
+          <button onClick={() => { fetchArchived(); setShowUnarchiveModal(true) }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.25)', background: '#e8f9eb', color: '#23A455', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <ArchiveRestore style={{ width: 13, height: 13 }} />Ver arquivados
+          </button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }} className="no-print stats-grid">
           <StatCard label="Confirmados" value={confirmed.length} icon={CheckCircle} color="#23A455" bg="#e8f9eb" />
@@ -226,6 +270,34 @@ export default function SecretariaPage() {
             ))}
           </div>
         )}
+        <AnimatePresence>
+          {showArchiveModal && (
+            <ArchiveModal
+              mode="archive"
+              items={filtered.map(a => ({
+                id: a.id,
+                label: `${a.studentName} — ${a.availability.teacher.name}`,
+                sublabel: `${new Date(a.date).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })} · ${a.startTime} · ${a.status === 'confirmed' ? '✅ Confirmado' : '❌ Cancelado'}`,
+              }))}
+              onConfirm={handleArchive}
+              onCancel={() => setShowArchiveModal(false)}
+              loading={archiveLoading}
+            />
+          )}
+          {showUnarchiveModal && (
+            <ArchiveModal
+              mode="unarchive"
+              items={archived.map((a: any) => ({
+                id: a.id,
+                label: `${a.studentName} — ${a.availability?.teacher?.name ?? ''}`,
+                sublabel: `${new Date(a.date).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })} · ${a.startTime}`,
+              }))}
+              onConfirm={handleUnarchive}
+              onCancel={() => setShowUnarchiveModal(false)}
+              loading={archiveLoading}
+            />
+          )}
+        </AnimatePresence>
       </main>
       <style>{`@media(max-width:480px){.stats-grid{grid-template-columns:1fr!important;}}`}</style>
     </div>
