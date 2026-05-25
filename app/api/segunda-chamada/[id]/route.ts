@@ -118,7 +118,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const { date, startTime, endTime, registrationDeadline } = await req.json()
   const updated = await prisma.examSchedule.update({
     where: { id: params.id },
-    data: { date: new Date(date), startTime, endTime, registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null },
+    data: { 
+      date: new Date(date), 
+      startTime, 
+      endTime, 
+      registrationDeadline: registrationDeadline 
+        ? (() => {
+            const d = new Date(registrationDeadline);
+            d.setHours(23, 59, 59, 999);
+            return d;
+          })()
+        : null 
+    },
   })
   return Response.json(updated)
 }
