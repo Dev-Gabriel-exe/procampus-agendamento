@@ -116,19 +116,23 @@ export async function DELETE(
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { date, startTime, endTime, registrationDeadline } = await req.json()
+
+  // Usa meio-dia UTC para evitar que meia-noite UTC vire dia anterior em Fortaleza (UTC-3)
+  const [ey, em, ed] = date.split('-').map(Number)
+  const examDate = new Date(Date.UTC(ey, em - 1, ed, 12, 0, 0))
+
   const updated = await prisma.examSchedule.update({
     where: { id: params.id },
-    data: { 
-      date: new Date(date), 
-      startTime, 
-      endTime, 
-      registrationDeadline: registrationDeadline 
+    data: {
+      date: examDate,
+      startTime,
+      endTime,
+      registrationDeadline: registrationDeadline
         ? (() => {
-            const d = new Date(registrationDeadline);
-            d.setHours(23, 59, 59, 999);
-            return d;
+            const [dy, dm, dd] = registrationDeadline.split('-').map(Number)
+            return new Date(Date.UTC(dy, dm - 1, dd, 23, 59, 59, 999))
           })()
-        : null 
+        : null,
     },
   })
   return Response.json(updated)
