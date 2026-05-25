@@ -385,26 +385,6 @@ export default function RecuperacaoSecretariaPage() {
     }
   }
 
-  async function handleSaveEdit(data: { date: string; startTime: string; endTime: string; registrationDeadline: string | null }) {
-    if (!editTarget) return
-    setEditSaving(true)
-    try {
-      const res = await fetch(`/api/recuperacao/${editTarget.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('✅ Slot atualizado!')
-      setEditTarget(null)
-      loadData()
-    } catch {
-      toast.error('Falha ao atualizar slot.')
-    } finally {
-      setEditSaving(false)
-    }
-  }
-
   // ── Mutations locais ──────────────────────────────────────────────────────
   function updateBookingLocally(id: string, patch: Partial<RecoveryBooking>) {
     setSchedules(prev => prev.map(s => ({ ...s, bookings: s.bookings.map(b => b.id === id ? { ...b, ...patch } : b) })))
