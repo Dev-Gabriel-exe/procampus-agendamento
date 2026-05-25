@@ -11,7 +11,7 @@ import {
   Plus, Trash2, ChevronDown, AlertCircle, X, Users2,
   CheckCircle, XCircle, Clock, BookMarked, FolderOpen,
   Search, SlidersHorizontal, Download, ExternalLink,
-  Paperclip, Filter, Copy, FileText, Heart, Printer, Check,
+  Paperclip, Filter, Copy, Pencil, FileText, Heart, Printer, Check,
   Archive, ArchiveRestore,
 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -154,6 +154,92 @@ function DeleteModal({ name, onConfirm, onCancel }: { name: string; onConfirm: (
   )
 }
 
+function EditSlotModal({
+  slot,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  slot: ExamSchedule
+  onSave: (data: { date: string; startTime: string; endTime: string; registrationDeadline: string | null }) => void
+  onCancel: () => void
+  saving: boolean
+}) {
+  const [date, setDate] = useState(slot.date.split('T')[0])
+  const [start, setStart] = useState(slot.startTime)
+  const [end, setEnd] = useState(slot.endTime)
+  const [deadline, setDeadline] = useState(slot.registrationDeadline?.split('T')[0] ?? '')
+  const [err, setErr] = useState('')
+
+  function submit() {
+    if (!date || !start || !end) { setErr('Preencha a data e os horários.'); return }
+    if (start >= end) { setErr('Horário de fim deve ser após o início.'); return }
+    if (deadline && deadline >= date) { setErr('O prazo deve ser anterior à data da prova.'); return }
+    onSave({ date, startTime: start, endTime: end, registrationDeadline: deadline || null })
+  }
+
+  const iStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid rgba(64,84,178,0.2)', fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#0a1a0d', background: 'white', boxSizing: 'border-box' }
+  const lStyle: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={onCancel} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+        style={{ position: 'relative', background: 'white', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: '#eef1fb', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <CalendarDays style={{ width: 22, height: 22, color: '#4054B2' }} />
+        </div>
+        <h3 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 17, color: '#0a1a0d', margin: '0 0 4px' }}>Editar Slot</h3>
+        <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 20px' }}>{slot.subjectName} · {slot.grade}</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={lStyle}>Data da prova</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={iStyle} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={lStyle}>Início</label>
+              <input type="time" value={start} onChange={e => setStart(e.target.value)} style={iStyle} />
+            </div>
+            <div>
+              <label style={lStyle}>Fim</label>
+              <input type="time" value={end} onChange={e => setEnd(e.target.value)} style={iStyle} />
+            </div>
+          </div>
+          <div>
+            <label style={lStyle}>Prazo de inscrições <span style={{ fontWeight: 400, textTransform: 'none', color: '#9ca3af' }}>(opcional)</span></label>
+            <div style={{ position: 'relative' }}>
+              <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} max={date || undefined}
+                style={{ ...iStyle, paddingRight: deadline ? 36 : 14 }} />
+              {deadline && (
+                <button type="button" onClick={() => setDeadline('')}
+                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', display: 'flex' }}>
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {err && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef2f2', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: 13 }}>
+              <AlertCircle style={{ width: 14, height: 14 }} />{err}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={onCancel} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: 'white', color: '#6b7280', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={submit} disabled={saving}
+              style={{ flex: 2, padding: '11px', borderRadius: 10, border: 'none', background: saving ? 'rgba(64,84,178,0.4)' : '#4054B2', color: 'white', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <CheckCircle style={{ width: 14, height: 14 }} />{saving ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 export default function SegundaChamadaSecretariaPage() {
   const { data: session } = useSession()
@@ -177,6 +263,9 @@ export default function SegundaChamadaSecretariaPage() {
   const [showUnarchiveModal, setShowUnarchiveModal] = useState(false)
   const [archivedSlots,      setArchivedSlots]      = useState<ExamSchedule[]>([])
   const [archiveLoading,     setArchiveLoading]     = useState(false)
+
+  const [editTarget, setEditTarget] = useState<ExamSchedule | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
 
   // Delete inscrição
   const [deleteBookingTarget, setDeleteBookingTarget] = useState<{ id: string; name: string } | null>(null)
@@ -265,6 +354,26 @@ export default function SegundaChamadaSecretariaPage() {
     setError('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
     toast.info('📋 Data e horário copiados!')
+  }
+
+  async function handleSaveEdit(data: { date: string; startTime: string; endTime: string; registrationDeadline: string | null }) {
+    if (!editTarget) return
+    setEditSaving(true)
+    try {
+      const res = await fetch(`/api/segunda-chamada/${editTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('✅ Slot atualizado!')
+      setEditTarget(null)
+      loadData()
+    } catch {
+      toast.error('Falha ao atualizar slot.')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   // ── Mutations locais ───────────────────────────────────────────────────────
@@ -464,19 +573,27 @@ export default function SegundaChamadaSecretariaPage() {
   const totalSlots = exams.length
 
   function getPrintData() {
-    const studentMap = new Map<string, { name: string; grade: string; justifications: Set<string> }>()
+    const studentMap = new Map<string, { name: string; grade: string; disciplines: Set<string> }>()
+
     exams.forEach(exam => {
       exam.bookings.forEach(booking => {
         const key = `${booking.studentName}|${booking.studentGrade}`
-        if (!studentMap.has(key)) studentMap.set(key, { name: booking.studentName, grade: booking.studentGrade, justifications: new Set() })
-        const student = studentMap.get(key)!
-        if (booking.reason === 'doenca') student.justifications.add('🩺 Doença')
-        else if (booking.reason === 'luto') student.justifications.add('🕊️ Luto')
-        else if (booking.autorizacaoText) student.justifications.add('✅ Autorizado pelo Coordenador')
-        else if (booking.justified) student.justifications.add('📋 Justificado')
+        if (!studentMap.has(key)) {
+          studentMap.set(key, {
+            name: booking.studentName,
+            grade: booking.studentGrade,
+            disciplines: new Set(),
+          })
+        }
+        studentMap.get(key)!.disciplines.add(exam.subjectName)
       })
     })
-    return Array.from(studentMap.values()).map(s => ({ name: s.name, grade: s.grade, subjects: Array.from(s.justifications) }))
+
+    return Array.from(studentMap.values()).map(s => ({
+      name: s.name,
+      grade: s.grade,
+      subjects: Array.from(s.disciplines),
+    }))
   }
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.2)', fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#0a1a0d', background: 'white' }
@@ -490,6 +607,14 @@ export default function SegundaChamadaSecretariaPage() {
         {rejectTarget        && <RejectModal studentName={rejectTarget.studentName}        onConfirm={confirmReject}       onCancel={() => setRejectTarget(null)} />}
         {deleteTarget        && <DeleteModal name={deleteTarget.name}        onConfirm={confirmDeleteComp}    onCancel={() => setDeleteTarget(null)} />}
         {deleteBookingTarget && <DeleteModal name={deleteBookingTarget.name} onConfirm={confirmDeleteBooking} onCancel={() => setDeleteBookingTarget(null)} />}
+        {editTarget && (
+          <EditSlotModal
+            slot={editTarget}
+            onSave={handleSaveEdit}
+            onCancel={() => setEditTarget(null)}
+            saving={editSaving}
+          />
+        )}
         {showArchiveModal && (
           <ArchiveModal
             mode="archive"
@@ -921,6 +1046,12 @@ export default function SegundaChamadaSecretariaPage() {
                                                 onMouseEnter={e => e.currentTarget.style.background = '#eef1fb'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                                 <Copy style={{ width: 12, height: 12 }} />
+                                              </button>
+                                              <button onClick={() => setEditTarget(slot)} title="Editar slot"
+                                                style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#6b8f72' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                <Pencil style={{ width: 12, height: 12 }} />
                                               </button>
                                               <button onClick={() => handleDeleteSlot(slot.id)} title="Remover slot"
                                                 style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 6, color: '#ef4444' }}

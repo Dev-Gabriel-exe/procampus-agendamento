@@ -112,7 +112,16 @@ export async function DELETE(
     return NextResponse.json({ error: 'Erro ao remover slot' }, { status: 500 })
   }
 }
+// ── Editar ────────────────────────────────────────────────────────────────
 
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const { date, startTime, endTime, registrationDeadline } = await req.json()
+  const updated = await prisma.examSchedule.update({
+    where: { id: params.id },
+    data: { date: new Date(date), startTime, endTime, registrationDeadline: registrationDeadline ?? null },
+  })
+  return Response.json(updated)
+}
 // ── Emails ────────────────────────────────────────────────────────────────
 function buildReceivedEmail(d: {
   parentName: string; studentName: string; subjectName: string
