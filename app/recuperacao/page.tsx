@@ -26,8 +26,8 @@ const GRADES_FUND1 = new Set([
 
 const PIX_KEY   = 'financeiro@procampus.com.br'
 const PIX_NAME  = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
-const MAX_SUBJECTS = 4
-const PRICE_PER_SUBJECT = 30
+const MAX_SUBJECTS = 5
+const PRICE_PER_SUBJECT = 40
 
 type RecoverySchedule = {
   id: string; subjectName: string; grade: string; type: string; period?: string | null
@@ -139,7 +139,7 @@ export default function RecuperacaoPage() {
   const dataStep    = isParalela ? 2 : 3
   const successStep = isParalela ? 3 : 4
 
-  // PIX dinâmico — R$30 por disciplina selecionada
+  // PIX dinâmico — R$40 por disciplina selecionada
   const pixAmount   = selSubjectsP.length * PRICE_PER_SUBJECT
   const pixValueStr = `R$ ${pixAmount},00`
 

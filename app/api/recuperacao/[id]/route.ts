@@ -127,7 +127,7 @@ function buildConfirmEmail(d: {
     </table>
     ${!d.isParalela ? `
     <div style="margin-top:16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;">
-      <p style="margin:0;color:#c2410c;font-size:13px;font-weight:600;">💰 Taxa: R$ 30,00 via PIX</p>
+      <p style="margin:0;color:#c2410c;font-size:13px;font-weight:600;">💰 Taxa: R$ 40,00 via PIX</p>
       <p style="margin:6px 0 0;color:#92400e;font-size:12px;">Caso já tenha pago, aguarde a confirmação da secretaria.</p>
     </div>` : `
     <div style="margin-top:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;">

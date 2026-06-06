@@ -1196,7 +1196,7 @@ export default function RecuperacaoSecretariaPage() {
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#c2410c' }}>Chave PIX para recuperação normal: {PIX_KEY}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#92400e' }}>Favorecido: {PIX_NAME} · R$ 30,00 por disciplina</p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#92400e' }}>Favorecido: {PIX_NAME} · R$ 40,00 por disciplina</p>
               </div>
             </div>
 
@@ -1331,7 +1331,7 @@ export default function RecuperacaoSecretariaPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                   {isNormal && (
                                     <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px' }}>
-                                      <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>💰 PIX — R$ 30,00</p>
+                                      <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>💰 PIX — R$ 40,00</p>
                                       <p style={{ fontSize: 12, color: '#92400e', margin: 0 }}>Chave: <strong>{PIX_KEY}</strong></p>
                                       <p style={{ fontSize: 12, color: '#92400e', margin: '3px 0 0' }}>{PIX_NAME}</p>
                                     </div>
