@@ -236,37 +236,63 @@ export default function SegundaChamadaPage() {
   const formOk = parentName.trim().length > 3 && parentEmail.includes('@') && parentPhone.replace(/\D/g, '').length >= 10 && studentName.trim().length > 3
 
   async function handleSubmit() {
-    const entries = Object.entries(selectedSlots)
-    if (!entries.length) return
-    setSubmitting(true); setSubmitError('')
-    try {
-      let fileUrl: string | null = null
-      if (attachFile) { setUploadingFile(true); fileUrl = await uploadToCloudinary(attachFile); setUploadingFile(false) }
+  const entries = Object.entries(selectedSlots)
+  if (!entries.length) return
+  setSubmitting(true); setSubmitError('')
+  try {
+    let fileUrl: string | null = null
+    if (attachFile) {
+      setUploadingFile(true)
+      try {
+        fileUrl = await uploadToCloudinary(attachFile)
+      } catch (uploadErr: any) {
+        // CORREÇÃO: erro no upload do Cloudinary aparecia como "failed to fetch"
+        setSubmitError('Erro ao enviar o arquivo. Verifique sua conexão e tente novamente.')
+        setSubmitting(false); setUploadingFile(false)
+        return
+      }
+      setUploadingFile(false)
+    }
 
-      // Envia uma inscrição por disciplina
-      await Promise.all(
-        entries.map(([subject, slot]) =>
-          fetch(`/api/segunda-chamada/${slot.id}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              parentName, parentEmail, parentPhone, studentName,
-              studentGrade: buildStudentGrade(selGrade, selTurma),
-              subjects: subject,
-              justified: isJustified ?? false,
-              reason: justReason,
-              lutoText: justReason === 'luto' ? lutoText : null,
-              autorizacaoText: justReason === 'autorizacao' ? autorizacaoText : null,
-              fileUrl,
-            }),
-          }).then(async r => {
-            if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erro ao inscrever.') }
-          })
-        )
+    const results = await Promise.allSettled(
+      entries.map(([subject, slot]) =>
+        fetch(`/api/segunda-chamada/${slot.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parentName, parentEmail, parentPhone, studentName,
+            studentGrade: buildStudentGrade(selGrade, selTurma),
+            subjects: subject,
+            justified: isJustified ?? false,
+            reason: justReason,
+            lutoText: justReason === 'luto' ? lutoText : null,
+            autorizacaoText: justReason === 'autorizacao' ? autorizacaoText : null,
+            fileUrl,
+          }),
+        }).then(async r => {
+          if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erro ao inscrever.') }
+        })
       )
-      goTo(4)
-    } catch (err: any) { setSubmitError(err?.message || 'Erro de conexão.') }
-    finally { setSubmitting(false); setUploadingFile(false) }
+    )
+
+    const falhas = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
+    if (falhas.length > 0) {
+      setSubmitError(falhas[0].reason?.message || 'Erro ao processar inscrição.')
+      return
+    }
+
+    goTo(4)
+  } catch (err: any) {
+    // Distingue erro de rede de erro da API
+    if (err?.message === 'Failed to fetch') {
+      setSubmitError('Erro de conexão. Verifique sua internet e tente novamente.')
+    } else {
+      setSubmitError(err?.message || 'Erro inesperado. Tente novamente.')
+    }
+  } finally {
+    setSubmitting(false); setUploadingFile(false)
   }
+}
 
   // ── Estilos base ───────────────────────────────────────────────────────────
   const card: React.CSSProperties = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(64,84,178,0.2)', borderRadius: 18, padding: '18px 16px' }
@@ -788,7 +814,13 @@ export default function SegundaChamadaPage() {
                 {[
                   { label: 'Aluno',  value: studentName },
                   { label: 'Série',  value: selGrade },
-                  { label: 'Situação', value: isJustified ? (justReason === 'doenca' ? 'Justificada — Doença' : 'Justificada — Luto') : `Não justificada · ${pixValueStr} via PIX` },
+                  { label: 'Situação', value: isJustified
+  ? justReason === 'doenca'      ? 'Justificada — Doença'
+  : justReason === 'luto'        ? 'Justificada — Luto'
+  : justReason === 'autorizacao' ? 'Justificada — Autorização da Coordenação'
+  : 'Justificada'
+  : `Não justificada · ${pixValueStr} via PIX`
+},
                 ].map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
