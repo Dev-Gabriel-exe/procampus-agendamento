@@ -130,6 +130,15 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url
 }
 
+function fixCloudinaryUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  // Se for PDF mas foi salvo como image, converte para raw
+  if (url.includes('/image/upload/') && url.toLowerCase().endsWith('.pdf')) {
+    return url.replace('/image/upload/', '/raw/upload/')
+  }
+  return url
+}
+
 export default function SegundaChamadaPage() {
   const [step, setStep] = useState(1)
   const [dir,  setDir]  = useState(1)

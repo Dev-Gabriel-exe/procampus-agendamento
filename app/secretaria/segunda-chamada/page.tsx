@@ -22,6 +22,14 @@ import { extractTurma } from '@/lib/turmas'
 
 export const dynamic = 'force-dynamic'
 
+function fixCloudinaryUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  if (url.includes('/image/upload/') && url.toLowerCase().endsWith('.pdf')) {
+    return url.replace('/image/upload/', '/raw/upload/')
+  }
+  return url
+}
+
 const GRADES_FUND1 = ['Educação Infantil','1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental']
 const GRADES_FUND2 = ['6º Ano Fundamental','7º Ano Fundamental','8º Ano Fundamental','9º Ano Fundamental','1ª Série Médio','2ª Série Médio','3ª Série Médio']
 const GRADES_ALL   = [...GRADES_FUND1, ...GRADES_FUND2]
@@ -1123,9 +1131,9 @@ export default function SegundaChamadaSecretariaPage() {
                                                     </div>
                                                     <div style={{ padding: '6px 12px', borderTop: `1px solid ${isJustified ? '#bbf7d0' : '#fecaca'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                                                       {b.fileUrl
-                                                        ? <a href={b.fileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#4054B2', textDecoration: 'none', background: '#eef1fb', padding: '3px 8px', borderRadius: 5 }}>
-                                                            <Paperclip style={{ width: 10, height: 10 }} />Ver comprovante
-                                                          </a>
+                                                        ? <a href={fixCloudinaryUrl(b.fileUrl) ?? ''} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#4054B2', textDecoration: 'none', background: '#eef1fb', padding: '3px 8px', borderRadius: 5 }}>
+  <Paperclip style={{ width: 10, height: 10 }} />Ver comprovante
+</a>
                                                         : <span style={{ fontSize: 11, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 3 }}><Paperclip style={{ width: 10, height: 10 }} />Sem comprovante</span>
                                                       }
                                                       <div style={{ display: 'flex', gap: 4 }}>
@@ -1351,7 +1359,7 @@ export default function SegundaChamadaSecretariaPage() {
                                       <>
                                         <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>Arquivo enviado pelo responsável</p>
                                         <div style={{ display: 'flex', gap: 8 }}>
-                                          <a href={b.fileUrl} target="_blank" rel="noopener noreferrer"
+                                          <a href={fixCloudinaryUrl(b.fileUrl) ?? ''} target="_blank" rel="noopener noreferrer"
                                             style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#4054B2', textDecoration: 'none', background: '#eef1fb', padding: '9px 0', borderRadius: 8, border: '1px solid rgba(64,84,178,0.2)' }}>
                                             <ExternalLink style={{ width: 13, height: 13 }} />Visualizar
                                           </a>
