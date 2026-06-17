@@ -114,9 +114,9 @@ function formatLocalInput(dateStr: string): string {
 }
 function deadlineExpired(deadline?: string | null): boolean {
   if (!deadline) return false
-  const dateInFortaleza = new Date(deadline).toLocaleDateString('en-CA', { timeZone: 'America/Fortaleza' })
-  const [y, m, d] = dateInFortaleza.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d + 1, 3, 0, 0)) < new Date()
+  // O servidor salva como início do próximo dia UTC-3 = 03:00 UTC
+  // Então comparar direto com new Date() é suficiente
+  return new Date(deadline) < new Date()
 }
 
 // ── Modais ────────────────────────────────────────────────────────────────────
