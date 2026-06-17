@@ -24,8 +24,9 @@ export const dynamic = 'force-dynamic'
 
 function fixCloudinaryUrl(url: string | null | undefined): string | null {
   if (!url) return null
-  if (url.includes('/image/upload/') && url.toLowerCase().endsWith('.pdf')) {
-    return url.replace('/image/upload/', '/raw/upload/')
+  if (url.toLowerCase().endsWith('.pdf')) {
+    // Insere fl_attachment para forçar download direto do PDF
+    return url.replace('/upload/', '/upload/fl_attachment/')
   }
   return url
 }
