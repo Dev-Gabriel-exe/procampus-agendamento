@@ -109,7 +109,19 @@ async function uploadToCloudinary(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? 'ml_default')
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/upload`, { method: 'POST', body: formData })
+  
+  // Define resource_type baseado no tipo do arquivo
+  const isPdf = file.type === 'application/pdf'
+  if (isPdf) {
+    formData.append('resource_type', 'raw')
+  }
+
+  const resourceType = isPdf ? 'raw' : 'image'
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
+    { method: 'POST', body: formData }
+  )
   if (!res.ok) throw new Error('Upload falhou')
   const data = await res.json()
   if (!data.secure_url) throw new Error('URL não retornada')

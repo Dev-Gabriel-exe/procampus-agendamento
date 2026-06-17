@@ -84,16 +84,17 @@ function reasonLabel(reason?: string | null) {
 }
 
 function formatDate(date: string) {
-  // CORREÇÃO: força interpretação como data local sem conversão de fuso
-  const [year, month, day] = date.split('T')[0].split('-').map(Number)
-  const d = new Date(year, month - 1, day)
-  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+  return new Date(date).toLocaleDateString('pt-BR', { 
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', 
+    timeZone: 'America/Fortaleza' 
+  })
 }
 
 function formatDateShort(date: string) {
-  const [year, month, day] = date.split('T')[0].split('-').map(Number)
-  const d = new Date(year, month - 1, day)
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+  return new Date(date).toLocaleDateString('pt-BR', { 
+    day: '2-digit', month: 'short', 
+    timeZone: 'America/Fortaleza' 
+  })
 }
 function formatDateTime(date: string) {
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })
