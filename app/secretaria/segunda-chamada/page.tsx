@@ -112,6 +112,15 @@ function formatLocalInput(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
+
+function formatDeadlineShort(deadline: string): string {
+  // Servidor armazena como próximo dia às 03:00 UTC = fim do dia anterior em Fortaleza
+  // Ex: 2026-06-20T03:00:00Z = fim do dia 19 em Fortaleza → exibir 19
+  const [y, m, d] = deadline.split('T')[0].split('-').map(Number)
+  return new Date(y, m - 1, d - 1).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'short',
+  })
+}
 function deadlineExpired(deadline?: string | null): boolean {
   if (!deadline) return false
   // O servidor salva como início do próximo dia UTC-3 = 03:00 UTC
@@ -1037,7 +1046,7 @@ export default function SegundaChamadaSecretariaPage() {
                                                 <p style={{ fontSize: 12, color: expired ? '#ef4444' : '#4054B2', fontWeight: 600, margin: 0 }}>{slot.startTime} – {slot.endTime}</p>
                                                 {slot.registrationDeadline && (
                                                   <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: expired ? '#fee2e2' : '#dbeafe', color: expired ? '#991b1b' : '#1e3a5f' }}>
-                                                    {expired ? `Encerrado · ${formatDateShort(slot.registrationDeadline)}` : `Prazo: ${formatDateShort(slot.registrationDeadline)}`}
+                                                    {expired ? `Encerrado · ${formatDeadlineShort(slot.registrationDeadline)}` : `Prazo: ${formatDeadlineShort(slot.registrationDeadline)}`}
                                                   </span>
                                                 )}
                                               </div>
