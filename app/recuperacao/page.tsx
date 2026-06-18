@@ -154,7 +154,7 @@ export default function RecuperacaoPage() {
   const turmasDisponiveis = getTurmas(selGrade)
 
   const isFund1    = GRADES_FUND1.has(selGrade)
-  const isParalela = !isFund1
+  const isParalela = isFund1
 
   // Fluxo: Paralela → 1→2(dados)→3(sucesso) | Normal → 1→2(pix)→3(dados)→4(sucesso)
   const dataStep    = isParalela ? 2 : 3
@@ -351,17 +351,17 @@ export default function RecuperacaoPage() {
                 {selGrade && (
                   <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                     style={{ padding: '12px 16px', borderRadius: 14, background: isFund1 ? 'rgba(245,158,11,0.12)' : 'rgba(35,164,85,0.12)', border: `1px solid ${isFund1 ? 'rgba(245,158,11,0.3)' : 'rgba(35,164,85,0.3)'}` }}>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: isFund1 ? '#fbbf24' : '#4ade80' }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: isFund1 ? '#4ade80' : '#fbbf24' }}>
                       {isFund1
-                        ? selSubjectsP.length > 0
-                          ? `💰 Recuperação Normal — R$ ${selSubjectsP.length * PRICE_PER_SUBJECT},00 (${selSubjectsP.length} disciplina${selSubjectsP.length > 1 ? 's' : ''})`
-                          : `💰 Recuperação Normal — R$ ${PRICE_PER_SUBJECT},00 por disciplina`
-                        : '✅ Recuperação Paralela — Gratuita'}
+  ? '✅ Recuperação — Gratuita'
+  : selSubjectsP.length > 0
+    ? `💰 Recuperação — R$ ${selSubjectsP.length * PRICE_PER_SUBJECT},00 (${selSubjectsP.length} disciplina${selSubjectsP.length > 1 ? 's' : ''})`
+    : `💰 Recuperação — R$ ${PRICE_PER_SUBJECT},00 por disciplina`}
                     </p>
                     <p style={{ margin: '4px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
                       {isFund1
-                        ? `Selecione até ${MAX_SUBJECTS} disciplinas. Cada uma custa R$ ${PRICE_PER_SUBJECT},00 via PIX.`
-                        : `Você pode selecionar até ${MAX_SUBJECTS} disciplinas para recuperação.`}
+  ? `Você pode selecionar até ${MAX_SUBJECTS} disciplinas para recuperação.`
+  : `Selecione até ${MAX_SUBJECTS} disciplinas. Cada uma custa R$ ${PRICE_PER_SUBJECT},00 via PIX.`}
                     </p>
                   </motion.div>
                 )}
@@ -611,14 +611,14 @@ export default function RecuperacaoPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <BookMarked style={{ width: 15, height: 15, color: '#4ade80', flexShrink: 0 }} />
                   <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selGrade}</p>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isFund1 ? '#fbbf24' : '#4ade80', background: isFund1 ? 'rgba(245,158,11,0.15)' : 'rgba(35,164,85,0.15)', padding: '2px 8px', borderRadius: 5 }}>
-                    {isFund1 ? `💰 Normal · ${pixValueStr}` : '✅ Paralela'}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isFund1 ? '#4ade80' : '#fbbf24', background: isFund1 ? 'rgba(245,158,11,0.15)' : 'rgba(35,164,85,0.15)', padding: '2px 8px', borderRadius: 5 }}>
+                    {isFund1 ? '✅ Gratuita' : `💰 Normal · ${pixValueStr}`}
                   </span>
                 </div>
                 {/* Lista de disciplinas + slots */}
                 {Object.entries(selectedSlots).map(([subject, slot]) => (
                   <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ fontSize: 12, color: isFund1 ? '#fbbf24' : '#4ade80', fontWeight: 600 }}>{subject}</span>
+                    <span style={{ fontSize: 12, color: isFund1 ? '#4ade80' : '#fbbf24', fontWeight: 600 }}>{subject}</span>
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
                       {formatDateShort(slot.date)} · {slot.startTime}–{slot.endTime}
                     </span>
@@ -708,8 +708,8 @@ export default function RecuperacaoPage() {
                 {[
                   { label: 'Aluno',   value: studentName },
                   { label: 'Série',   value: selGrade },
-                  { label: 'Tipo',    value: isFund1 ? 'Recuperação Normal (paga)' : 'Recuperação Paralela (gratuita)' },
-                  ...(isFund1 ? [{ label: 'Total pago', value: `${pixValueStr} via PIX ✅` }] : []),
+                  { label: 'Tipo', value: isFund1 ? 'Recuperação Gratuita' : 'Recuperação Normal (paga)' },
+...(isFund1 ? [] : [{ label: 'Total pago', value: `${pixValueStr} via PIX ✅` }]),
                 ].map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
@@ -722,7 +722,7 @@ export default function RecuperacaoPage() {
                 </p>
                 {Object.entries(selectedSlots).map(([subject, slot]) => (
                   <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: isFund1 ? '#fbbf24' : '#4ade80' }}>{subject}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: isFund1 ? '#4ade80' : '#fbbf24' }}>{subject}</span>
                     <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600, textAlign: 'right', textTransform: 'capitalize' }}>
                       {formatDate(slot.date)}<br />
                       <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>{slot.startTime} – {slot.endTime}</span>
