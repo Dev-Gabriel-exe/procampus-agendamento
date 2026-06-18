@@ -24,10 +24,14 @@ const GRADES_FUND1 = new Set([
   '1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental',
 ])
 
+// Disciplinas fixas para FundI (meio do ano)
+const FUND1_SUBJECTS = ['Português', 'Matemática']
+
 const PIX_KEY   = 'financeiro@procampus.com.br'
 const PIX_NAME  = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
-const MAX_SUBJECTS = 5
-const PRICE_PER_SUBJECT = 40
+const MAX_SUBJECTS_FUND1 = 2
+const MAX_SUBJECTS_FUND2 = 5
+const PRICE_PER_SUBJECT  = 40
 
 type RecoverySchedule = {
   id: string; subjectName: string; grade: string; type: string; period?: string | null
@@ -110,12 +114,8 @@ async function uploadToCloudinary(file: File): Promise<string> {
   formData.append('file', file)
   formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? 'ml_default')
   
-  // Define resource_type baseado no tipo do arquivo
   const isPdf = file.type === 'application/pdf'
-  if (isPdf) {
-    formData.append('resource_type', 'raw')
-  }
-
+  if (isPdf) formData.append('resource_type', 'raw')
   const resourceType = isPdf ? 'raw' : 'image'
 
   const res = await fetch(
@@ -128,15 +128,6 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url
 }
 
-function fixCloudinaryUrl(url: string | null | undefined): string | null {
-  if (!url) return null
-  // Se for PDF mas foi salvo como image, converte para raw
-  if (url.includes('/image/upload/') && url.toLowerCase().endsWith('.pdf')) {
-    return url.replace('/image/upload/', '/raw/upload/')
-  }
-  return url
-}
-
 export default function RecuperacaoPage() {
   const [step, setStep] = useState(1)
   const [dir,  setDir]  = useState(1)
@@ -146,25 +137,30 @@ export default function RecuperacaoPage() {
   const [selGrade,      setSelGrade]      = useState('')
   const [selTurma,      setSelTurma]      = useState('')
   const [allSubjects,   setAllSubjects]   = useState<string[]>([])
-  const [selSubjectsP,  setSelSubjectsP]  = useState<string[]>([])            // selected subjects (both fund1 & fund2)
-  const [schedules,     setSchedules]     = useState<RecoverySchedule[]>([])  // all fetched slots for grade+type
+  const [selSubjectsP,  setSelSubjectsP]  = useState<string[]>([])
+  const [schedules,     setSchedules]     = useState<RecoverySchedule[]>([])
   const [loadingSlots,  setLoadingSlots]  = useState(false)
   const [hasSearched,   setHasSearched]   = useState(false)
-  const [selectedSlots, setSelectedSlots] = useState<Record<string, RecoverySchedule>>({}) // subjectName → slot
+  const [selectedSlots, setSelectedSlots] = useState<Record<string, RecoverySchedule>>({})
   const turmasDisponiveis = getTurmas(selGrade)
 
   const isFund1    = GRADES_FUND1.has(selGrade)
   const isParalela = isFund1
 
-  // Fluxo: Paralela → 1→2(dados)→3(sucesso) | Normal → 1→2(pix)→3(dados)→4(sucesso)
+  // Máximo de disciplinas conforme segmento
+  const maxSubjects = isFund1 ? MAX_SUBJECTS_FUND1 : MAX_SUBJECTS_FUND2
+
+  // Disciplinas visíveis: FundI só Português e Matemática; FundII todas
+  const visibleSubjects = isFund1
+    ? allSubjects.filter(s => FUND1_SUBJECTS.includes(s))
+    : allSubjects
+
   const dataStep    = isParalela ? 2 : 3
   const successStep = isParalela ? 3 : 4
 
-  // PIX dinâmico — R$40 por disciplina selecionada
   const pixAmount   = selSubjectsP.length * PRICE_PER_SUBJECT
   const pixValueStr = `R$ ${pixAmount},00`
 
-  // Todos os slots selecionados?
   const allSlotsChosen = selSubjectsP.length > 0 && selSubjectsP.every(s => !!selectedSlots[s])
 
   // Step 2 — PIX (só normal)
@@ -217,7 +213,7 @@ export default function RecuperacaoPage() {
 
   function toggleSubject(s: string) {
     setSelSubjectsP(prev =>
-      prev.includes(s) ? prev.filter(x => x !== s) : prev.length < MAX_SUBJECTS ? [...prev, s] : prev
+      prev.includes(s) ? prev.filter(x => x !== s) : prev.length < maxSubjects ? [...prev, s] : prev
     )
   }
 
@@ -353,34 +349,38 @@ export default function RecuperacaoPage() {
                     style={{ padding: '12px 16px', borderRadius: 14, background: isFund1 ? 'rgba(245,158,11,0.12)' : 'rgba(35,164,85,0.12)', border: `1px solid ${isFund1 ? 'rgba(245,158,11,0.3)' : 'rgba(35,164,85,0.3)'}` }}>
                     <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: isFund1 ? '#4ade80' : '#fbbf24' }}>
                       {isFund1
-  ? '✅ Recuperação — Gratuita'
-  : selSubjectsP.length > 0
-    ? `💰 Recuperação — R$ ${selSubjectsP.length * PRICE_PER_SUBJECT},00 (${selSubjectsP.length} disciplina${selSubjectsP.length > 1 ? 's' : ''})`
-    : `💰 Recuperação — R$ ${PRICE_PER_SUBJECT},00 por disciplina`}
+                        ? '✅ Recuperação Opcional — Gratuita'
+                        : selSubjectsP.length > 0
+                          ? `💰 Recuperação — R$ ${selSubjectsP.length * PRICE_PER_SUBJECT},00 (${selSubjectsP.length} disciplina${selSubjectsP.length > 1 ? 's' : ''})`
+                          : `💰 Recuperação — R$ ${PRICE_PER_SUBJECT},00 por disciplina`}
                     </p>
-                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
-                      {isFund1
-  ? `Você pode selecionar até ${MAX_SUBJECTS} disciplinas para recuperação.`
-  : `Selecione até ${MAX_SUBJECTS} disciplinas. Cada uma custa R$ ${PRICE_PER_SUBJECT},00 via PIX.`}
-                    </p>
+                    {/* Texto de limite: só exibe para FundII */}
+                    {!isFund1 && (
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
+                        Selecione até {maxSubjects} disciplinas. Cada uma custa R$ {PRICE_PER_SUBJECT},00 via PIX.
+                      </p>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Disciplinas — ambos fund1 e fund2 */}
+              {/* Disciplinas */}
               <AnimatePresence>
-                {selGrade && allSubjects.length > 0 && (
+                {selGrade && visibleSubjects.length > 0 && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
                     <label style={labelStyle}>
                       Disciplinas em recuperação
-                      <span style={{ marginLeft: 6, color: selSubjectsP.length === MAX_SUBJECTS ? '#4ade80' : 'rgba(255,255,255,0.35)', fontWeight: 400, textTransform: 'none' }}>
-                        ({selSubjectsP.length}/{MAX_SUBJECTS})
-                      </span>
+                      {/* Contador: só para FundII */}
+                      {!isFund1 && (
+                        <span style={{ marginLeft: 6, color: selSubjectsP.length === maxSubjects ? '#4ade80' : 'rgba(255,255,255,0.35)', fontWeight: 400, textTransform: 'none' }}>
+                          ({selSubjectsP.length}/{maxSubjects})
+                        </span>
+                      )}
                     </label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {allSubjects.map(s => {
+                      {visibleSubjects.map(s => {
                         const checked  = selSubjectsP.includes(s)
-                        const disabled = !checked && selSubjectsP.length >= MAX_SUBJECTS
+                        const disabled = !checked && selSubjectsP.length >= maxSubjects
                         return (
                           <button key={s} onClick={() => !disabled && toggleSubject(s)}
                             style={{ padding: '10px 14px', borderRadius: 100, fontSize: 14, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s', minHeight: 44, opacity: disabled ? 0.4 : 1, background: checked ? 'linear-gradient(135deg,#23A455,#61CE70)' : 'rgba(255,255,255,0.06)', color: checked ? '#041809' : 'rgba(255,255,255,0.65)', border: checked ? '2px solid transparent' : '1.5px solid rgba(35,164,85,0.2)', boxShadow: checked ? '0 4px 20px rgba(35,164,85,0.35)' : 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -499,7 +499,7 @@ export default function RecuperacaoPage() {
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
-              STEP 2 — PIX (só recuperação normal / Fund1)
+              STEP 2 — PIX (só recuperação normal / FundII)
           ══════════════════════════════════════════════════════════════════ */}
           {step === 2 && !isParalela && (
             <motion.div key="s2pix" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
@@ -599,7 +599,7 @@ export default function RecuperacaoPage() {
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
-              STEP dados (step 2 para paralela, step 3 para normal)
+              STEP dados (step 2 para FundI, step 3 para FundII)
           ══════════════════════════════════════════════════════════════════ */}
           {step === dataStep && (
             <motion.div key="sdata" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
@@ -615,7 +615,6 @@ export default function RecuperacaoPage() {
                     {isFund1 ? '✅ Gratuita' : `💰 Normal · ${pixValueStr}`}
                   </span>
                 </div>
-                {/* Lista de disciplinas + slots */}
                 {Object.entries(selectedSlots).map(([subject, slot]) => (
                   <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                     <span style={{ fontSize: 12, color: isFund1 ? '#4ade80' : '#fbbf24', fontWeight: 600 }}>{subject}</span>
@@ -624,8 +623,7 @@ export default function RecuperacaoPage() {
                     </span>
                   </div>
                 ))}
-                {/* Comprovante já enviado — confirmação visual */}
-                {isFund1 && pixFile && (
+                {!isFund1 && pixFile && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px', background: 'rgba(34,197,94,0.1)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.2)' }}>
                     <Check style={{ width: 13, height: 13, color: '#4ade80' }} />
                     <p style={{ margin: 0, fontSize: 12, color: '#86efac', fontWeight: 600 }}>Comprovante anexado</p>
@@ -704,19 +702,17 @@ export default function RecuperacaoPage() {
               {/* Resumo de todas as inscrições */}
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
                 style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(35,164,85,0.2)', borderRadius: 18, padding: '18px 16px' }}>
-                {/* Info geral */}
                 {[
                   { label: 'Aluno',   value: studentName },
                   { label: 'Série',   value: selGrade },
-                  { label: 'Tipo', value: isFund1 ? 'Recuperação Gratuita' : 'Recuperação Normal (paga)' },
-...(isFund1 ? [] : [{ label: 'Total pago', value: `${pixValueStr} via PIX ✅` }]),
+                  { label: 'Tipo',    value: isFund1 ? 'Recuperação Gratuita' : 'Recuperação Normal (paga)' },
+                  ...(isFund1 ? [] : [{ label: 'Total pago', value: `${pixValueStr} via PIX ✅` }]),
                 ].map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
                     <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', color: 'rgba(255,255,255,0.75)' }}>{item.value}</span>
                   </div>
                 ))}
-                {/* Disciplinas individuais */}
                 <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>
                   {Object.keys(selectedSlots).length} inscrição{Object.keys(selectedSlots).length > 1 ? 'ões' : ''}
                 </p>
