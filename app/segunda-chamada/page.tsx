@@ -107,8 +107,7 @@ function Steps({ current }: { current: number }) {
 async function uploadToCloudinary(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? 'ml_default')
-  // NÃO appenda resource_type no formData — ele é definido pela URL
+  formData.append('upload_preset', 'procampus_unsigned') // nome exato do preset
 
   const res = await fetch(
     `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`,
@@ -260,10 +259,11 @@ export default function SegundaChamadaPage() {
       try {
         fileUrl = await uploadToCloudinary(attachFile)
       } catch (uploadErr: any) {
-  setSubmitError(`Erro Cloudinary: ${uploadErr?.message || String(uploadErr)}`)
-  setSubmitting(false); setUploadingFile(false)
-  return
-}
+        // CORREÇÃO: erro no upload do Cloudinary aparecia como "failed to fetch"
+        setSubmitError('Erro ao enviar o arquivo. Verifique sua conexão e tente novamente.')
+        setSubmitting(false); setUploadingFile(false)
+        return
+      }
       setUploadingFile(false)
     }
 
