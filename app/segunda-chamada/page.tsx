@@ -260,11 +260,10 @@ export default function SegundaChamadaPage() {
       try {
         fileUrl = await uploadToCloudinary(attachFile)
       } catch (uploadErr: any) {
-        // CORREÇÃO: erro no upload do Cloudinary aparecia como "failed to fetch"
-        setSubmitError('Erro ao enviar o arquivo. Verifique sua conexão e tente novamente.')
-        setSubmitting(false); setUploadingFile(false)
-        return
-      }
+  setSubmitError(`Erro Cloudinary: ${uploadErr?.message || String(uploadErr)}`)
+  setSubmitting(false); setUploadingFile(false)
+  return
+}
       setUploadingFile(false)
     }
 
