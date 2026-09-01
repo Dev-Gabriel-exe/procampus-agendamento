@@ -36,9 +36,10 @@ export async function GET(req: NextRequest) {
         orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
       })
 
-      // Filtra por turno (startTime é string "HH:MM", comparação lexicográfica funciona)
+      // Slots comuns aparecem em qualquer turno. Nos slots configurados como
+      // contraturno, startTime ("HH:MM") é comparado ao turno informado.
       const filtered = turno
-        ? exams.filter(e => turno === 'manha' ? e.startTime >= '12:00' : e.startTime < '12:00')
+        ? exams.filter(e => !e.oppositeShift || (turno === 'manha' ? e.startTime >= '12:00' : e.startTime < '12:00'))
         : exams
 
       return NextResponse.json(filtered)
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
       startTime,
       endTime,
       registrationDeadline, // novo: prazo de inscrições (opcional)
+      oppositeShift,
     } = await req.json()
 
     if (!subjectId || !subjectName || !grade || !date || !startTime || !endTime) {
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
         endTime,
         role,
         registrationDeadline: deadline,
+        oppositeShift: typeof oppositeShift === 'boolean' ? oppositeShift : GRADES_FUND1.includes(grade),
       },
       include: { bookings: true },
     })

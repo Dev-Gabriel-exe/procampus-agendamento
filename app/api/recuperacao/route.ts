@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
       subjectId, subjectName, grade, type, period,
       date, startTime, endTime,
       registrationDeadline,   // ← novo campo (opcional)
+      maxSubjects,
     } = await req.json()
 
     if (!subjectId || !subjectName || !grade || !type || !date || !startTime || !endTime) {
@@ -85,6 +86,10 @@ export async function POST(req: NextRequest) {
     }
     if (startTime >= endTime) {
       return NextResponse.json({ error: 'Horário de fim deve ser após o início.' }, { status: 400 })
+    }
+    const parsedMaxSubjects = Number(maxSubjects ?? 5)
+    if (!Number.isInteger(parsedMaxSubjects) || parsedMaxSubjects < 1 || parsedMaxSubjects > 20) {
+      return NextResponse.json({ error: 'O limite de disciplinas deve estar entre 1 e 20.' }, { status: 400 })
     }
     if (!isGeral(role)) {
       const allowed = getGradesForRole(role)
@@ -130,6 +135,7 @@ export async function POST(req: NextRequest) {
         startTime, endTime,
         role,
         registrationDeadline: deadlineDate,   // null se não informado
+        maxSubjects: parsedMaxSubjects,
       },
       include: { bookings: true },
     })

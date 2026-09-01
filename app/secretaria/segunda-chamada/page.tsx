@@ -58,6 +58,7 @@ type ExamSchedule = {
   id: string; subjectName: string; grade: string
   date: string; startTime: string; endTime: string; active: boolean
   registrationDeadline?: string | null
+  oppositeShift: boolean
   bookings: ExamBooking[]
 }
 type ComprovanteBooking = ExamBooking & {
@@ -312,6 +313,7 @@ export default function SegundaChamadaSecretariaPage() {
   const [startTime,    setStartTime]    = useState('')
   const [endTime,      setEndTime]      = useState('')
   const [regDeadline,  setRegDeadline]  = useState('')
+  const [oppositeShift, setOppositeShift] = useState(true)
   const [loteSelecao,  setLoteSelecao]  = useState<Record<string, string[]>>({})
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState('')
@@ -432,6 +434,7 @@ export default function SegundaChamadaSecretariaPage() {
               subjectId: discId, subjectName: subject.name, grade,
               date: examDate, startTime, endTime,
               registrationDeadline: regDeadline || null,
+              oppositeShift,
             }),
           })
           if (res.ok) criados++; else erros++
@@ -442,7 +445,7 @@ export default function SegundaChamadaSecretariaPage() {
     setSaving(false)
     if (criados > 0) {
       toast.success(`✅ ${criados} slot${criados !== 1 ? 's' : ''} criado${criados !== 1 ? 's' : ''}!${erros > 0 ? ` (${erros} já existiam)` : ''}`)
-      setLoteSelecao({}); setExamDate(''); setStartTime(''); setEndTime(''); setRegDeadline('')
+      setLoteSelecao({}); setExamDate(''); setStartTime(''); setEndTime(''); setRegDeadline(''); setOppositeShift(true)
       loadData()
     } else {
       setError(`Erro: ${erros} slot${erros !== 1 ? 's' : ''} já existem ou falharam.`)
@@ -855,6 +858,24 @@ export default function SegundaChamadaSecretariaPage() {
                     {regDeadline
                       ? `Inscrições encerram automaticamente no final do dia ${formatLocalInput(regDeadline)}.`
                       : 'Se não informado, inscrições ficam abertas até a data da prova.'}
+                  </p>
+                </div>
+
+                {/* Regra de turno */}
+                <div>
+                  <label style={labelStyle}>Regra de turno</label>
+                  <select
+                    value={oppositeShift ? 'oposto' : 'ofertado'}
+                    onChange={e => setOppositeShift(e.target.value === 'oposto')}
+                    style={{ ...inputStyle, cursor: 'pointer' }}
+                  >
+                    <option value="oposto">Contraturno obrigatório</option>
+                    <option value="ofertado">Usar o turno ofertado</option>
+                  </select>
+                  <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5, lineHeight: 1.4 }}>
+                    {oppositeShift
+                      ? 'O aluno informa o turno em que estuda e só vê horários do turno oposto.'
+                      : 'O aluno vê os horários cadastrados, independentemente do turno em que estuda.'}
                   </p>
                 </div>
 

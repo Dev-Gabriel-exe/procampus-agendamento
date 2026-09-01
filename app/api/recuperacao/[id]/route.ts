@@ -31,10 +31,27 @@ export async function DELETE(
 
 // ── Editar ────────────────────────────────────────────────────────────────
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
   const { date, startTime, endTime, registrationDeadline } = await req.json()
-  const updated = await prisma.examSchedule.update({
+
+  if (!date || !startTime || !endTime || startTime >= endTime) {
+    return NextResponse.json({ error: 'Data ou horários inválidos.' }, { status: 400 })
+  }
+
+  const [year, month, day] = date.split('-').map(Number)
+  const scheduleDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0))
+  const deadline = registrationDeadline
+    ? (() => {
+        const [dy, dm, dd] = registrationDeadline.split('-').map(Number)
+        return new Date(Date.UTC(dy, dm - 1, dd + 1, 3, 0, 0, 0))
+      })()
+    : null
+
+  const updated = await prisma.recoverySchedule.update({
     where: { id: params.id },
-    data: { date: new Date(date), startTime, endTime, registrationDeadline: registrationDeadline ?? null },
+    data: { date: scheduleDate, startTime, endTime, registrationDeadline: deadline },
   })
   return Response.json(updated)
 }
@@ -44,7 +61,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { parentName, parentEmail, parentPhone, studentName, studentGrade, subjects, fileUrl } = await req.json()
+    const { parentName, parentEmail, parentPhone, studentName, studentGrade, subjects, selectedSubjects, fileUrl } = await req.json()
 
     if (!parentName || !parentEmail || !parentPhone || !studentName) {
       return NextResponse.json({ error: 'Dados obrigatórios faltando' }, { status: 400 })
@@ -53,6 +70,45 @@ export async function POST(
     const schedule = await prisma.recoverySchedule.findUnique({ where: { id: params.id } })
     if (!schedule || !schedule.active) {
       return NextResponse.json({ error: 'Slot inválido ou inativo.' }, { status: 404 })
+    }
+
+    const now = new Date()
+    if (schedule.date < now || (schedule.registrationDeadline && schedule.registrationDeadline < now)) {
+      return NextResponse.json({ error: 'As inscrições para este horário foram encerradas.' }, { status: 410 })
+    }
+
+    if (subjects !== schedule.subjectName) {
+      return NextResponse.json({ error: 'A disciplina não corresponde ao horário selecionado.' }, { status: 400 })
+    }
+
+    const requestedSubjects = Array.isArray(selectedSubjects)
+      ? [...new Set(selectedSubjects.filter((subject: unknown): subject is string => typeof subject === 'string' && subject.trim().length > 0))]
+      : [schedule.subjectName]
+
+    if (!requestedSubjects.includes(schedule.subjectName) || requestedSubjects.length > schedule.maxSubjects) {
+      return NextResponse.json({ error: `É permitido selecionar no máximo ${schedule.maxSubjects} disciplina(s).` }, { status: 400 })
+    }
+
+    const allowedSchedules = await prisma.recoverySchedule.findMany({
+      where: {
+        grade: schedule.grade,
+        type: schedule.type,
+        active: true,
+        date: { gte: now },
+        OR: [
+          { registrationDeadline: null },
+          { registrationDeadline: { gte: now } },
+        ],
+      },
+      select: { subjectName: true },
+    })
+    const allowedSubjects = new Set(allowedSchedules.map(item => item.subjectName))
+    if (requestedSubjects.some(subject => !allowedSubjects.has(subject))) {
+      return NextResponse.json({ error: 'Uma das disciplinas selecionadas não está disponível.' }, { status: 400 })
+    }
+
+    if (schedule.type === 'normal' && !fileUrl) {
+      return NextResponse.json({ error: 'Anexe o comprovante de pagamento.' }, { status: 400 })
     }
 
     const booking = await prisma.recoveryBooking.create({

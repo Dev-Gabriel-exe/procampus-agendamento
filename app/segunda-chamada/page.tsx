@@ -21,19 +21,14 @@ const ALL_GRADES = [
   '1ª Série Médio','2ª Série Médio','3ª Série Médio',
 ]
 
-const GRADES_FUND1 = new Set([
-  'Educação Infantil',
-  '1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental',
-])
-
 const PIX_KEY          = 'financeiro@procampus.com.br'
 const PIX_NAME         = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
 const PRICE_PER_SUBJ   = 30  // R$ por disciplina (falta NÃO justificada)
 
 type Subject      = { id: string; name: string }
 type ExamSchedule = {
-  id: string; subjectName: string; grade: string
-  date: string; startTime: string; endTime: string; bookings: { id: string }[]
+  id: string; subjectId: string; subjectName: string; grade: string
+  date: string; startTime: string; endTime: string; oppositeShift: boolean; bookings: { id: string }[]
 }
 
 function formatDate(date: string) {
@@ -154,12 +149,10 @@ export default function SegundaChamadaPage() {
   const [selectedSlots, setSelectedSlots] = useState<Record<string, ExamSchedule>>({})   // subjectName → slot escolhido
   const [loadingSlots,  setLoadingSlots]  = useState(false)
   const [hasSearched,   setHasSearched]   = useState(false)
+  const [requiresOppositeShift, setRequiresOppositeShift] = useState(false)
 
   const turmasDisponiveis = getTurmas(selGrade)
-  const isFund1Grade      = GRADES_FUND1.has(selGrade)
-
-  // Requer turno para Fund1
-  const canSearch = selGrade && selSubjects.length > 0 && (!isFund1Grade || selTurno !== '')
+  const canSearch = selGrade && selSubjects.length > 0 && (!requiresOppositeShift || selTurno !== '')
   // Todos os horários escolhidos?
   const allSlotsChosen = selSubjects.length > 0 && selSubjects.every(s => !!selectedSlots[s])
 
@@ -186,14 +179,17 @@ export default function SegundaChamadaPage() {
   // Reset ao trocar série
   useEffect(() => {
     setAllSubjects([]); setSelSubjects([]); setSlotsPerSubj({})
-    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setSelTurno('')
+    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setSelTurno(''); setRequiresOppositeShift(false)
     if (!selGrade) return
     ;(async () => {
       try {
-        const res = await fetch(`/api/disciplinas?grade=${encodeURIComponent(selGrade)}`)
+        const res = await fetch(`/api/segunda-chamada?public=true&grade=${encodeURIComponent(selGrade)}`)
         if (!res.ok) throw new Error()
-        const data = await res.json()
-        setAllSubjects(data)
+        const data: ExamSchedule[] = await res.json()
+        const unique = new Map<string, Subject>()
+        data.forEach(slot => unique.set(slot.subjectName, { id: slot.subjectId, name: slot.subjectName }))
+        setAllSubjects([...unique.values()])
+        setRequiresOppositeShift(data.some(slot => slot.oppositeShift))
       } catch { setAllSubjects([]) }
     })()
   }, [selGrade])
@@ -223,7 +219,7 @@ export default function SegundaChamadaPage() {
     if (!canSearch) return
     setLoadingSlots(true); setHasSearched(true)
     try {
-      const turnoParam = isFund1Grade && selTurno ? `&turno=${selTurno}` : ''
+      const turnoParam = requiresOppositeShift && selTurno ? `&turno=${selTurno}` : ''
       const results = await Promise.all(
         selSubjects.map(async subjName => {
           const res = await fetch(
@@ -283,6 +279,7 @@ export default function SegundaChamadaPage() {
           body: JSON.stringify({
             parentName, parentEmail, parentPhone, studentName,
             studentGrade: buildStudentGrade(selGrade, selTurma),
+            studentShift: selTurno || null,
             subjects: subject,
             justified: isJustified ?? false,
             reason: justReason,
@@ -440,7 +437,7 @@ export default function SegundaChamadaPage() {
 
               {/* Turno — só Fund1 */}
               <AnimatePresence>
-                {selGrade && selSubjects.length > 0 && isFund1Grade && (
+                {selGrade && selSubjects.length > 0 && requiresOppositeShift && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
                     <label style={labelStyle}>Turno que o aluno estuda</label>
                     <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 14px', lineHeight: 1.5 }}>

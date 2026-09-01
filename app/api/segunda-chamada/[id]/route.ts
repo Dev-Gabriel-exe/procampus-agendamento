@@ -27,6 +27,7 @@ export async function POST(
       parentPhone,
       studentName,
       studentGrade,
+      studentShift,
       subjects,           // novo: array de IDs/nomes de disciplinas
       justified,
       reason,             // 'doenca' | 'luto' | 'autorizacao' | null
@@ -42,6 +43,26 @@ export async function POST(
     const exam = await prisma.examSchedule.findUnique({ where: { id: params.id } })
     if (!exam || !exam.active) {
       return NextResponse.json({ error: 'Slot inválido ou inativo.' }, { status: 404 })
+    }
+
+    const now = new Date()
+    if (exam.date < now || (exam.registrationDeadline && exam.registrationDeadline < now)) {
+      return NextResponse.json({ error: 'As inscrições para este horário foram encerradas.' }, { status: 410 })
+    }
+
+    const requestedSubjects = Array.isArray(subjects) ? subjects : [subjects || exam.subjectName]
+    if (requestedSubjects.length !== 1 || requestedSubjects[0] !== exam.subjectName) {
+      return NextResponse.json({ error: 'A disciplina não corresponde ao horário selecionado.' }, { status: 400 })
+    }
+
+    if (exam.oppositeShift) {
+      if (studentShift !== 'manha' && studentShift !== 'tarde') {
+        return NextResponse.json({ error: 'Informe o turno em que o aluno estuda.' }, { status: 400 })
+      }
+      const isOpposite = studentShift === 'manha' ? exam.startTime >= '12:00' : exam.startTime < '12:00'
+      if (!isOpposite) {
+        return NextResponse.json({ error: 'O horário escolhido não está no contraturno do aluno.' }, { status: 400 })
+      }
     }
 
     // Converte array de disciplinas para CSV
@@ -115,7 +136,14 @@ export async function DELETE(
 // ── Editar ────────────────────────────────────────────────────────────────
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
   const { date, startTime, endTime, registrationDeadline } = await req.json()
+
+  if (!date || !startTime || !endTime || startTime >= endTime) {
+    return NextResponse.json({ error: 'Data ou horários inválidos.' }, { status: 400 })
+  }
 
   // Usa meio-dia UTC para evitar que meia-noite UTC vire dia anterior em Fortaleza (UTC-3)
   const [ey, em, ed] = date.split('-').map(Number)
@@ -130,7 +158,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       registrationDeadline: registrationDeadline
         ? (() => {
             const [dy, dm, dd] = registrationDeadline.split('-').map(Number)
-            return new Date(Date.UTC(dy, dm - 1, dd, 23, 59, 59, 999))
+            return new Date(Date.UTC(dy, dm - 1, dd + 1, 3, 0, 0, 0))
           })()
         : null,
     },
