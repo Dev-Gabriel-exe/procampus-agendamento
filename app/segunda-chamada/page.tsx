@@ -21,7 +21,10 @@ const ALL_GRADES = [
   '1ª Série Médio','2ª Série Médio','3ª Série Médio',
 ]
 
-
+const GRADES_FUND1 = new Set([
+  'Educação Infantil',
+  '1º Ano Fundamental','2º Ano Fundamental','3º Ano Fundamental','4º Ano Fundamental','5º Ano Fundamental',
+])
 
 const PIX_KEY          = 'financeiro@procampus.com.br'
 const PIX_NAME         = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
@@ -107,22 +110,26 @@ function Steps({ current }: { current: number }) {
 async function uploadToCloudinary(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('upload_preset', 'procampus_unsigned') // nome exato do preset
-
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`,
-    { method: 'POST', body: formData }
-  )
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}))
-    throw new Error(errData?.error?.message || 'Upload falhou')
+  formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? 'ml_default')
+  
+  // Define resource_type baseado no tipo do arquivo
+  const isPdf = file.type === 'application/pdf'
+  if (isPdf) {
+    formData.append('resource_type', 'raw')
   }
 
+  const resourceType =  'auto'
+
+  const res = await fetch(
+  `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`,
+  { method: 'POST', body: formData }
+)
+  if (!res.ok) throw new Error('Upload falhou')
   const data = await res.json()
   if (!data.secure_url) throw new Error('URL não retornada')
   return data.secure_url
 }
+
 function fixCloudinaryUrl(url: string | null | undefined): string | null {
   if (!url) return null
   // Se for PDF mas foi salvo como image, converte para raw
@@ -140,7 +147,7 @@ export default function SegundaChamadaPage() {
   // ── Step 1 ────────────────────────────────────────────────────────────────
   const [selGrade,      setSelGrade]      = useState('')
   const [selTurma,      setSelTurma]      = useState('')
-  
+  const [selTurno,      setSelTurno]      = useState<'manha' | 'tarde' | ''>('')
   const [allSubjects,   setAllSubjects]   = useState<Subject[]>([])
   const [selSubjects,   setSelSubjects]   = useState<string[]>([])    // nomes das disciplinas selecionadas
   const [slotsPerSubj,  setSlotsPerSubj]  = useState<Record<string, ExamSchedule[]>>({}) // subjectName → slots disponíveis
@@ -149,10 +156,10 @@ export default function SegundaChamadaPage() {
   const [hasSearched,   setHasSearched]   = useState(false)
 
   const turmasDisponiveis = getTurmas(selGrade)
-  
+  const isFund1Grade      = GRADES_FUND1.has(selGrade)
 
   // Requer turno para Fund1
-  const canSearch = selGrade && selSubjects.length > 0
+  const canSearch = selGrade && selSubjects.length > 0 && (!isFund1Grade || selTurno !== '')
   // Todos os horários escolhidos?
   const allSlotsChosen = selSubjects.length > 0 && selSubjects.every(s => !!selectedSlots[s])
 
@@ -179,7 +186,7 @@ export default function SegundaChamadaPage() {
   // Reset ao trocar série
   useEffect(() => {
     setAllSubjects([]); setSelSubjects([]); setSlotsPerSubj({})
-    setSelectedSlots({}); setHasSearched(false); setSelTurma('');
+    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setSelTurno('')
     if (!selGrade) return
     ;(async () => {
       try {
@@ -213,29 +220,30 @@ export default function SegundaChamadaPage() {
   }
 
   async function loadSlots() {
-  if (!canSearch) return
-  setLoadingSlots(true); setHasSearched(true)
-  try {
-    const results = await Promise.all(
-      selSubjects.map(async subjName => {
-        const res = await fetch(
-          `/api/segunda-chamada?public=true&grade=${encodeURIComponent(selGrade)}&subject=${encodeURIComponent(subjName)}`
-        )
-        const data = await res.json()
-        return { subjName, slots: Array.isArray(data) ? data : [] as ExamSchedule[] }
-      })
-    )
-    const map: Record<string, ExamSchedule[]> = {}
-    results.forEach(r => { map[r.subjName] = r.slots })
-    setSlotsPerSubj(map)
-  } catch {
-    const map: Record<string, ExamSchedule[]> = {}
-    selSubjects.forEach(s => { map[s] = [] })
-    setSlotsPerSubj(map)
-  } finally {
-    setLoadingSlots(false)
+    if (!canSearch) return
+    setLoadingSlots(true); setHasSearched(true)
+    try {
+      const turnoParam = isFund1Grade && selTurno ? `&turno=${selTurno}` : ''
+      const results = await Promise.all(
+        selSubjects.map(async subjName => {
+          const res = await fetch(
+            `/api/segunda-chamada?public=true&grade=${encodeURIComponent(selGrade)}&subject=${encodeURIComponent(subjName)}${turnoParam}`
+          )
+          const data = await res.json()
+          return { subjName, slots: Array.isArray(data) ? data : [] as ExamSchedule[] }
+        })
+      )
+      const map: Record<string, ExamSchedule[]> = {}
+      results.forEach(r => { map[r.subjName] = r.slots })
+      setSlotsPerSubj(map)
+    } catch {
+      const map: Record<string, ExamSchedule[]> = {}
+      selSubjects.forEach(s => { map[s] = [] })
+      setSlotsPerSubj(map)
+    }
+    finally { setLoadingSlots(false) }
   }
-}
+
   function step2Ok(): boolean {
     if (isJustified === null) return false
     if (!isJustified) return !!attachFile
@@ -431,7 +439,30 @@ export default function SegundaChamadaPage() {
               )}
 
               {/* Turno — só Fund1 */}
-              
+              <AnimatePresence>
+                {selGrade && selSubjects.length > 0 && isFund1Grade && (
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
+                    <label style={labelStyle}>Turno que o aluno estuda</label>
+                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 14px', lineHeight: 1.5 }}>
+                      A prova de segunda chamada ocorre no turno <strong style={{ color: 'rgba(255,255,255,0.7)' }}>oposto</strong> ao que o aluno estuda.
+                    </p>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => setSelTurno('manha')}
+                        style={{ ...choiceBtn(selTurno === 'manha', '#f59e0b'), border: `2px solid ${selTurno === 'manha' ? '#f59e0b' : 'rgba(64,84,178,0.2)'}`, background: selTurno === 'manha' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.04)' }}>
+                        <Sun style={{ width: 24, height: 24, color: selTurno === 'manha' ? '#fbbf24' : 'rgba(255,255,255,0.25)' }} />
+                        <span>Manhã</span>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>prova à tarde</span>
+                      </button>
+                      <button onClick={() => setSelTurno('tarde')}
+                        style={{ ...choiceBtn(selTurno === 'tarde', '#6366f1'), border: `2px solid ${selTurno === 'tarde' ? '#6366f1' : 'rgba(64,84,178,0.2)'}`, background: selTurno === 'tarde' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)' }}>
+                        <Moon style={{ width: 24, height: 24, color: selTurno === 'tarde' ? '#a5b4fc' : 'rgba(255,255,255,0.25)' }} />
+                        <span>Tarde</span>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>prova de manhã</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Botão buscar */}
               <AnimatePresence>
