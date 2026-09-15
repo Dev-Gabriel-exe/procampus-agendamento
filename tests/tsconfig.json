@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "incremental": false,
+    "noEmit": false
+  },
+  "include": [
+    "./schedule-blocks.test.ts",
+    "../lib/schedule-blocks.ts"
+  ]
+}

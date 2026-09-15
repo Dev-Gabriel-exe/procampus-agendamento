@@ -78,6 +78,7 @@ export async function sendCancellationToParent(data: {
   subject: string
   date: string
   startTime: string
+  cancellationReason?: string
 }) {
   const transporter   = createTransport()
   const dateFormatted = formatDateShort(data.date)
@@ -89,8 +90,10 @@ export async function sendCancellationToParent(data: {
       subject: `❌ Reunião cancelada — ${data.subject} | Pro Campus`,
       html:    buildCancellationEmail({ ...data, date: dateFormatted }),
     })
+    return true
   } catch (err) {
     console.error('Erro ao enviar e-mail de cancelamento:', err)
+    return false
   }
 }
 
@@ -247,7 +250,17 @@ function buildCancellationEmail(data: {
   studentGrade: string
   date: string
   startTime: string
+  cancellationReason?: string
 }): string {
+  const cancellationReason = data.cancellationReason
+    ? data.cancellationReason
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+    : ''
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"></head>
@@ -273,6 +286,11 @@ function buildCancellationEmail(data: {
       Infelizmente a reunião abaixo foi <strong style="color:#dc2626;">cancelada</strong> pela secretaria.
       Entre em contato para reagendar quando necessário.
     </p>
+    ${cancellationReason ? `
+    <div style="margin-top:16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 18px;">
+      <p style="color:#9a3412;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 5px;">Motivo do cancelamento</p>
+      <p style="color:#7c2d12;font-size:14px;line-height:1.5;margin:0;">${cancellationReason}</p>
+    </div>` : ''}
   </td></tr>
 
   <tr><td style="padding:20px 40px;">

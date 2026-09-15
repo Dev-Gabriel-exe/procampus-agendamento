@@ -23,6 +23,7 @@ model Teacher {
   role           String           @default("geral")
   subjects       TeacherSubject[]
   availabilities Availability[]
+  scheduleBlocks ScheduleBlock[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 }
@@ -77,6 +78,22 @@ model Appointment {
   archived       Boolean      @default(false)
   archivedAt     DateTime?
   createdAt      DateTime     @default(now())
+}
+
+// Bloqueios excepcionais de plantão/reuniões pedagógicas.
+// teacherId nulo = todos os professores abrangidos pelo role da coordenação.
+model ScheduleBlock {
+  id        String   @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime
+  reason    String
+  role      String   @default("geral")
+  teacher   Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String?
+  createdAt DateTime @default(now())
+
+  @@index([startDate, endDate])
+  @@index([teacherId])
 }
 
 // ── Segunda Chamada ──────────────────────────────────────

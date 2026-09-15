@@ -104,3 +104,11 @@ export interface AvailableSlot {
   subjectGrade: string
   isBooked: boolean
 }
+
+export interface PublicScheduleBlock {
+  id: string
+  startDate: Date | string
+  endDate: Date | string
+  reason: string
+  teacherName: string | null
+}

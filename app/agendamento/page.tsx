@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, ArrowRight, Check, CalendarDays,
   Clock, User, Mail, Phone, MessageSquare, GraduationCap,
-  CheckCircle, ExternalLink, ChevronDown, MapPin, ChevronRight
+  CheckCircle, ExternalLink, ChevronDown, MapPin, ChevronRight, Ban
 } from 'lucide-react'
 import StepIndicator  from '@/components/agendamento/StepIndicator'
 import Input          from '@/components/ui/Input'
@@ -14,7 +14,7 @@ import Button         from '@/components/ui/Button'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { generateCalendarLink } from '@/lib/calendar-link'
 import { maskPhoneBr, isValidEmail } from '@/lib/masks'
-import type { AvailableSlot } from '@/types'
+import type { AvailableSlot, PublicScheduleBlock } from '@/types'
 
 const GRADES = [
   'Educação Infantil',
@@ -87,6 +87,7 @@ export default function AgendamentoPage() {
   const [slots,        setSlots]        = useState<AvailableSlot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null)
+  const [blockedPeriods, setBlockedPeriods] = useState<PublicScheduleBlock[]>([])
 
   const [parentName,  setParentName]  = useState('')
   const [parentEmail, setParentEmail] = useState('')
@@ -101,6 +102,9 @@ export default function AgendamentoPage() {
 
   useEffect(() => {
     if (!grade) return
+    setSlots([])
+    setBlockedPeriods([])
+    setSelectedSlot(null)
     setLoadingSubjects(true)
     fetch('/api/disciplinas')
       .then(r => r.json())
@@ -118,7 +122,20 @@ export default function AgendamentoPage() {
     setLoadingSlots(true)
     try {
       const res = await fetch(`/api/disponibilidade?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}`)
-      setSlots(await res.json())
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Erro ao buscar horários.')
+
+      // Mantém compatibilidade durante uma eventual troca gradual de versão.
+      if (Array.isArray(data)) {
+        setSlots(data)
+        setBlockedPeriods([])
+      } else {
+        setSlots(Array.isArray(data.slots) ? data.slots : [])
+        setBlockedPeriods(Array.isArray(data.blockedPeriods) ? data.blockedPeriods : [])
+      }
+    } catch {
+      setSlots([])
+      setBlockedPeriods([])
     } finally { setLoadingSlots(false) }
   }
 
@@ -342,6 +359,26 @@ export default function AgendamentoPage() {
               transition={{ duration: 0.3, ease: [0.22,1,0.36,1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
             >
+              {blockedPeriods.length > 0 && (
+                <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 14, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <Ban style={{ width: 17, height: 17, color: '#fbbf24' }} />
+                    <p style={{ color: '#fde68a', fontSize: 13, fontWeight: 800, margin: 0 }}>Datas sem agendamento</p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {blockedPeriods.map(block => (
+                      <div key={block.id} style={{ paddingTop: 8, borderTop: '1px solid rgba(245,158,11,0.15)' }}>
+                        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 700, margin: 0 }}>
+                          {formatBlockPeriod(block)}{block.teacherName ? ` · Prof. ${block.teacherName}` : ' · Todos os professores'}
+                        </p>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, lineHeight: 1.45, margin: '3px 0 0' }}>
+                          {block.reason}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(97,206,112,0.12)',
@@ -655,4 +692,13 @@ export default function AgendamentoPage() {
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
+}
+
+function formatBlockPeriod(block: PublicScheduleBlock) {
+  const format = (value: Date | string) => new Date(value).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Fortaleza',
+  })
+  const start = format(block.startDate)
+  const end = format(block.endDate)
+  return start === end ? start : `${start} a ${end}`
 }

@@ -59,11 +59,32 @@ export async function POST(req: NextRequest) {
       where: { id: availabilityId },
       include: { teacher: true },
     })
-    if (!avail) return NextResponse.json({ error: 'Disponibilidade não encontrada' }, { status: 404 })
+    if (!avail || !avail.active) return NextResponse.json({ error: 'Disponibilidade não encontrada' }, { status: 404 })
 
     const raw = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0]
     const [year, month, day] = raw.split('-').map(Number)
     const appointmentDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0))
+
+    // Revalida o bloqueio no servidor. Isso impede agendamento por uma tela
+    // antiga que tenha sido aberta antes de a coordenação bloquear a data.
+    const scheduleBlock = await prisma.scheduleBlock.findFirst({
+      where: {
+        startDate: { lte: appointmentDate },
+        endDate: { gte: appointmentDate },
+        OR: [
+          { teacherId: avail.teacherId },
+          { teacherId: null, role: { in: ['geral', avail.teacher.role] } },
+        ],
+      },
+      select: { reason: true },
+    })
+
+    if (scheduleBlock) {
+      return NextResponse.json({
+        error: `Agendamentos bloqueados nesta data: ${scheduleBlock.reason}`,
+        code: 'DATE_BLOCKED',
+      }, { status: 409 })
+    }
 
     const conflict = await prisma.appointment.findFirst({
       where: {

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getNextOccurrences } from '@/lib/slots'
+import { blockAppliesToTeacher, blocksTeacherOnDate } from '@/lib/schedule-blocks'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,20 +49,36 @@ export async function GET(req: NextRequest) {
     })
 
     const teacherIds = [...new Set(teacherSubjects.map(ts => ts.teacherId))]
-    if (teacherIds.length === 0) return NextResponse.json([])
+    if (teacherIds.length === 0) return NextResponse.json({ slots: [], blockedPeriods: [] })
 
     const availabilities = await prisma.availability.findMany({
       where: { teacherId: { in: teacherIds }, active: true },
       include: { teacher: true },
     })
 
-    if (availabilities.length === 0) return NextResponse.json([])
+    if (availabilities.length === 0) return NextResponse.json({ slots: [], blockedPeriods: [] })
 
     // Janela: hoje até 45 dias à frente (cobre qualquer mês + margem)
     const from = new Date()
     from.setUTCHours(0, 0, 0, 0)
     const to = new Date(from)
     to.setUTCDate(from.getUTCDate() + 45)
+
+    const scheduleBlocks = await prisma.scheduleBlock.findMany({
+      where: {
+        startDate: { lte: to },
+        endDate: { gte: from },
+      },
+      include: { teacher: { select: { id: true, name: true, role: true } } },
+      orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }],
+    })
+
+    const teachers = [...new Map(
+      teacherSubjects.map(item => [item.teacher.id, { id: item.teacher.id, role: item.teacher.role }])
+    ).values()]
+    const relevantBlocks = scheduleBlocks.filter(block =>
+      teachers.some(teacher => blockAppliesToTeacher(block, teacher))
+    )
 
     const bookedAppts = await prisma.appointment.findMany({
       where: {
@@ -85,6 +102,7 @@ export async function GET(req: NextRequest) {
 
         // Ignora se já passou ou está fora da janela
         if (date < from || date > to) continue
+        if (blocksTeacherOnDate(scheduleBlocks, { id: avail.teacherId, role: avail.teacher.role }, date)) continue
 
         for (const slot of slots) {
           const [slotH, slotM] = slot.startTime.split(':').map(Number)
@@ -131,6 +149,7 @@ export async function GET(req: NextRequest) {
       for (const date of dates) {
         // Descarta datas fora da janela
         if (date > to) continue
+        if (blocksTeacherOnDate(scheduleBlocks, { id: avail.teacherId, role: avail.teacher.role }, date)) continue
 
         for (const slot of slots) {
           const [slotH, slotM] = slot.startTime.split(':').map(Number)
@@ -174,7 +193,16 @@ export async function GET(req: NextRequest) {
       return diff !== 0 ? diff : a.startTime.localeCompare(b.startTime)
     })
 
-    return NextResponse.json(result)
+    return NextResponse.json({
+      slots: result,
+      blockedPeriods: relevantBlocks.map(block => ({
+        id: block.id,
+        startDate: block.startDate,
+        endDate: block.endDate,
+        reason: block.reason,
+        teacherName: block.teacher?.name ?? null,
+      })),
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Erro ao buscar disponibilidade' }, { status: 500 })

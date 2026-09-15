@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "test": "npm run test:blocks",
+    "test:blocks": "ts-node --project tests/tsconfig.json tests/schedule-blocks.test.ts",
     "start": "next start",
     "postinstall": "prisma generate"
   },

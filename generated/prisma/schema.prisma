@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Secretary {
+  id       String @id @default(cuid())
+  username String @unique
+  password String
+  role     String @default("geral")
+}
+
+model Teacher {
+  id             String           @id @default(cuid())
+  name           String
+  email          String
+  phone          String
+  role           String           @default("geral")
+  subjects       TeacherSubject[]
+  availabilities Availability[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model Subject {
+  id                String             @id @default(cuid())
+  name              String
+  grade             String
+  teachers          TeacherSubject[]
+  examSchedules     ExamSchedule[]
+  recoverySchedules RecoverySchedule[]
+}
+
+model TeacherSubject {
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId String
+
+  @@id([teacherId, subjectId])
+}
+
+model Availability {
+  id           String        @id @default(cuid())
+  teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId    String
+  dayOfWeek    Int
+  specificDate DateTime?
+  isSpecial    Boolean       @default(false)
+  startTime    String
+  endTime      String
+  active       Boolean       @default(true)
+  appointments Appointment[]
+  createdAt    DateTime      @default(now())
+}
+
+model Appointment {
+  id             String       @id @default(cuid())
+  availability   Availability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+  availabilityId String
+  date           DateTime
+  startTime      String
+  endTime        String
+  parentName     String
+  parentEmail    String
+  parentPhone    String
+  reason         String
+  studentName    String
+  studentGrade   String
+  subjectName    String       @default("")
+  status         String       @default("confirmed")
+  archived       Boolean      @default(false)
+  archivedAt     DateTime?
+  createdAt      DateTime     @default(now())
+}
+
+// ── Segunda Chamada ──────────────────────────────────────
+
+model ExamSchedule {
+  id                   String        @id @default(cuid())
+  subject              Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId            String
+  subjectName          String
+  grade                String
+  date                 DateTime
+  startTime            String
+  endTime              String
+  role                 String        @default("geral")
+  active               Boolean       @default(true)
+  registrationDeadline DateTime? // prazo de inscrições (novo)
+  oppositeShift        Boolean       @default(false)
+  archived             Boolean       @default(false)
+  archivedAt           DateTime?
+  bookings             ExamBooking[]
+  createdAt            DateTime      @default(now())
+}
+
+model ExamBooking {
+  id              String       @id @default(cuid())
+  examSchedule    ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
+  examScheduleId  String
+  parentName      String
+  parentEmail     String
+  parentPhone     String
+  studentName     String
+  studentGrade    String
+  subjects        String       @default("") // CSV de disciplinas selecionadas (novo)
+  status          String       @default("PENDING")
+  justified       Boolean?
+  reason          String? // 'doenca' | 'luto' | 'autorizacao'
+  lutoText        String?
+  autorizacaoText String? // novo: descrição da autorização
+  fileUrl         String?
+  createdAt       DateTime     @default(now())
+}
+
+// ── Recuperação ──────────────────────────────────────────
+
+model RecoverySchedule {
+  id                   String            @id @default(cuid())
+  subject              Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId            String
+  subjectName          String // denormalizado
+  grade                String
+  // "normal" = Fund1 paga R$30 | "paralela" = Fund2 gratuita
+  type                 String            @default("normal")
+  // "meio" | "final" — só relevante para type="normal"
+  period               String?
+  date                 DateTime
+  startTime            String
+  endTime              String
+  role                 String            @default("geral")
+  active               Boolean           @default(true)
+  archived             Boolean           @default(false)
+  archivedAt           DateTime?
+  bookings             RecoveryBooking[]
+  createdAt            DateTime          @default(now())
+  registrationDeadline DateTime?
+  maxSubjects          Int               @default(5)
+}
+
+model RecoveryBooking {
+  id                 String           @id @default(cuid())
+  recoverySchedule   RecoverySchedule @relation(fields: [recoveryScheduleId], references: [id], onDelete: Cascade)
+  recoveryScheduleId String
+  parentName         String
+  parentEmail        String
+  parentPhone        String
+  studentName        String
+  studentGrade       String
+  // Para recuperação paralela: lista de disciplinas separadas por vírgula
+  subjects           String           @default("")
+  status             String           @default("PENDING")
+  fileUrl            String? // comprovante PIX (só type=normal)
+  createdAt          DateTime         @default(now())
+}

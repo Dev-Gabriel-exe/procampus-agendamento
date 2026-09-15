@@ -12,6 +12,7 @@ import PrintView from '@/components/secretaria/PrintView'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 import ArchiveModal from '@/components/secretaria/ArchiveModal'
+import ScheduleBlocksPanel from '@/components/secretaria/ScheduleBlocksPanel'
 import { extractTurma } from '@/lib/turmas'
 export const dynamic = 'force-dynamic'
 
@@ -214,6 +215,7 @@ export default function SecretariaPage() {
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
       <SecretariaNav active="dashboard" />
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 40px' }}>
+        <ScheduleBlocksPanel onAppointmentsChanged={fetchAppointments} />
         <div style={{ marginBottom: 16 }}>
           <FiltrosSemana filtros={filtros} onFiltros={setFiltros} disciplines={disciplines} turmas={turmas} totalFiltrado={filtered.length} totalGeral={appointments.length} onPrint={() => window.print()} />
         </div>
