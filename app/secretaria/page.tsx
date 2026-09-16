@@ -215,7 +215,6 @@ export default function SecretariaPage() {
     <div style={{ minHeight: '100vh', background: '#f7fdf8' }}>
       <SecretariaNav active="dashboard" />
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 40px' }}>
-        <ScheduleBlocksPanel onAppointmentsChanged={fetchAppointments} />
         <div style={{ marginBottom: 16 }}>
           <FiltrosSemana filtros={filtros} onFiltros={setFiltros} disciplines={disciplines} turmas={turmas} totalFiltrado={filtered.length} totalGeral={appointments.length} onPrint={() => window.print()} />
         </div>
@@ -228,6 +227,7 @@ export default function SecretariaPage() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.25)', background: '#e8f9eb', color: '#23A455', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             <ArchiveRestore style={{ width: 13, height: 13 }} />Ver arquivados
           </button>
+          <ScheduleBlocksPanel onAppointmentsChanged={fetchAppointments} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }} className="no-print stats-grid">
           <StatCard label="Confirmados" value={confirmed.length} icon={CheckCircle} color="#23A455" bg="#e8f9eb" />

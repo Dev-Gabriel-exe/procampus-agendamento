@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, CalendarDays, CheckCircle, Loader2, Trash2, UserRound, Users, XCircle } from 'lucide-react'
+import { Ban, CalendarDays, CheckCircle, Loader2, Trash2, UserRound, Users, X, XCircle } from 'lucide-react'
 
 type TeacherOption = {
   id: string
@@ -39,6 +39,7 @@ function formatPeriod(block: ScheduleBlockItem) {
 }
 
 export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppointmentsChanged: () => void }) {
+  const [isOpen, setIsOpen] = useState(false)
   const [blocks, setBlocks] = useState<ScheduleBlockItem[]>([])
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [startDate, setStartDate] = useState(todayInput())
@@ -75,6 +76,22 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving && !deletingId) setIsOpen(false)
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, saving, deletingId])
 
   const sortedTeachers = useMemo(
     () => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
@@ -170,20 +187,52 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
   }
 
   return (
-    <section className="no-print" style={{ background: 'white', border: '1.5px solid rgba(245,158,11,0.25)', borderRadius: 18, padding: 18, marginBottom: 18, boxShadow: '0 3px 18px rgba(0,0,0,0.04)' }}>
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setMessage(null)
+          setIsOpen(true)
+        }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1.5px solid rgba(234,88,12,0.28)', background: '#fff7ed', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+      >
+        <Ban style={{ width: 13, height: 13 }} />
+        Bloquear datas
+        {blocks.length > 0 && (
+          <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#ea580c', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
+            {blocks.length}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div
+          className="no-print"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget && !saving && !deletingId) setIsOpen(false)
+          }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(4,25,10,0.62)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+    <section role="dialog" aria-modal="true" aria-labelledby="schedule-blocks-title" style={{ width: 'min(920px,100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'white', border: '1.5px solid rgba(245,158,11,0.25)', borderRadius: 18, padding: 18, boxShadow: '0 24px 70px rgba(0,0,0,0.28)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 42, height: 42, borderRadius: 12, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Ban style={{ width: 20, height: 20, color: '#ea580c' }} />
           </div>
           <div>
-            <h2 style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', color: '#0a1a0d', fontSize: 17, fontWeight: 800, margin: 0 }}>Bloquear agendamentos</h2>
+            <h2 id="schedule-blocks-title" style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', color: '#0a1a0d', fontSize: 17, fontWeight: 800, margin: 0 }}>Bloquear agendamentos</h2>
             <p style={{ color: '#6b8f72', fontSize: 12, margin: '4px 0 0' }}>Cadastre datas ou semanas sem plantão. Não há limite de bloqueios.</p>
           </div>
         </div>
-        <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 999, padding: '5px 10px', fontSize: 11, fontWeight: 700 }}>
-          Agendamentos existentes serão cancelados
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 999, padding: '5px 10px', fontSize: 11, fontWeight: 700 }}>
+            Agendamentos existentes serão cancelados
+          </span>
+          <button type="button" onClick={() => setIsOpen(false)} disabled={saving || Boolean(deletingId)} aria-label="Fechar" title="Fechar" style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid #e5e7eb', background: 'white', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: saving || deletingId ? 'not-allowed' : 'pointer' }}>
+            <X style={{ width: 17, height: 17 }} />
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 12 }} className="block-form-grid">
@@ -265,5 +314,8 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
 
       <style>{`@media(max-width:640px){.block-form-grid{grid-template-columns:1fr!important;}.block-form-grid>div{grid-column:1!important;}}`}</style>
     </section>
+        </div>
+      )}
+    </>
   )
 }
