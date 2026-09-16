@@ -218,7 +218,7 @@ export default function SecretariaPage() {
         <div style={{ marginBottom: 16 }}>
           <FiltrosSemana filtros={filtros} onFiltros={setFiltros} disciplines={disciplines} turmas={turmas} totalFiltrado={filtered.length} totalGeral={appointments.length} onPrint={() => window.print()} />
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }} className="no-print">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }} className="no-print">
           <button onClick={() => setShowArchiveModal(true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1.5px solid rgba(64,84,178,0.25)', background: '#eef1fb', color: '#4054B2', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             <Archive style={{ width: 13, height: 13 }} />Arquivar antigos

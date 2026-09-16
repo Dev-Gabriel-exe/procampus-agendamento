@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { getSelectableGradesForRole, isGeral } from '@/lib/roles'
+import { isGeral } from '@/lib/roles'
+import { BlockInputError, blockStorageError, parseBlockSelection } from '@/lib/block-selection'
 import { appointmentStartUtc, parseDateInput } from '@/lib/schedule-blocks'
 import { sendCancellationToParent } from '@/lib/email'
 
@@ -35,7 +36,7 @@ export async function GET() {
     return NextResponse.json(visible)
   } catch (error) {
     console.error(error)
-    return NextResponse.json({ error: 'Erro ao buscar bloqueios' }, { status: 500 })
+    return NextResponse.json({ error: blockStorageError(error) }, { status: 500 })
   }
 }
 
@@ -47,31 +48,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
+    const { teacherIds, grades } = parseBlockSelection(body, role)
     const startDate = parseDateInput(String(body.startDate ?? ''))
     const endDate = parseDateInput(String(body.endDate ?? body.startDate ?? ''))
-    const teacherId = typeof body.teacherId === 'string' && body.teacherId.trim()
-      ? body.teacherId.trim()
-      : null
     const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
-
-    if (body.grades !== undefined && !Array.isArray(body.grades)) {
-      return NextResponse.json({ error: 'As séries devem ser enviadas em uma lista.' }, { status: 400 })
-    }
-
-    const rawGrades = Array.isArray(body.grades) ? body.grades : []
-    if (rawGrades.some((grade: unknown) => typeof grade !== 'string' || !grade.trim())) {
-      return NextResponse.json({ error: 'Há uma série inválida no bloqueio.' }, { status: 400 })
-    }
-
-    const allowedGrades = getSelectableGradesForRole(role)
-    const requestedGrades = [...new Set<string>((rawGrades as string[]).map(grade => grade.trim()))]
-    const unauthorizedGrades = requestedGrades.filter(grade => !allowedGrades.includes(grade))
-    if (unauthorizedGrades.length > 0) {
-      return NextResponse.json({
-        error: `Série(s) fora do seu nível de acesso: ${unauthorizedGrades.join(', ')}`,
-      }, { status: 403 })
-    }
-    const grades = requestedGrades.sort((a, b) => allowedGrades.indexOf(a) - allowedGrades.indexOf(b))
 
     if (!startDate || !endDate) {
       return NextResponse.json({ error: 'Informe datas válidas.' }, { status: 400 })
@@ -86,59 +66,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'O motivo deve ter entre 3 e 240 caracteres.' }, { status: 400 })
     }
 
-    let selectedTeacher: { id: string; name: string; role: string } | null = null
-    if (teacherId) {
-      selectedTeacher = await prisma.teacher.findUnique({
-        where: { id: teacherId },
+    if (teacherIds.length) {
+      const selectedTeachers = await prisma.teacher.findMany({
+        where: { id: { in: teacherIds } },
         select: { id: true, name: true, role: true },
       })
-      if (!selectedTeacher) {
-        return NextResponse.json({ error: 'Professor não encontrado.' }, { status: 404 })
+      if (selectedTeachers.length !== teacherIds.length) {
+        return NextResponse.json({ error: 'Um dos professores não existe mais. Atualize a lista.' }, { status: 400 })
       }
-      if (!isGeral(role) && selectedTeacher.role !== role) {
+      if (!isGeral(role) && selectedTeachers.some(teacher => teacher.role !== role)) {
         return NextResponse.json({ error: 'Professor fora do seu nível de acesso.' }, { status: 403 })
       }
     }
 
-    const duplicate = await prisma.scheduleBlock.findFirst({
-      where: { startDate, endDate, teacherId, role, reason, grades: { equals: grades } },
-      select: { id: true },
-    })
-    if (duplicate) {
-      return NextResponse.json({ error: 'Este bloqueio já foi cadastrado.' }, { status: 409 })
-    }
-
-    const candidates = await prisma.appointment.findMany({
-      where: {
-        status: 'confirmed',
-        date: { gte: startDate, lte: endDate },
-        ...(grades.length > 0 ? { studentGrade: { in: grades } } : {}),
-      },
-      include: { availability: { include: { teacher: true } } },
-    })
-
-    const now = new Date()
-    const appointmentsToCancel = candidates.filter(appointment => {
-      const teacher = appointment.availability.teacher
-      const matchesScope = teacherId
-        ? teacher.id === teacherId
-        : isGeral(role) || teacher.role === role
-      return matchesScope && appointmentStartUtc(appointment.date, appointment.startTime) > now
-    })
-    const appointmentIds = appointmentsToCancel.map(appointment => appointment.id)
-
-    const [block] = await prisma.$transaction([
-      prisma.scheduleBlock.create({
-        data: { startDate, endDate, reason, teacherId, role, grades },
-        include: { teacher: { select: { id: true, name: true, role: true } } },
-      }),
-      prisma.appointment.updateMany({
-        where: { id: { in: appointmentIds }, status: 'confirmed' },
+    // Um registro por professor, na mesma transação: sem nova tabela e sem gravação parcial.
+    const targets: (string | null)[] = teacherIds.length ? teacherIds : [null]
+    const { blocks, appointmentsToCancel } = await prisma.$transaction(async tx => {
+      const blocks = []
+      for (const teacherId of targets) {
+        const duplicate = await tx.scheduleBlock.findFirst({
+          where: { startDate, endDate, teacherId, role, reason, grades: { equals: grades } },
+        })
+        if (duplicate) continue
+        blocks.push(await tx.scheduleBlock.create({
+          data: { startDate, endDate, reason, teacherId, role, grades },
+          include: { teacher: { select: { id: true, name: true, role: true } } },
+        }))
+      }
+      if (!blocks.length) throw new BlockInputError('Os bloqueios selecionados já estão cadastrados.', 409)
+      const candidates = await tx.appointment.findMany({
+        where: {
+          status: 'confirmed', date: { gte: startDate, lte: endDate },
+          ...(grades.length ? { studentGrade: { in: grades } } : {}),
+          availability: { teacher: teacherIds.length ? { id: { in: teacherIds } } : isGeral(role) ? {} : { role } },
+        },
+        include: { availability: { include: { teacher: true } } },
+      })
+      const now = new Date()
+      const appointmentsToCancel = candidates.filter(appointment => appointmentStartUtc(appointment.date, appointment.startTime) > now)
+      await tx.appointment.updateMany({
+        where: { id: { in: appointmentsToCancel.map(appointment => appointment.id) }, status: 'confirmed' },
         data: { status: 'cancelled' },
-      }),
-    ])
+      })
+      return { blocks, appointmentsToCancel }
+    }, { isolationLevel: 'Serializable', timeout: 20000 })
 
-    const notificationResults = await Promise.all(appointmentsToCancel.map(appointment => sendCancellationToParent({
+    const notificationResults = await Promise.allSettled(appointmentsToCancel.map(appointment => sendCancellationToParent({
       parentName: appointment.parentName,
       parentEmail: appointment.parentEmail,
       studentName: appointment.studentName,
@@ -149,16 +122,20 @@ export async function POST(req: NextRequest) {
       startTime: appointment.startTime,
       cancellationReason: reason,
     })))
-    const notifiedCount = notificationResults.filter(Boolean).length
+    const notifiedCount = notificationResults.filter(result => result.status === 'fulfilled' && result.value).length
 
     return NextResponse.json({
-      block: { ...block, canDelete: true },
+      block: { ...blocks[0], canDelete: true },
+      blocks: blocks.map(block => ({ ...block, canDelete: true })),
+      createdCount: blocks.length,
       cancelledCount: appointmentsToCancel.length,
       notifiedCount,
     }, { status: 201 })
   } catch (error) {
+    if (error instanceof BlockInputError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if ((error as { code?: string })?.code === 'P2034') return NextResponse.json({ error: 'O calendário foi alterado ao mesmo tempo. Atualize e tente novamente.' }, { status: 409 })
     console.error(error)
-    return NextResponse.json({ error: 'Erro ao criar bloqueio' }, { status: 500 })
+    return NextResponse.json({ error: blockStorageError(error) }, { status: 500 })
   }
 }
 

@@ -1,385 +1,202 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, CalendarDays, CheckCircle, GraduationCap, Loader2, Trash2, UserRound, Users, X, XCircle } from 'lucide-react'
-import { ALL_GRADES } from '@/lib/roles'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Ban, CalendarDays, CheckCircle, Loader2, Search, Trash2, X } from 'lucide-react'
+import styles from './ScheduleBlocksPanel.module.css'
 
-type TeacherOption = {
-  id: string
-  name: string
+type TeacherOption = { id: string; name: string; grades: string[] }
+type Block = {
+  id: string; startDate: string; endDate: string; reason: string; grades: string[]
+  canDelete: boolean; teacher: { id: string; name: string } | null
 }
-
-type ScheduleBlockItem = {
-  id: string
-  startDate: string
-  endDate: string
-  reason: string
-  grades: string[]
-  canDelete: boolean
-  teacher: { id: string; name: string } | null
-}
-
-function todayInput() {
-  const local = new Date(Date.now() - 3 * 60 * 60 * 1000)
-  return [
-    local.getUTCFullYear(),
-    String(local.getUTCMonth() + 1).padStart(2, '0'),
-    String(local.getUTCDate()).padStart(2, '0'),
-  ].join('-')
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Fortaleza',
-  })
-}
-
-function formatPeriod(block: ScheduleBlockItem) {
-  const start = formatDate(block.startDate)
-  const end = formatDate(block.endDate)
-  return start === end ? start : `${start} a ${end}`
+function today() { return new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10) }
+function displayDate(value: string) { return new Date(value.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' }) }
+function errorText(error: unknown) { return error instanceof Error ? error.message : 'Falha inesperada. Tente novamente.' }
+async function readResponse(response: Response) {
+  const data = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(response.status === 401 ? 'Sua sessão expirou. Entre novamente.' : data?.error || 'Não foi possível carregar os dados. Tente novamente.')
+  if (!data) throw new Error('O servidor retornou uma resposta inválida. Atualize a página.')
+  return data
 }
 
 export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppointmentsChanged: () => void }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [blocks, setBlocks] = useState<ScheduleBlockItem[]>([])
+  const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState<'new' | 'list'>('new')
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
-  const [availableGrades, setAvailableGrades] = useState<string[]>([])
-  const [startDate, setStartDate] = useState(todayInput())
-  const [endDate, setEndDate] = useState(todayInput())
-  const [scope, setScope] = useState<'all' | 'teacher'>('all')
-  const [teacherId, setTeacherId] = useState('')
-  const [gradeScope, setGradeScope] = useState<'all' | 'specific'>('all')
+  const [grades, setGrades] = useState<string[]>([])
+  const [blocks, setBlocks] = useState<Block[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(false)
+  const [blocksLoading, setBlocksLoading] = useState(true)
+  const [optionsReady, setOptionsReady] = useState(false)
+  const [optionsError, setOptionsError] = useState('')
+  const [blocksError, setBlocksError] = useState('')
+  const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null)
+  const [startDate, setStartDate] = useState(today)
+  const [endDate, setEndDate] = useState(today)
+  const [allTeachers, setAllTeachers] = useState(true)
+  const [teacherIds, setTeacherIds] = useState<string[]>([])
+  const [allGrades, setAllGrades] = useState(false)
   const [selectedGrades, setSelectedGrades] = useState<string[]>([])
+  const [search, setSearch] = useState('')
   const [reason, setReason] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [reviewing, setReviewing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const busy = saving || Boolean(deletingId)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const submitting = useRef(false)
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const loadBlocks = useCallback(async () => {
+    setBlocksLoading(true); setBlocksError('')
     try {
-      const [blocksResponse, teachersResponse, subjectsResponse] = await Promise.all([
-        fetch('/api/bloqueios'),
-        fetch('/api/professores'),
-        fetch('/api/disciplinas'),
-      ])
-      const [blocksData, teachersData, subjectsData] = await Promise.all([
-        blocksResponse.json(),
-        teachersResponse.json(),
-        subjectsResponse.json(),
-      ])
-      if (!blocksResponse.ok || !teachersResponse.ok || !subjectsResponse.ok) throw new Error('Falha ao carregar os dados.')
-      setBlocks(Array.isArray(blocksData)
-        ? blocksData.map((block: any) => ({ ...block, grades: Array.isArray(block.grades) ? block.grades : [] }))
-        : [])
-      setTeachers(Array.isArray(teachersData)
-        ? teachersData.map((teacher: any) => ({ id: teacher.id, name: teacher.name }))
-        : [])
-      const grades = Array.isArray(subjectsData)
-        ? [...new Set(subjectsData.map((subject: any) => subject.grade).filter((grade: unknown): grade is string => typeof grade === 'string'))]
-        : []
-      setAvailableGrades(grades.sort((a, b) => ALL_GRADES.indexOf(a as any) - ALL_GRADES.indexOf(b as any)))
-    } catch {
-      setMessage({ type: 'error', text: 'Não foi possível carregar os bloqueios.' })
-    } finally {
-      setLoading(false)
-    }
+      const data = await readResponse(await fetch('/api/bloqueios', { cache: 'no-store' }))
+      if (!Array.isArray(data)) throw new Error('Resposta inválida ao carregar os bloqueios.')
+      setBlocks(data.map(block => ({ ...block, grades: Array.isArray(block.grades) ? block.grades : [] })))
+    } catch (error) { setBlocksError(errorText(error)) }
+    finally { setBlocksLoading(false) }
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  const loadOptions = useCallback(async () => {
+    setOptionsLoading(true); setOptionsError(''); setOptionsReady(false)
+    try {
+      const response = await fetch('/api/bloqueios/opcoes', { cache: 'no-store' })
+      const data = await response.json().catch(() => null)
+      if (Array.isArray(data?.grades)) setGrades(data.grades)
+      if (!response.ok) throw new Error(response.status === 401 ? 'Sua sessão expirou. Entre novamente.' : data?.error || 'Não foi possível carregar as opções. Tente novamente.')
+      if (!Array.isArray(data?.teachers) || !Array.isArray(data?.grades)) throw new Error('As opções de bloqueio não estão atualizadas no servidor.')
+      setTeachers(data.teachers); setOptionsReady(true)
+    } catch (error) { setOptionsError(errorText(error)) }
+    finally { setOptionsLoading(false) }
+  }, [])
 
+  useEffect(() => { void loadBlocks() }, [loadBlocks])
   useEffect(() => {
-    if (!isOpen) return
-
-    const previousOverflow = document.body.style.overflow
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving && !deletingId) setIsOpen(false)
-    }
-
+    if (!open) return
+    dialog.current?.showModal()
+    const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, saving, deletingId])
+    return () => { document.body.style.overflow = previous; trigger.current?.focus() }
+  }, [open])
 
-  const sortedTeachers = useMemo(
-    () => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
-    [teachers],
-  )
-
-  async function handleCreate(event: React.FormEvent) {
-    event.preventDefault()
-    setMessage(null)
-
-    if (!startDate || !endDate || !reason.trim()) {
-      setMessage({ type: 'error', text: 'Preencha o período e o motivo.' })
-      return
-    }
-    if (endDate < startDate) {
-      setMessage({ type: 'error', text: 'A data final não pode ser anterior à inicial.' })
-      return
-    }
-    if (scope === 'teacher' && !teacherId) {
-      setMessage({ type: 'error', text: 'Selecione o professor.' })
-      return
-    }
-    if (gradeScope === 'specific' && selectedGrades.length === 0) {
-      setMessage({ type: 'error', text: 'Selecione pelo menos uma série.' })
-      return
-    }
-
-    const target = scope === 'all'
-      ? 'todos os professores'
-      : sortedTeachers.find(teacher => teacher.id === teacherId)?.name ?? 'o professor selecionado'
-    const gradeTarget = gradeScope === 'all' ? 'todas as séries' : selectedGrades.join(', ')
-    if (!window.confirm(`Bloquear ${formatDate(`${startDate}T12:00:00.000Z`)}${endDate !== startDate ? ` até ${formatDate(`${endDate}T12:00:00.000Z`)}` : ''} para ${target}, abrangendo ${gradeTarget}? Somente os agendamentos futuros correspondentes serão cancelados e os pais receberão um e-mail.`)) return
-
-    setSaving(true)
-    try {
-      const response = await fetch('/api/bloqueios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startDate,
-          endDate,
-          teacherId: scope === 'teacher' ? teacherId : null,
-          grades: gradeScope === 'specific' ? selectedGrades : [],
-          reason: reason.trim(),
-        }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || 'Erro ao criar bloqueio.')
-
-      const cancelledCount = Number(data.cancelledCount ?? 0)
-      const notifiedCount = Number(data.notifiedCount ?? 0)
-      setMessage({
-        type: 'success',
-        text: cancelledCount > 0
-          ? notifiedCount === cancelledCount
-            ? `Bloqueio criado. ${cancelledCount} agendamento${cancelledCount !== 1 ? 's' : ''} cancelado${cancelledCount !== 1 ? 's' : ''} e os pais foram notificados.`
-            : `Bloqueio criado e ${cancelledCount} agendamento${cancelledCount !== 1 ? 's' : ''} cancelado${cancelledCount !== 1 ? 's' : ''}. Foram enviados ${notifiedCount} de ${cancelledCount} e-mails; confira a configuração do Gmail.`
-          : 'Bloqueio criado. Não havia agendamentos futuros para cancelar.',
-      })
-      setReason('')
-      setTeacherId('')
-      setScope('all')
-      setGradeScope('all')
-      setSelectedGrades([])
-      await loadData()
-      onAppointmentsChanged()
-    } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao criar bloqueio.' })
-    } finally {
-      setSaving(false)
-    }
+  function openDialog() {
+    setOpen(true); setReviewing(false); setMessage(null)
+    void loadOptions(); void loadBlocks()
   }
-
-  async function handleDelete(block: ScheduleBlockItem) {
-    if (!block.canDelete) return
-    if (!window.confirm('Desbloquear este período? Os agendamentos cancelados anteriormente não serão restaurados.')) return
-
-    setDeletingId(block.id)
-    setMessage(null)
-    try {
-      const response = await fetch(`/api/bloqueios?id=${encodeURIComponent(block.id)}`, { method: 'DELETE' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || 'Erro ao desbloquear período.')
-      setBlocks(current => current.filter(item => item.id !== block.id))
-      setMessage({ type: 'success', text: 'Período desbloqueado. Os horários livres voltarão a aparecer para os pais.' })
-    } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao desbloquear período.' })
-    } finally {
-      setDeletingId(null)
-    }
-  }
+  function closeDialog() { if (!busy) setOpen(false) }
+  const chosenNames = teachers.filter(teacher => teacherIds.includes(teacher.id)).map(teacher => teacher.name)
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const visibleTeachers = teachers.filter(teacher => normalize(teacher.name).includes(normalize(search)))
+  const gradeSummary = allGrades ? 'Todas as séries' : selectedGrades.join(', ') || 'Nenhuma série selecionada'
+  const teacherSummary = allTeachers ? 'Todos os professores do seu acesso' : chosenNames.join(', ') || 'Nenhum professor selecionado'
+  const canSubmit = optionsReady && !optionsLoading && !blocksLoading && !blocksError && !busy
+  const selectionValid = (allTeachers || teacherIds.length > 0) && (allGrades || selectedGrades.length > 0)
 
   function toggleGrade(grade: string) {
-    setSelectedGrades(current => current.includes(grade)
-      ? current.filter(item => item !== grade)
-      : [...current, grade].sort((a, b) => availableGrades.indexOf(a) - availableGrades.indexOf(b)))
+    setSelectedGrades(current => {
+      const base = allGrades ? grades : current
+      return base.includes(grade) ? base.filter(item => item !== grade) : [...base, grade]
+    })
+    setAllGrades(false)
+  }
+  function toggleTeacher(id: string) {
+    setTeacherIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  }
+  function review(event: React.FormEvent) {
+    event.preventDefault(); setMessage(null)
+    if (!canSubmit) return
+    if (!selectionValid) { setMessage({ error: true, text: 'Marque pelo menos uma série e um professor, ou escolha todas/todos.' }); return }
+    if (!startDate || !endDate || endDate < startDate || endDate < today()) { setMessage({ error: true, text: 'Confira as datas: o período não pode terminar antes de começar nem estar totalmente no passado.' }); return }
+    if (reason.trim().length < 3 || reason.trim().length > 240) { setMessage({ error: true, text: 'Informe um motivo de 3 a 240 caracteres.' }); return }
+    setReviewing(true)
+  }
+  async function save() {
+    if (submitting.current || !canSubmit || !selectionValid) return
+    submitting.current = true; setSaving(true); setMessage(null)
+    try {
+      const data = await readResponse(await fetch('/api/bloqueios', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDate, endDate, teacherScope: allTeachers ? 'all' : 'selected', teacherIds: allTeachers ? [] : teacherIds, gradeScope: allGrades ? 'all' : 'selected', grades: allGrades ? [] : selectedGrades, reason: reason.trim() }),
+      }))
+      const cancelled = Number(data.cancelledCount ?? 0)
+      const notified = Number(data.notifiedCount ?? 0)
+      setMessage({ error: false, text: 'Bloqueio salvo. ' + (cancelled ? cancelled + ' agendamento(s) cancelado(s); ' + notified + ' de ' + cancelled + ' e-mails enviados.' + (notified < cancelled ? ' Confira o serviço de e-mail.' : '') : 'Nenhum agendamento precisou ser cancelado.') })
+      setReviewing(false); setReason(''); setTab('list')
+      void loadBlocks()
+      onAppointmentsChanged()
+    } catch (error) { setMessage({ error: true, text: errorText(error) }) }
+    finally { setSaving(false); submitting.current = false }
+  }
+  async function remove(block: Block) {
+    if (busy || !block.canDelete || !window.confirm('Remover o bloqueio de ' + (block.teacher?.name ?? 'todos os professores') + ', de ' + displayDate(block.startDate) + ' a ' + displayDate(block.endDate) + '? Outros bloqueios continuam valendo. Agendamentos cancelados não serão restaurados.')) return
+    setDeletingId(block.id); setMessage(null)
+    try {
+      await readResponse(await fetch('/api/bloqueios?id=' + encodeURIComponent(block.id), { method: 'DELETE' }))
+      setBlocks(current => current.filter(item => item.id !== block.id))
+      setMessage({ error: false, text: 'Bloqueio removido. Outros bloqueios do mesmo período continuam valendo.' })
+    } catch (error) { setMessage({ error: true, text: errorText(error) }) }
+    finally { setDeletingId(null) }
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 10,
-    border: '1.5px solid #d7eadb', background: 'white', color: '#0a1a0d',
-    fontSize: 14, outline: 'none', fontFamily: 'inherit',
-  }
-  const labelStyle: React.CSSProperties = {
-    display: 'block', color: '#3d5c42', fontSize: 11, fontWeight: 800,
-    textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6,
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => {
-          setMessage(null)
-          setIsOpen(true)
-        }}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1.5px solid rgba(234,88,12,0.28)', background: '#fff7ed', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-      >
-        <Ban style={{ width: 13, height: 13 }} />
-        Bloquear datas
-        {blocks.length > 0 && (
-          <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#ea580c', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
-            {blocks.length}
-          </span>
-        )}
-      </button>
-
-      {isOpen && (
-        <div
-          className="no-print"
-          role="presentation"
-          onMouseDown={event => {
-            if (event.target === event.currentTarget && !saving && !deletingId) setIsOpen(false)
-          }}
-          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(4,25,10,0.62)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-        >
-    <section role="dialog" aria-modal="true" aria-labelledby="schedule-blocks-title" style={{ width: 'min(920px,100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'white', border: '1.5px solid rgba(245,158,11,0.25)', borderRadius: 18, padding: 18, boxShadow: '0 24px 70px rgba(0,0,0,0.28)' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Ban style={{ width: 20, height: 20, color: '#ea580c' }} />
-          </div>
-          <div>
-            <h2 id="schedule-blocks-title" style={{ fontFamily: 'var(--font-display),"Roboto Slab",serif', color: '#0a1a0d', fontSize: 17, fontWeight: 800, margin: 0 }}>Bloquear agendamentos</h2>
-            <p style={{ color: '#6b8f72', fontSize: 12, margin: '4px 0 0' }}>Cadastre datas ou semanas sem plantão. Não há limite de bloqueios.</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 999, padding: '5px 10px', fontSize: 11, fontWeight: 700 }}>
-            Agendamentos existentes serão cancelados
-          </span>
-          <button type="button" onClick={() => setIsOpen(false)} disabled={saving || Boolean(deletingId)} aria-label="Fechar" title="Fechar" style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid #e5e7eb', background: 'white', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: saving || deletingId ? 'not-allowed' : 'pointer' }}>
-            <X style={{ width: 17, height: 17 }} />
-          </button>
-        </div>
+  return <>
+    <button ref={trigger} type="button" className={styles.trigger + ' no-print'} onClick={openDialog}><Ban size={14} /> Bloquear datas {blocks.length > 0 && <span>{blocks.length}</span>}</button>
+    {open && <dialog ref={dialog} className={styles.dialog + ' no-print'} aria-labelledby="blocks-title" onCancel={event => { event.preventDefault(); closeDialog() }} onClick={event => {
+      if (event.target !== event.currentTarget) return
+      const rect = event.currentTarget.getBoundingClientRect()
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog()
+    }}>
+      <header className={styles.header}>
+        <div><p className={styles.eyebrow}>CALENDÁRIO DE PLANTÕES</p><h2 id="blocks-title">Bloquear agendamentos</h2><p>Escolha quando, quais séries e quais professores.</p></div>
+        <button className={styles.close} type="button" aria-label="Fechar bloqueios" disabled={busy} onClick={closeDialog}><X size={20} /></button>
+      </header>
+      <nav className={styles.tabs} aria-label="Gerenciar bloqueios">
+        <button type="button" aria-pressed={tab === 'new'} disabled={busy} onClick={() => { setTab('new'); setReviewing(false) }}>Novo bloqueio</button>
+        <button type="button" aria-pressed={tab === 'list'} disabled={busy} onClick={() => { setTab('list'); setReviewing(false) }}>Bloqueios cadastrados ({blocks.length})</button>
+      </nav>
+      <div className={styles.body}>
+        {message && <div role={message.error ? 'alert' : 'status'} className={message.error ? styles.error : styles.success}>{!message.error && <CheckCircle size={18} />}{message.text}</div>}
+        {blocksError && <div role="alert" className={styles.error}>{blocksError}<button type="button" onClick={() => void loadBlocks()}>Tentar carregar bloqueios novamente</button></div>}
+        {tab === 'list' ? <>
+          <p className={styles.note}>Bloqueios se acumulam. Um bloqueio antigo para todas as séries também impede o 1º ano: remova-o se a intenção mudou. Cada professor selecionado tem um registro, para permitir desbloqueá-lo separadamente.</p>
+          {blocksLoading ? <p role="status">Carregando bloqueios…</p> : !blocksError && !blocks.length ? <p className={styles.empty}>Nenhum bloqueio atual ou futuro cadastrado.</p> : null}
+          <div className={styles.blockList}>{blocks.map(block => <article key={block.id} className={styles.block}>
+            <div><strong><CalendarDays size={15} /> {displayDate(block.startDate)}{block.startDate !== block.endDate && ' a ' + displayDate(block.endDate)}</strong>
+              <p>{block.teacher?.name ?? 'Todos os professores do grupo'}</p><p className={styles.note}>{block.grades.length ? block.grades.join(' · ') : 'Todas as séries'}</p><p>{block.reason}</p></div>
+            <button type="button" className={styles.remove} disabled={busy || !block.canDelete} onClick={() => void remove(block)} aria-label={'Desbloquear ' + (block.teacher?.name ?? 'todos os professores')} title={block.canDelete ? 'Desbloquear' : 'Criado por outra coordenação'}><Trash2 size={16} /> Desbloquear</button>
+          </article>)}</div>
+        </> : <>
+          {optionsError && <div role="alert" className={styles.error}>{optionsError}<button type="button" onClick={() => void loadOptions()}>Tentar carregar opções novamente</button></div>}
+          {optionsLoading && <p role="status" className={styles.loading}><Loader2 size={17} /> Carregando professores e séries…</p>}
+          {reviewing ? <section className={styles.review} aria-label="Revisar bloqueio">
+            <h3>Confira antes de confirmar</h3><dl><dt>Período</dt><dd>{displayDate(startDate)} a {displayDate(endDate)}</dd><dt>Séries</dt><dd>{gradeSummary}</dd><dt>Professores</dt><dd>{teacherSummary}</dd><dt>Motivo exibido aos pais</dt><dd>{reason.trim()}</dd></dl>
+            <p className={styles.warning}>Somente os agendamentos futuros que coincidirem com o período, os professores e as séries acima serão cancelados. O sistema tentará avisar os responsáveis por e-mail. Os cancelamentos não são desfeitos ao remover o bloqueio.</p>
+            <div className={styles.actions}><button type="button" disabled={busy} onClick={() => setReviewing(false)}>Voltar e ajustar</button><button type="button" className={styles.primary} disabled={!canSubmit} onClick={() => void save()}>{saving ? 'Salvando…' : 'Confirmar bloqueio'}</button></div>
+          </section> : <form onSubmit={review}>
+            <fieldset disabled={busy}><legend>1. Quando bloquear?</legend><div className={styles.dateGrid}>
+              <label>Data inicial<input required type="date" value={startDate} onChange={event => { setStartDate(event.target.value); if (endDate < event.target.value) setEndDate(event.target.value) }} /></label>
+              <label>Data final<input required type="date" min={startDate} value={endDate} onChange={event => setEndDate(event.target.value)} /></label>
+            </div><p className={styles.note}>Para um único dia, use a mesma data nos dois campos.</p></fieldset>
+            <fieldset disabled={busy || optionsLoading || !grades.length}><legend>2. Quais séries serão bloqueadas?</legend>
+              <label className={styles.master}><input type="checkbox" checked={allGrades} onChange={event => { setAllGrades(event.target.checked); setSelectedGrades([]) }} /> Todas as séries do meu acesso</label>
+              <p className={styles.note}>Marque uma ou mais séries. Isso funciona também com todos os professores.</p>
+              <div className={styles.gradeGrid}>{grades.map(grade => <label key={grade} className={styles.option} data-checked={allGrades || selectedGrades.includes(grade)}><input type="checkbox" checked={allGrades || selectedGrades.includes(grade)} onChange={() => toggleGrade(grade)} />{grade}</label>)}</div>
+              <p className={styles.count}>{allGrades ? 'Todas as séries' : selectedGrades.length + ' série(s) selecionada(s)'}</p>
+            </fieldset>
+            <fieldset disabled={busy || !optionsReady || optionsLoading}><legend>3. Quais professores?</legend>
+              <div className={styles.scope}><label><input type="radio" name="block-teacher-scope" checked={allTeachers} onChange={() => setAllTeachers(true)} /> Todos os professores</label><label><input type="radio" name="block-teacher-scope" checked={!allTeachers} onChange={() => setAllTeachers(false)} /> Selecionar professores</label></div>
+              {allTeachers ? <p className={styles.note}>Vale para todos os professores do seu acesso, somente nas séries marcadas acima.</p> : <>
+                <label className={styles.search}><Search size={17} /><input type="search" aria-label="Buscar professor" placeholder="Buscar pelo nome…" value={search} onChange={event => setSearch(event.target.value)} /></label>
+                <div className={styles.tools}><span>{teacherIds.length} professor(es) selecionado(s)</span><button type="button" onClick={() => setTeacherIds(current => [...new Set([...current, ...visibleTeachers.map(teacher => teacher.id)])])}>Marcar exibidos</button><button type="button" onClick={() => setTeacherIds([])}>Limpar professores</button></div>
+                <div className={styles.teacherList}>{visibleTeachers.map(teacher => <label key={teacher.id} className={styles.option} data-checked={teacherIds.includes(teacher.id)}><input type="checkbox" checked={teacherIds.includes(teacher.id)} onChange={() => toggleTeacher(teacher.id)} /><span>{teacher.name}<small>{teacher.grades.join(' · ') || 'Sem vínculo de série cadastrado'}</small></span></label>)}</div>
+                {!visibleTeachers.length && <p className={styles.empty}>{teachers.length ? 'Nenhum professor corresponde à busca.' : 'Nenhum professor cadastrado para este acesso. Confira o cadastro na aba Professores.'}</p>}
+              </>}
+            </fieldset>
+            <fieldset disabled={busy}><legend>4. Motivo para os responsáveis</legend><label><span className={styles.note}>Ex.: Semana de provas do 2º ao 5º ano.</span><textarea aria-label="Motivo exibido aos pais" required minLength={3} maxLength={240} rows={2} value={reason} onChange={event => setReason(event.target.value)} /></label><p className={styles.count}>{reason.length}/240</p></fieldset>
+            <div className={styles.summary}><strong>Resumo do bloqueio</strong><p>{gradeSummary}</p><p>{teacherSummary}</p><small>Os demais atendimentos não são afetados por este bloqueio.</small></div>
+            <div className={styles.actions}><button type="button" onClick={closeDialog} disabled={busy}>Fechar</button><button className={styles.primary} type="submit" disabled={!canSubmit || !selectionValid}>Revisar bloqueio</button></div>
+          </form>}
+        </>}
       </div>
-
-      <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 12 }} className="block-form-grid">
-        <div>
-          <label style={labelStyle}>Data inicial</label>
-          <input type="date" value={startDate} onChange={event => {
-            setStartDate(event.target.value)
-            if (!endDate || endDate < event.target.value) setEndDate(event.target.value)
-          }} style={inputStyle} />
-        </div>
-        <div>
-          <label style={labelStyle}>Data final</label>
-          <input type="date" min={startDate || undefined} value={endDate} onChange={event => setEndDate(event.target.value)} style={inputStyle} />
-        </div>
-        <div>
-          <label style={labelStyle}>Quem será bloqueado</label>
-          <select value={scope} onChange={event => {
-            const nextScope = event.target.value as 'all' | 'teacher'
-            setScope(nextScope)
-            if (nextScope === 'all') setTeacherId('')
-          }} style={inputStyle}>
-            <option value="all">Todos os professores</option>
-            <option value="teacher">Um professor específico</option>
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Professor</label>
-          <select value={teacherId} disabled={scope !== 'teacher'} onChange={event => setTeacherId(event.target.value)} style={{ ...inputStyle, opacity: scope === 'teacher' ? 1 : 0.55 }}>
-            <option value="">{scope === 'teacher' ? 'Selecione o professor' : 'Não se aplica'}</option>
-            {sortedTeachers.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
-          </select>
-        </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <label style={labelStyle}>Séries afetadas</label>
-          <select value={gradeScope} onChange={event => {
-            const nextScope = event.target.value as 'all' | 'specific'
-            setGradeScope(nextScope)
-            if (nextScope === 'all') setSelectedGrades([])
-          }} style={inputStyle}>
-            <option value="all">Todas as séries atendidas</option>
-            <option value="specific">Selecionar séries específicas</option>
-          </select>
-
-          {gradeScope === 'specific' && (
-            <div style={{ marginTop: 9, padding: 10, borderRadius: 11, border: '1px solid #d7eadb', background: '#f8fcf9', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 7 }}>
-              {availableGrades.map(grade => {
-                const checked = selectedGrades.includes(grade)
-                return (
-                  <label key={grade} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 9px', borderRadius: 9, border: `1px solid ${checked ? '#86efac' : '#e5eee7'}`, background: checked ? '#f0fdf4' : 'white', color: checked ? '#166534' : '#3d5c42', cursor: 'pointer', fontSize: 12, fontWeight: checked ? 700 : 600 }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleGrade(grade)} style={{ accentColor: '#23A455' }} />
-                    {grade}
-                  </label>
-                )
-              })}
-              {availableGrades.length === 0 && (
-                <p style={{ gridColumn: '1 / -1', color: '#9ca3af', fontSize: 12, margin: 0 }}>Nenhuma série disponível para este acesso.</p>
-              )}
-            </div>
-          )}
-          <p style={{ color: '#6b8f72', fontSize: 11, margin: '6px 2px 0' }}>
-            {gradeScope === 'all'
-              ? 'O bloqueio valerá para todas as séries atendidas pelo professor ou grupo escolhido.'
-              : `${selectedGrades.length} série${selectedGrades.length !== 1 ? 's' : ''} selecionada${selectedGrades.length !== 1 ? 's' : ''}. As demais continuarão com horários disponíveis.`}
-          </p>
-        </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <label style={labelStyle}>Motivo exibido aos pais</label>
-          <textarea maxLength={240} rows={2} value={reason} onChange={event => setReason(event.target.value)} placeholder="Ex.: Semana de provas ou afastamento médico do professor." style={{ ...inputStyle, resize: 'vertical', minHeight: 70 }} />
-          <p style={{ textAlign: 'right', color: '#9ca3af', fontSize: 10, margin: '3px 2px 0' }}>{reason.length}/240</p>
-        </div>
-        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="submit" disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minWidth: 210, padding: '11px 18px', borderRadius: 11, border: 'none', background: saving ? '#fdba74' : 'linear-gradient(135deg,#f97316,#ea580c)', color: 'white', fontWeight: 800, fontSize: 13, cursor: saving ? 'wait' : 'pointer' }}>
-            {saving ? <Loader2 style={{ width: 16, height: 16, animation: 'spin .8s linear infinite' }} /> : <Ban style={{ width: 16, height: 16 }} />}
-            {saving ? 'Aplicando bloqueio...' : 'Bloquear data ou período'}
-          </button>
-        </div>
-      </form>
-
-      {message && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 14, padding: '10px 12px', borderRadius: 10, background: message.type === 'success' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${message.type === 'success' ? '#bbf7d0' : '#fecaca'}`, color: message.type === 'success' ? '#15803d' : '#b91c1c', fontSize: 12, fontWeight: 600 }}>
-          {message.type === 'success' ? <CheckCircle style={{ width: 15, height: 15, flexShrink: 0 }} /> : <XCircle style={{ width: 15, height: 15, flexShrink: 0 }} />}
-          {message.text}
-        </div>
-      )}
-
-      <div style={{ borderTop: '1px solid #eef5ef', marginTop: 16, paddingTop: 14 }}>
-        <p style={{ color: '#3d5c42', fontSize: 12, fontWeight: 800, margin: '0 0 10px' }}>Bloqueios atuais ({blocks.length})</p>
-        {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6b8f72', fontSize: 12, padding: 8 }}><Loader2 style={{ width: 15, height: 15, animation: 'spin .8s linear infinite' }} />Carregando...</div>
-        ) : blocks.length === 0 ? (
-          <p style={{ color: '#9ca3af', fontSize: 12, padding: '8px 0', margin: 0 }}>Nenhuma data futura está bloqueada.</p>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 9 }}>
-            {blocks.map(block => (
-              <article key={block.id} style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 9, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {block.teacher ? <UserRound style={{ width: 15, height: 15, color: '#d97706' }} /> : <Users style={{ width: 15, height: 15, color: '#d97706' }} />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ color: '#92400e', fontSize: 12, fontWeight: 800, margin: 0 }}><CalendarDays style={{ width: 12, height: 12, display: 'inline', marginRight: 4 }} />{formatPeriod(block)}</p>
-                  <p style={{ color: '#78350f', fontSize: 11, fontWeight: 700, margin: '3px 0 0' }}>{block.teacher ? `Prof. ${block.teacher.name}` : 'Todos os professores'}</p>
-                  <p style={{ color: '#92400e', fontSize: 10, fontWeight: 700, lineHeight: 1.4, margin: '4px 0 0' }}>
-                    <GraduationCap style={{ width: 11, height: 11, display: 'inline', marginRight: 4 }} />
-                    {block.grades.length > 0 ? block.grades.join(', ') : 'Todas as séries'}
-                  </p>
-                  <p style={{ color: '#92400e', fontSize: 11, lineHeight: 1.4, margin: '5px 0 0', overflowWrap: 'anywhere' }}>{block.reason}</p>
-                </div>
-                <button type="button" onClick={() => handleDelete(block)} disabled={!block.canDelete || deletingId === block.id} title={block.canDelete ? 'Desbloquear período' : 'Criado por outra coordenação'} style={{ border: 'none', background: 'transparent', color: block.canDelete ? '#dc2626' : '#cbd5e1', cursor: block.canDelete ? 'pointer' : 'not-allowed', padding: 4, display: 'flex' }}>
-                  {deletingId === block.id ? <Loader2 style={{ width: 15, height: 15, animation: 'spin .8s linear infinite' }} /> : <Trash2 style={{ width: 15, height: 15 }} />}
-                </button>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <style>{`@media(max-width:640px){.block-form-grid{grid-template-columns:1fr!important;}.block-form-grid>div{grid-column:1!important;}}`}</style>
-    </section>
-        </div>
-      )}
-    </>
-  )
+    </dialog>}
+  </>
 }
