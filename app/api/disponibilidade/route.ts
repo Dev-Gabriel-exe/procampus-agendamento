@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getNextOccurrences } from '@/lib/slots'
-import { blockAppliesToTeacher, blocksTeacherOnDate } from '@/lib/schedule-blocks'
+import { blockAppliesToGrade, blockAppliesToTeacher, blocksTeacherOnDate } from '@/lib/schedule-blocks'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
       teacherSubjects.map(item => [item.teacher.id, { id: item.teacher.id, role: item.teacher.role }])
     ).values()]
     const relevantBlocks = scheduleBlocks.filter(block =>
+      blockAppliesToGrade(block, grade) &&
       teachers.some(teacher => blockAppliesToTeacher(block, teacher))
     )
 
@@ -102,7 +103,7 @@ export async function GET(req: NextRequest) {
 
         // Ignora se já passou ou está fora da janela
         if (date < from || date > to) continue
-        if (blocksTeacherOnDate(scheduleBlocks, { id: avail.teacherId, role: avail.teacher.role }, date)) continue
+        if (blocksTeacherOnDate(scheduleBlocks, { id: avail.teacherId, role: avail.teacher.role }, date, grade)) continue
 
         for (const slot of slots) {
           const [slotH, slotM] = slot.startTime.split(':').map(Number)
@@ -149,7 +150,7 @@ export async function GET(req: NextRequest) {
       for (const date of dates) {
         // Descarta datas fora da janela
         if (date > to) continue
-        if (blocksTeacherOnDate(scheduleBlocks, { id: avail.teacherId, role: avail.teacher.role }, date)) continue
+        if (blocksTeacherOnDate(scheduleBlocks, { id: avail.teacherId, role: avail.teacher.role }, date, grade)) continue
 
         for (const slot of slots) {
           const [slotH, slotM] = slot.startTime.split(':').map(Number)
@@ -201,6 +202,7 @@ export async function GET(req: NextRequest) {
         endDate: block.endDate,
         reason: block.reason,
         teacherName: block.teacher?.name ?? null,
+        grades: block.grades,
       })),
     })
   } catch (e) {

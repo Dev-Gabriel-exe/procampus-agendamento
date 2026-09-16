@@ -87,6 +87,8 @@ model ScheduleBlock {
   startDate DateTime
   endDate   DateTime
   reason    String
+  // Lista vazia = todas as séries. Mantém compatibilidade com bloqueios antigos.
+  grades    String[] @default([])
   role      String   @default("geral")
   teacher   Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId String?

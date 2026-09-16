@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   appointmentStartUtc,
+  blockAppliesToGrade,
   blockAppliesToTeacher,
   blocksTeacherOnDate,
   isDateInsideBlock,
@@ -12,6 +13,7 @@ const collective = {
   endDate: new Date('2026-09-25T12:00:00.000Z'),
   teacherId: null,
   role: 'geral',
+  grades: [],
 }
 
 assert.equal(parseDateInput('2026-02-29'), null, 'deve rejeitar data inexistente')
@@ -30,10 +32,23 @@ assert.equal(blockAppliesToTeacher(individual, { id: 'prof-2', role: 'fund2' }),
 assert.equal(blockAppliesToTeacher(individual, { id: 'prof-1', role: 'fund1' }), false)
 assert.equal(blocksTeacherOnDate([individual], { id: 'prof-2', role: 'fund2' }, '2026-09-23T12:00:00.000Z'), individual)
 
+assert.equal(blockAppliesToGrade(collective, '1º Ano Fundamental'), true, 'lista vazia deve abranger todas as séries')
+const selectedGrades = { ...collective, grades: ['2º Ano Fundamental', '3º Ano Fundamental'] }
+assert.equal(blockAppliesToGrade(selectedGrades, '2º Ano Fundamental'), true)
+assert.equal(blockAppliesToGrade(selectedGrades, '1º Ano Fundamental'), false)
+assert.equal(
+  blocksTeacherOnDate([selectedGrades], { id: 'prof-1', role: 'fund1' }, '2026-09-23T12:00:00.000Z', '2º Ano Fundamental'),
+  selectedGrades,
+)
+assert.equal(
+  blocksTeacherOnDate([selectedGrades], { id: 'prof-1', role: 'fund1' }, '2026-09-23T12:00:00.000Z', '1º Ano Fundamental'),
+  undefined,
+)
+
 assert.equal(
   appointmentStartUtc('2026-09-21T12:00:00.000Z', '14:20').toISOString(),
   '2026-09-21T17:20:00.000Z',
   'horário de Fortaleza deve ser convertido para UTC',
 )
 
-console.log('12 testes de regras de bloqueio passaram.')
+console.log('17 testes de regras de bloqueio passaram.')

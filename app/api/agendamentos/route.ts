@@ -71,9 +71,19 @@ export async function POST(req: NextRequest) {
       where: {
         startDate: { lte: appointmentDate },
         endDate: { gte: appointmentDate },
-        OR: [
-          { teacherId: avail.teacherId },
-          { teacherId: null, role: { in: ['geral', avail.teacher.role] } },
+        AND: [
+          {
+            OR: [
+              { teacherId: avail.teacherId },
+              { teacherId: null, role: { in: ['geral', avail.teacher.role] } },
+            ],
+          },
+          {
+            OR: [
+              { grades: { isEmpty: true } },
+              { grades: { has: studentGrade } },
+            ],
+          },
         ],
       },
       select: { reason: true },

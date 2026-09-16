@@ -3,6 +3,15 @@
 
 export type Role = 'geral' | 'fund1' | 'fund2'
 
+export const ALL_GRADES = [
+  'Educação Infantil',
+  '1º Ano Fundamental', '2º Ano Fundamental', '3º Ano Fundamental',
+  '4º Ano Fundamental', '5º Ano Fundamental',
+  '6º Ano Fundamental', '7º Ano Fundamental',
+  '8º Ano Fundamental', '9º Ano Fundamental',
+  '1ª Série Médio', '2ª Série Médio', '3ª Série Médio',
+] as const
+
 // Séries de cada role
 export const GRADES_BY_ROLE: Record<Role, string[]> = {
   geral: [], // vazio = sem restrição (vê tudo)
@@ -24,6 +33,10 @@ export function getGradesForRole(role: string): string[] {
 
 export function isGeral(role: string): boolean {
   return role === 'geral'
+}
+
+export function getSelectableGradesForRole(role: string): string[] {
+  return isGeral(role) ? [...ALL_GRADES] : getGradesForRole(role)
 }
 
 /** Filtra lista de séries pelo role */

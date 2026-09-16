@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { isGeral } from '@/lib/roles'
+import { getSelectableGradesForRole, isGeral } from '@/lib/roles'
 import { appointmentStartUtc, parseDateInput } from '@/lib/schedule-blocks'
 import { sendCancellationToParent } from '@/lib/email'
 
@@ -54,6 +54,25 @@ export async function POST(req: NextRequest) {
       : null
     const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
 
+    if (body.grades !== undefined && !Array.isArray(body.grades)) {
+      return NextResponse.json({ error: 'As séries devem ser enviadas em uma lista.' }, { status: 400 })
+    }
+
+    const rawGrades = Array.isArray(body.grades) ? body.grades : []
+    if (rawGrades.some((grade: unknown) => typeof grade !== 'string' || !grade.trim())) {
+      return NextResponse.json({ error: 'Há uma série inválida no bloqueio.' }, { status: 400 })
+    }
+
+    const allowedGrades = getSelectableGradesForRole(role)
+    const requestedGrades = [...new Set<string>((rawGrades as string[]).map(grade => grade.trim()))]
+    const unauthorizedGrades = requestedGrades.filter(grade => !allowedGrades.includes(grade))
+    if (unauthorizedGrades.length > 0) {
+      return NextResponse.json({
+        error: `Série(s) fora do seu nível de acesso: ${unauthorizedGrades.join(', ')}`,
+      }, { status: 403 })
+    }
+    const grades = requestedGrades.sort((a, b) => allowedGrades.indexOf(a) - allowedGrades.indexOf(b))
+
     if (!startDate || !endDate) {
       return NextResponse.json({ error: 'Informe datas válidas.' }, { status: 400 })
     }
@@ -82,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     const duplicate = await prisma.scheduleBlock.findFirst({
-      where: { startDate, endDate, teacherId, role, reason },
+      where: { startDate, endDate, teacherId, role, reason, grades: { equals: grades } },
       select: { id: true },
     })
     if (duplicate) {
@@ -93,6 +112,7 @@ export async function POST(req: NextRequest) {
       where: {
         status: 'confirmed',
         date: { gte: startDate, lte: endDate },
+        ...(grades.length > 0 ? { studentGrade: { in: grades } } : {}),
       },
       include: { availability: { include: { teacher: true } } },
     })
@@ -109,7 +129,7 @@ export async function POST(req: NextRequest) {
 
     const [block] = await prisma.$transaction([
       prisma.scheduleBlock.create({
-        data: { startDate, endDate, reason, teacherId, role },
+        data: { startDate, endDate, reason, teacherId, role, grades },
         include: { teacher: { select: { id: true, name: true, role: true } } },
       }),
       prisma.appointment.updateMany({

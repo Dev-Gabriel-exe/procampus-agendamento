@@ -3,6 +3,8 @@ export type ScheduleBlockLike = {
   endDate: Date | string
   teacherId: string | null
   role: string
+  // Ausente ou vazio mantém o comportamento antigo: todas as séries.
+  grades?: readonly string[] | null
 }
 
 export type TeacherScope = {
@@ -51,12 +53,22 @@ export function blockAppliesToTeacher(block: ScheduleBlockLike, teacher: Teacher
   return block.role === 'geral' || block.role === teacher.role
 }
 
+/** Lista vazia significa que o bloqueio vale para todas as séries. */
+export function blockAppliesToGrade(block: ScheduleBlockLike, grade: string): boolean {
+  return !block.grades?.length || block.grades.includes(grade)
+}
+
 export function blocksTeacherOnDate(
   blocks: ScheduleBlockLike[],
   teacher: TeacherScope,
   date: Date | string,
+  grade?: string,
 ): ScheduleBlockLike | undefined {
-  return blocks.find(block => blockAppliesToTeacher(block, teacher) && isDateInsideBlock(date, block))
+  return blocks.find(block =>
+    blockAppliesToTeacher(block, teacher) &&
+    (!grade || blockAppliesToGrade(block, grade)) &&
+    isDateInsideBlock(date, block)
+  )
 }
 
 /** Converte data + horário de Fortaleza (UTC-3) para instante UTC. */

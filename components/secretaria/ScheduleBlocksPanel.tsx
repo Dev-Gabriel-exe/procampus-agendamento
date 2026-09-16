@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, CalendarDays, CheckCircle, Loader2, Trash2, UserRound, Users, X, XCircle } from 'lucide-react'
+import { Ban, CalendarDays, CheckCircle, GraduationCap, Loader2, Trash2, UserRound, Users, X, XCircle } from 'lucide-react'
+import { ALL_GRADES } from '@/lib/roles'
 
 type TeacherOption = {
   id: string
@@ -13,6 +14,7 @@ type ScheduleBlockItem = {
   startDate: string
   endDate: string
   reason: string
+  grades: string[]
   canDelete: boolean
   teacher: { id: string; name: string } | null
 }
@@ -42,10 +44,13 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
   const [isOpen, setIsOpen] = useState(false)
   const [blocks, setBlocks] = useState<ScheduleBlockItem[]>([])
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
+  const [availableGrades, setAvailableGrades] = useState<string[]>([])
   const [startDate, setStartDate] = useState(todayInput())
   const [endDate, setEndDate] = useState(todayInput())
   const [scope, setScope] = useState<'all' | 'teacher'>('all')
   const [teacherId, setTeacherId] = useState('')
+  const [gradeScope, setGradeScope] = useState<'all' | 'specific'>('all')
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([])
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -55,19 +60,27 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [blocksResponse, teachersResponse] = await Promise.all([
+      const [blocksResponse, teachersResponse, subjectsResponse] = await Promise.all([
         fetch('/api/bloqueios'),
         fetch('/api/professores'),
+        fetch('/api/disciplinas'),
       ])
-      const [blocksData, teachersData] = await Promise.all([
+      const [blocksData, teachersData, subjectsData] = await Promise.all([
         blocksResponse.json(),
         teachersResponse.json(),
+        subjectsResponse.json(),
       ])
-      if (!blocksResponse.ok || !teachersResponse.ok) throw new Error('Falha ao carregar os dados.')
-      setBlocks(Array.isArray(blocksData) ? blocksData : [])
+      if (!blocksResponse.ok || !teachersResponse.ok || !subjectsResponse.ok) throw new Error('Falha ao carregar os dados.')
+      setBlocks(Array.isArray(blocksData)
+        ? blocksData.map((block: any) => ({ ...block, grades: Array.isArray(block.grades) ? block.grades : [] }))
+        : [])
       setTeachers(Array.isArray(teachersData)
         ? teachersData.map((teacher: any) => ({ id: teacher.id, name: teacher.name }))
         : [])
+      const grades = Array.isArray(subjectsData)
+        ? [...new Set(subjectsData.map((subject: any) => subject.grade).filter((grade: unknown): grade is string => typeof grade === 'string'))]
+        : []
+      setAvailableGrades(grades.sort((a, b) => ALL_GRADES.indexOf(a as any) - ALL_GRADES.indexOf(b as any)))
     } catch {
       setMessage({ type: 'error', text: 'Não foi possível carregar os bloqueios.' })
     } finally {
@@ -114,11 +127,16 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
       setMessage({ type: 'error', text: 'Selecione o professor.' })
       return
     }
+    if (gradeScope === 'specific' && selectedGrades.length === 0) {
+      setMessage({ type: 'error', text: 'Selecione pelo menos uma série.' })
+      return
+    }
 
     const target = scope === 'all'
       ? 'todos os professores'
       : sortedTeachers.find(teacher => teacher.id === teacherId)?.name ?? 'o professor selecionado'
-    if (!window.confirm(`Bloquear ${formatDate(`${startDate}T12:00:00.000Z`)}${endDate !== startDate ? ` até ${formatDate(`${endDate}T12:00:00.000Z`)}` : ''} para ${target}? Agendamentos futuros existentes serão cancelados e os pais receberão um e-mail.`)) return
+    const gradeTarget = gradeScope === 'all' ? 'todas as séries' : selectedGrades.join(', ')
+    if (!window.confirm(`Bloquear ${formatDate(`${startDate}T12:00:00.000Z`)}${endDate !== startDate ? ` até ${formatDate(`${endDate}T12:00:00.000Z`)}` : ''} para ${target}, abrangendo ${gradeTarget}? Somente os agendamentos futuros correspondentes serão cancelados e os pais receberão um e-mail.`)) return
 
     setSaving(true)
     try {
@@ -129,6 +147,7 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
           startDate,
           endDate,
           teacherId: scope === 'teacher' ? teacherId : null,
+          grades: gradeScope === 'specific' ? selectedGrades : [],
           reason: reason.trim(),
         }),
       })
@@ -148,6 +167,8 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
       setReason('')
       setTeacherId('')
       setScope('all')
+      setGradeScope('all')
+      setSelectedGrades([])
       await loadData()
       onAppointmentsChanged()
     } catch (error) {
@@ -174,6 +195,12 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
     } finally {
       setDeletingId(null)
     }
+  }
+
+  function toggleGrade(grade: string) {
+    setSelectedGrades(current => current.includes(grade)
+      ? current.filter(item => item !== grade)
+      : [...current, grade].sort((a, b) => availableGrades.indexOf(a) - availableGrades.indexOf(b)))
   }
 
   const inputStyle: React.CSSProperties = {
@@ -266,6 +293,39 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
           </select>
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
+          <label style={labelStyle}>Séries afetadas</label>
+          <select value={gradeScope} onChange={event => {
+            const nextScope = event.target.value as 'all' | 'specific'
+            setGradeScope(nextScope)
+            if (nextScope === 'all') setSelectedGrades([])
+          }} style={inputStyle}>
+            <option value="all">Todas as séries atendidas</option>
+            <option value="specific">Selecionar séries específicas</option>
+          </select>
+
+          {gradeScope === 'specific' && (
+            <div style={{ marginTop: 9, padding: 10, borderRadius: 11, border: '1px solid #d7eadb', background: '#f8fcf9', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 7 }}>
+              {availableGrades.map(grade => {
+                const checked = selectedGrades.includes(grade)
+                return (
+                  <label key={grade} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 9px', borderRadius: 9, border: `1px solid ${checked ? '#86efac' : '#e5eee7'}`, background: checked ? '#f0fdf4' : 'white', color: checked ? '#166534' : '#3d5c42', cursor: 'pointer', fontSize: 12, fontWeight: checked ? 700 : 600 }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleGrade(grade)} style={{ accentColor: '#23A455' }} />
+                    {grade}
+                  </label>
+                )
+              })}
+              {availableGrades.length === 0 && (
+                <p style={{ gridColumn: '1 / -1', color: '#9ca3af', fontSize: 12, margin: 0 }}>Nenhuma série disponível para este acesso.</p>
+              )}
+            </div>
+          )}
+          <p style={{ color: '#6b8f72', fontSize: 11, margin: '6px 2px 0' }}>
+            {gradeScope === 'all'
+              ? 'O bloqueio valerá para todas as séries atendidas pelo professor ou grupo escolhido.'
+              : `${selectedGrades.length} série${selectedGrades.length !== 1 ? 's' : ''} selecionada${selectedGrades.length !== 1 ? 's' : ''}. As demais continuarão com horários disponíveis.`}
+          </p>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
           <label style={labelStyle}>Motivo exibido aos pais</label>
           <textarea maxLength={240} rows={2} value={reason} onChange={event => setReason(event.target.value)} placeholder="Ex.: Semana de provas ou afastamento médico do professor." style={{ ...inputStyle, resize: 'vertical', minHeight: 70 }} />
           <p style={{ textAlign: 'right', color: '#9ca3af', fontSize: 10, margin: '3px 2px 0' }}>{reason.length}/240</p>
@@ -301,6 +361,10 @@ export default function ScheduleBlocksPanel({ onAppointmentsChanged }: { onAppoi
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ color: '#92400e', fontSize: 12, fontWeight: 800, margin: 0 }}><CalendarDays style={{ width: 12, height: 12, display: 'inline', marginRight: 4 }} />{formatPeriod(block)}</p>
                   <p style={{ color: '#78350f', fontSize: 11, fontWeight: 700, margin: '3px 0 0' }}>{block.teacher ? `Prof. ${block.teacher.name}` : 'Todos os professores'}</p>
+                  <p style={{ color: '#92400e', fontSize: 10, fontWeight: 700, lineHeight: 1.4, margin: '4px 0 0' }}>
+                    <GraduationCap style={{ width: 11, height: 11, display: 'inline', marginRight: 4 }} />
+                    {block.grades.length > 0 ? block.grades.join(', ') : 'Todas as séries'}
+                  </p>
                   <p style={{ color: '#92400e', fontSize: 11, lineHeight: 1.4, margin: '5px 0 0', overflowWrap: 'anywhere' }}>{block.reason}</p>
                 </div>
                 <button type="button" onClick={() => handleDelete(block)} disabled={!block.canDelete || deletingId === block.id} title={block.canDelete ? 'Desbloquear período' : 'Criado por outra coordenação'} style={{ border: 'none', background: 'transparent', color: block.canDelete ? '#dc2626' : '#cbd5e1', cursor: block.canDelete ? 'pointer' : 'not-allowed', padding: 4, display: 'flex' }}>

@@ -111,4 +111,5 @@ export interface PublicScheduleBlock {
   endDate: Date | string
   reason: string
   teacherName: string | null
+  grades: string[]
 }

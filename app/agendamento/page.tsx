@@ -371,6 +371,9 @@ export default function AgendamentoPage() {
                         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 700, margin: 0 }}>
                           {formatBlockPeriod(block)}{block.teacherName ? ` · Prof. ${block.teacherName}` : ' · Todos os professores'}
                         </p>
+                        <p style={{ color: 'rgba(253,230,138,0.75)', fontSize: 11, fontWeight: 700, margin: '3px 0 0' }}>
+                          {block.grades.length > 0 ? `Séries: ${block.grades.join(', ')}` : 'Todas as séries'}
+                        </p>
                         <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, lineHeight: 1.45, margin: '3px 0 0' }}>
                           {block.reason}
                         </p>
