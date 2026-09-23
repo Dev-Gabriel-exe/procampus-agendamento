@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       const appointmentsToCancel = candidates.filter(appointment => appointmentStartUtc(appointment.date, appointment.startTime) > now)
       await tx.appointment.updateMany({
         where: { id: { in: appointmentsToCancel.map(appointment => appointment.id) }, status: 'confirmed' },
-        data: { status: 'cancelled' },
+        data: { status: 'cancelled', cancellationReason: reason },
       })
       return { blocks, appointmentsToCancel }
     }, { isolationLevel: 'Serializable', timeout: 20000 })

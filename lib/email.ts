@@ -84,13 +84,19 @@ export async function sendCancellationToParent(data: {
   const dateFormatted = formatDateShort(data.date)
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from:    `"Pro Campus" <${process.env.GMAIL_USER}>`,
       to:      data.parentEmail,
       subject: `❌ Reunião cancelada — ${data.subject} | Pro Campus`,
       html:    buildCancellationEmail({ ...data, date: dateFormatted }),
+      text: [
+        `Olá, ${data.parentName}!`,
+        `O plantão de ${data.studentName} (${data.studentGrade}) com ${data.teacherName}, em ${dateFormatted} às ${data.startTime}, foi cancelado pela secretaria.`,
+        data.cancellationReason ? `Motivo do cancelamento: ${data.cancellationReason}` : '',
+        'Para reagendar, acesse o site ou entre em contato: (86) 2106-0606.',
+      ].filter(Boolean).join('\n\n'),
     })
-    return true
+    return info.accepted.some(recipient => (typeof recipient === 'string' ? recipient : recipient.address).toLowerCase() === data.parentEmail.trim().toLowerCase())
   } catch (err) {
     console.error('Erro ao enviar e-mail de cancelamento:', err)
     return false
@@ -259,6 +265,7 @@ function buildCancellationEmail(data: {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;')
+        .replace(/\r?\n/g, '<br>')
     : ''
 
   return `<!DOCTYPE html>

@@ -13,13 +13,14 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import RoleBadge from '@/components/secretaria/RoleBadge'
 import ArchiveModal from '@/components/secretaria/ArchiveModal'
 import ScheduleBlocksPanel from '@/components/secretaria/ScheduleBlocksPanel'
+import CancelAppointmentModal from '@/components/secretaria/CancelAppointmentModal'
 import { extractTurma } from '@/lib/turmas'
 export const dynamic = 'force-dynamic'
 
 type AppointmentFull = {
   id: string; date: Date | string; startTime: string; endTime: string
   parentName: string; parentEmail: string; parentPhone: string; reason: string
-  studentName: string; studentGrade: string; subjectName: string; status: string; createdAt: Date
+  studentName: string; studentGrade: string; subjectName: string; status: string; cancellationReason?: string | null; createdAt: Date
   availability: { dayOfWeek: number; startTime: string; endTime: string; teacher: { name: string; phone: string; email: string } }
 }
 
@@ -116,6 +117,8 @@ function StatCard({ label, value, icon: Icon, color, bg }: { label: string; valu
 export default function SecretariaPage() {
   const [appointments, setAppointments] = useState<AppointmentFull[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [cancelTarget, setCancelTarget] = useState<AppointmentFull | null>(null)
   const [filtros, setFiltros] = useState<Filtros>({ search: '', dateFrom: '', dateTo: '', grade: '', discipline: '', turma: '' })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showArchiveModal,   setShowArchiveModal]   = useState(false)
@@ -124,20 +127,21 @@ export default function SecretariaPage() {
   const [archiveLoading,     setArchiveLoading]     = useState(false)
 
   const fetchAppointments = useCallback(async () => {
-    setLoading(true)
+    setLoading(true); setLoadError('')
     try {
       const res = await fetch('/api/agendamentos')
-      setAppointments(await res.json())
-    } catch { console.error('Erro ao buscar agendamentos') }
+      const data = await res.json()
+      if (!res.ok || !Array.isArray(data)) throw new Error(data?.error || 'Erro ao buscar agendamentos.')
+      setAppointments(data)
+    } catch (error) { setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar os agendamentos.') }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
 
-  async function handleCancel(id: string) {
-    if (!confirm('Cancelar este agendamento? O responsável será notificado por e-mail.')) return
-    await fetch(`/api/agendamentos/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelled' }) })
-    fetchAppointments()
+  function handleCancel(id: string) {
+    const appointment = appointments.find(item => item.id === id)
+    if (appointment) setCancelTarget(appointment)
   }
 
   function toggleSelect(id: string) {
@@ -234,6 +238,9 @@ export default function SecretariaPage() {
           <StatCard label="Cancelados"  value={cancelled.length} icon={XCircle}     color="#dc2626" bg="#fef2f2" />
           <StatCard label="Total"       value={filtered.length}  icon={Clock}        color="#4054B2" bg="#eef1fb" />
         </div>
+        {loadError && <div role="alert" style={{ padding: 14, marginBottom: 16, background: '#fef2f2', color: '#991b1b', borderRadius: 10 }}>
+          {loadError} <button type="button" onClick={fetchAppointments} style={{ textDecoration: 'underline', fontWeight: 700 }}>Tentar novamente</button>
+        </div>}
         <PrintView filtros={filtros} total={filtered.length} confirmed={confirmed.length} cancelled={cancelled.length} />
         {loading ? <LoadingSpinner /> : filtered.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', padding: '60px 24px', background: 'white', borderRadius: 20, border: '1.5px dashed rgba(97,206,112,0.3)' }}>
@@ -300,6 +307,8 @@ export default function SecretariaPage() {
             />
           )}
         </AnimatePresence>
+        {cancelTarget && <CancelAppointmentModal key={cancelTarget.id} appointment={cancelTarget}
+          onClose={() => setCancelTarget(null)} onCancelled={fetchAppointments} />}
       </main>
       <style>{`@media(max-width:480px){.stats-grid{grid-template-columns:1fr!important;}}`}</style>
     </div>

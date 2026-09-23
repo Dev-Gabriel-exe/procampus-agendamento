@@ -23,6 +23,7 @@ type AppointmentFull = {
   studentName: string
   studentGrade: string
   status: string
+  cancellationReason?: string | null
   availability: {
     dayOfWeek: number
     startTime: string
@@ -336,6 +337,13 @@ export default function AgendamentoCard({
             <p style={{ fontSize: 11, color: '#6b8f72', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Motivo</p>
             <p style={{ fontSize: 13, color: '#3d5c42', lineHeight: 1.5 }}>{appt.reason}</p>
           </div>
+
+          {isCancelled && (
+            <div style={{ background: '#fef2f2', borderRadius: 12, padding: '12px 14px', border: '1px solid #fecaca' }}>
+              <p style={{ fontSize: 11, color: '#991b1b', fontWeight: 700, marginBottom: 4 }}>Motivo do cancelamento</p>
+              <p style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{appt.cancellationReason || 'Não informado.'}</p>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6b8f72' }}>

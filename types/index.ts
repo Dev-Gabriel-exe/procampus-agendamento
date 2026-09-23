@@ -87,6 +87,7 @@ export interface Appointment {
   studentName: string
   studentGrade: string
   status: string
+  cancellationReason?: string | null
   createdAt: Date
   
 }

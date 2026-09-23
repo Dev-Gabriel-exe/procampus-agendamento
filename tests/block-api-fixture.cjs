@@ -25,7 +25,7 @@ function matches(row, where = {}) {
   })
 }
 
-function fixture() {
+function fixture(options = {}) {
   const grades = Array.from({ length: 5 }, (_, i) => `${i + 1}º Ano Fundamental`)
   const future = new Date(); future.setUTCDate(future.getUTCDate() + 3); future.setUTCHours(12, 0, 0, 0)
   const state = {
@@ -36,7 +36,7 @@ function fixture() {
       { id: 'bia', name: 'Beatriz Teste', role: 'fund1' },
       { id: 'caio', name: 'Caio Teste', role: 'fund1' },
       { id: 'outro', name: 'Professor Fund. II', role: 'fund2' },
-    ].map(teacher => ({ ...teacher, subjects: grades.map(grade => ({ subject: { grade, name: 'Português' } })) })),
+    ].map(teacher => ({ ...teacher, phone: '5586000000000', email: 'professor@example.invalid', subjects: grades.map(grade => ({ subject: { grade, name: 'Português' } })) })),
     grades, future,
   }
   state.availabilities = state.teachers.map(teacher => ({ id: `avail-${teacher.id}`, teacherId: teacher.id, teacher, active: true, isSpecial: true, specificDate: future, dayOfWeek: future.getUTCDay(), startTime: '13:00', endTime: '14:00' }))
@@ -67,9 +67,11 @@ function fixture() {
       delete: async ({ where }) => { state.blocks = state.blocks.filter(row => !matches(row, where)); state.writes++; return {} },
     },
     appointment: {
+      findUnique: async ({ where }) => state.appointments.find(row => matches(row, where)) ?? null,
       findMany: async ({ where }) => state.appointments.filter(row => matches(row, where)),
       findFirst: async ({ where }) => state.appointments.find(row => matches(row, where)) ?? null,
       updateMany: async ({ where, data }) => {
+        if (state.failAppointmentUpdate) throw Object.assign(new Error('injected appointment failure'), { code: state.failAppointmentUpdate })
         const selected = state.appointments.filter(row => matches(row, where))
         selected.forEach(row => Object.assign(row, data)); state.writes++; return { count: selected.length }
       },
@@ -85,11 +87,12 @@ function fixture() {
   const cache = new Map()
   function load(file) {
     file = path.resolve(root, file)
-    if (!path.extname(file)) file += '.ts'
+    if (!path.extname(file)) file += fs.existsSync(file + '.ts') ? '.ts' : '.tsx'
     if (cache.has(file)) return cache.get(file).exports
     const module = { exports: {} }; cache.set(file, module)
     const js = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText
     function localRequire(id) {
+      if (Object.prototype.hasOwnProperty.call(options.mocks ?? {}, id)) return options.mocks[id]
       if (id.endsWith('.module.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) }
       if (id === '@/lib/prisma') return { prisma }
       if (id === '@/lib/auth') return { auth: async () => state.authenticated ? { user: { role: state.role } } : null }
