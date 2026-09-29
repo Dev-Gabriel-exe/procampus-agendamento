@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { getTurmas, buildStudentGrade } from '@/lib/turmas'
 import { generateCalendarLink } from '@/lib/calendar-link'
+import { DEFAULT_PAID_PRICE_CENTS, calculateRecoveryTotalCents, defaultRecoveryBilling, formatRecoveryPrice } from '@/lib/recovery-pricing'
 
 const ALL_GRADES = [
   'Educação Infantil',
@@ -26,11 +27,11 @@ const GRADES_FUND1 = new Set([
 
 const PIX_KEY   = 'financeiro@procampus.com.br'
 const PIX_NAME  = 'SOCIEDADE EDUCACIONAL DO PIAUI S/S LTDA'
-const PRICE_PER_SUBJECT  = 40
 
 type RecoverySchedule = {
   id: string; subjectName: string; grade: string; type: string; period?: string | null
   date: string; startTime: string; endTime: string; maxSubjects: number; bookings: { id: string }[]
+  isFree?: boolean; priceCents?: number
 }
 
 function formatDate(date: string) {
@@ -82,8 +83,8 @@ function CopyPixButton({ value }: { value: string }) {
 }
 
 // ── Indicador de steps ────────────────────────────────────────────────────────
-function Steps({ current, isParalela }: { current: number; isParalela: boolean }) {
-  const labels = isParalela ? ['Prova', 'Dados'] : ['Prova', 'Pagamento', 'Dados']
+function Steps({ current, requiresPayment }: { current: number; requiresPayment: boolean }) {
+  const labels = requiresPayment ? ['Prova', 'Pagamento', 'Dados'] : ['Prova', 'Dados']
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
       {labels.map((label, i) => {
@@ -146,15 +147,30 @@ export default function RecuperacaoPage() {
   const maxSubjects = configuredMaxSubjects
   const visibleSubjects = allSubjects
 
-  const dataStep    = isParalela ? 2 : 3
-  const successStep = isParalela ? 3 : 4
+  const fallbackBilling = defaultRecoveryBilling(selGrade)
+  const selectedSlotValues = Object.values(selectedSlots)
+  const billingSource = selectedSlotValues.length > 0 ? selectedSlotValues : schedules
+  const getSlotBilling = (slot: RecoverySchedule) => ({
+    isFree: typeof slot.isFree === 'boolean' ? slot.isFree : fallbackBilling.isFree,
+    priceCents: Number.isInteger(slot.priceCents) ? Math.max(0, slot.priceCents as number) : fallbackBilling.priceCents,
+  })
+  const billingValues = billingSource.map(getSlotBilling)
+  const isBillingFree = billingValues.length > 0 ? billingValues.every(billing => billing.isFree) : fallbackBilling.isFree
+  const requiresPayment = billingValues.length > 0 ? billingValues.some(billing => !billing.isFree) : !fallbackBilling.isFree
+  const paidPrices = [...new Set(billingValues.filter(billing => !billing.isFree).map(billing => billing.priceCents))]
+  const representativePaidPrice = paidPrices.length === 1 ? paidPrices[0] : (paidPrices[0] ?? DEFAULT_PAID_PRICE_CENTS)
+  const pixAmount = selectedSlotValues.length > 0
+    ? calculateRecoveryTotalCents(selectedSlotValues.map(getSlotBilling))
+    : selSubjectsP.length * representativePaidPrice
+  const pixValueStr = formatRecoveryPrice(pixAmount)
+  const billingPriceText = paidPrices.length === 1 ? formatRecoveryPrice(representativePaidPrice) : 'o valor configurado no horário'
 
-  const pixAmount   = selSubjectsP.length * PRICE_PER_SUBJECT
-  const pixValueStr = `R$ ${pixAmount},00`
+  const dataStep    = requiresPayment ? 3 : 2
+  const successStep = requiresPayment ? 4 : 3
 
   const allSlotsChosen = selSubjectsP.length > 0 && selSubjectsP.every(s => !!selectedSlots[s])
 
-  // Step 2 — PIX (só normal)
+  // Step de pagamento — aparece somente quando o slot selecionado é pago.
   const [pixFile,       setPixFile]       = useState<File | null>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
 
@@ -169,7 +185,7 @@ export default function RecuperacaoPage() {
   // Reset ao trocar série
   useEffect(() => {
     setAllSubjects([]); setSelSubjectsP([]); setSchedules([])
-    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setConfiguredMaxSubjects(5)
+    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setConfiguredMaxSubjects(5); setPixFile(null)
     if (!selGrade) return
     ;(async () => {
       try {
@@ -213,7 +229,7 @@ export default function RecuperacaoPage() {
   }
 
   const formOk = parentName.trim().length > 3 && parentEmail.includes('@') && parentPhone.replace(/\D/g, '').length >= 10 && studentName.trim().length > 3
-  const pixOk  = !!pixFile
+  const pixOk  = !requiresPayment || !!pixFile
 
   async function handleSubmit() {
     const entries = Object.entries(selectedSlots)
@@ -221,7 +237,7 @@ export default function RecuperacaoPage() {
     setSubmitting(true); setSubmitError('')
     try {
       let fileUrl: string | null = null
-      if (pixFile) { setUploadingFile(true); fileUrl = await uploadToCloudinary(pixFile); setUploadingFile(false) }
+      if (requiresPayment && pixFile) { setUploadingFile(true); fileUrl = await uploadToCloudinary(pixFile); setUploadingFile(false) }
 
       await Promise.all(
         entries.map(([subject, slot]) =>
@@ -269,7 +285,7 @@ export default function RecuperacaoPage() {
         </div>
         {step < successStep && (
           <div style={{ padding: '10px 16px 12px', maxWidth: 520, margin: '0 auto' }}>
-            <Steps current={step} isParalela={isParalela} />
+            <Steps current={step} requiresPayment={requiresPayment} />
           </div>
         )}
       </div>
@@ -282,12 +298,12 @@ export default function RecuperacaoPage() {
         {step < successStep && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 20, textAlign: 'center' }}>
             <h1 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 900, fontSize: 24, color: 'white', margin: 0 }}>
-              {step === 1 ? 'Recuperação' : step === 2 && !isParalela ? '💰 Pagamento' : 'Seus dados'}
+              {step === 1 ? 'Recuperação' : step === 2 && requiresPayment ? '💰 Pagamento' : 'Seus dados'}
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.35)', marginTop: 6, fontSize: 14, lineHeight: 1.4 }}>
               {step === 1
                 ? 'Escolha as disciplinas e os horários'
-                : step === 2 && !isParalela
+                : step === 2 && requiresPayment
                   ? 'Realize o pagamento e anexe o comprovante'
                   : 'Preencha para confirmar a inscrição'}
             </p>
@@ -342,16 +358,16 @@ export default function RecuperacaoPage() {
               <AnimatePresence>
                 {selGrade && (
                   <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    style={{ padding: '12px 16px', borderRadius: 14, background: isParalela ? 'rgba(35,164,85,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${isParalela ? 'rgba(35,164,85,0.3)' : 'rgba(245,158,11,0.3)'}` }}>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: isParalela ? '#4ade80' : '#fbbf24' }}>
-                      {isParalela
-                        ? '✅ Recuperação Opcional — Gratuita'
+                    style={{ padding: '12px 16px', borderRadius: 14, background: isBillingFree ? 'rgba(35,164,85,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${isBillingFree ? 'rgba(35,164,85,0.3)' : 'rgba(245,158,11,0.3)'}` }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: isBillingFree ? '#4ade80' : '#fbbf24' }}>
+                      {isBillingFree
+                        ? '✅ Recuperação — Gratuita'
                         : selSubjectsP.length > 0
-                          ? `💰 Recuperação — R$ ${selSubjectsP.length * PRICE_PER_SUBJECT},00 (${selSubjectsP.length} disciplina${selSubjectsP.length > 1 ? 's' : ''})`
-                          : `💰 Recuperação — R$ ${PRICE_PER_SUBJECT},00 por disciplina`}
+                          ? `💰 Recuperação — ${pixValueStr} (${selSubjectsP.length} disciplina${selSubjectsP.length > 1 ? 's' : ''})`
+                          : `💰 Recuperação — ${billingPriceText} por disciplina`}
                     </p>
                     <p style={{ margin: '4px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
-                      Selecione até {maxSubjects} disciplinas{isParalela ? '.' : `. Cada uma custa R$ ${PRICE_PER_SUBJECT},00 via PIX.`}
+                      Selecione até {maxSubjects} disciplinas{isBillingFree ? '.' : `. Cada uma custa ${billingPriceText} via PIX.`}
                     </p>
                   </motion.div>
                 )}
@@ -489,9 +505,9 @@ export default function RecuperacaoPage() {
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
-              STEP 2 — PIX (só recuperação normal / FundII)
+              STEP 2 — PIX (apenas quando o slot for pago)
           ══════════════════════════════════════════════════════════════════ */}
-          {step === 2 && !isParalela && (
+              {step === 2 && requiresPayment && (
             <motion.div key="s2pix" custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
               transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -523,7 +539,7 @@ export default function RecuperacaoPage() {
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#fb923c', margin: '0 0 4px' }}>💸 Taxa de recuperação</p>
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', lineHeight: 1.5 }}>
                   {selSubjectsP.length > 1
-                    ? `${selSubjectsP.length} disciplinas × R$ ${PRICE_PER_SUBJECT},00 = ${pixValueStr}. Realize o pagamento via PIX e anexe o comprovante.`
+                    ? `${selSubjectsP.length} disciplinas × ${billingPriceText} = ${pixValueStr}. Realize o pagamento via PIX e anexe o comprovante.`
                     : `Realize o pagamento via PIX e anexe o comprovante para continuar.`}
                 </p>
 
@@ -534,7 +550,7 @@ export default function RecuperacaoPage() {
                     <p style={{ fontSize: 26, fontWeight: 900, color: '#4ade80', margin: '2px 0 0', fontFamily: '"Roboto Slab",serif' }}>{pixValueStr}</p>
                     {selSubjectsP.length > 1 && (
                       <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>
-                        {selSubjectsP.length} × R$ {PRICE_PER_SUBJECT},00
+                        {selSubjectsP.length} × {billingPriceText}
                       </p>
                     )}
                   </div>
@@ -601,19 +617,19 @@ export default function RecuperacaoPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <BookMarked style={{ width: 15, height: 15, color: '#4ade80', flexShrink: 0 }} />
                   <p style={{ fontWeight: 700, fontSize: 14, color: 'white', margin: 0 }}>{selGrade}</p>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isParalela ? '#4ade80' : '#fbbf24', background: isParalela ? 'rgba(35,164,85,0.15)' : 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: 5 }}>
-                    {isParalela ? '✅ Gratuita' : `💰 Normal · ${pixValueStr}`}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isBillingFree ? '#4ade80' : '#fbbf24', background: isBillingFree ? 'rgba(35,164,85,0.15)' : 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: 5 }}>
+                    {isBillingFree ? '✅ Gratuita' : `💰 ${pixValueStr}`}
                   </span>
                 </div>
                 {Object.entries(selectedSlots).map(([subject, slot]) => (
                   <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ fontSize: 12, color: isParalela ? '#4ade80' : '#fbbf24', fontWeight: 600 }}>{subject}</span>
+                    <span style={{ fontSize: 12, color: isBillingFree ? '#4ade80' : '#fbbf24', fontWeight: 600 }}>{subject}</span>
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>
                       {formatDateShort(slot.date)} · {slot.startTime}–{slot.endTime}
                     </span>
                   </div>
                 ))}
-                {!isParalela && pixFile && (
+                {requiresPayment && pixFile && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px', background: 'rgba(34,197,94,0.1)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.2)' }}>
                     <Check style={{ width: 13, height: 13, color: '#4ade80' }} />
                     <p style={{ margin: 0, fontSize: 12, color: '#86efac', fontWeight: 600 }}>Comprovante anexado</p>
@@ -695,8 +711,8 @@ export default function RecuperacaoPage() {
                 {[
                   { label: 'Aluno',   value: studentName },
                   { label: 'Série',   value: selGrade },
-                  { label: 'Tipo',    value: isParalela ? 'Recuperação Paralela (gratuita)' : 'Recuperação Normal (paga)' },
-                  ...(isParalela ? [] : [{ label: 'Total pago', value: `${pixValueStr} via PIX ✅` }]),
+                  { label: 'Tipo',    value: isParalela ? 'Recuperação Paralela' : 'Recuperação Normal' },
+                  { label: 'Cobrança', value: isBillingFree ? 'Gratuita' : `${pixValueStr} via PIX ✅` },
                 ].map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, flexShrink: 0 }}>{item.label}</span>
@@ -708,7 +724,7 @@ export default function RecuperacaoPage() {
                 </p>
                 {Object.entries(selectedSlots).map(([subject, slot]) => (
                   <div key={subject} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: isParalela ? '#4ade80' : '#fbbf24' }}>{subject}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: isBillingFree ? '#4ade80' : '#fbbf24' }}>{subject}</span>
                     <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600, textAlign: 'right', textTransform: 'capitalize' }}>
                       {formatDate(slot.date)}<br />
                       <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>{slot.startTime} – {slot.endTime}</span>

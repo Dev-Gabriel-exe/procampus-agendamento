@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import nodemailer from 'nodemailer'
 import { formatDateShort } from '@/lib/slots'
+import { formatRecoveryPrice } from '@/lib/recovery-pricing'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       const dateFormatted = formatDateShort(s.date.toISOString())
       const isParalela = s.type === 'paralela'
       const subjectsList = booking.subjects ? booking.subjects.split(',').map(x => x.trim()).filter(Boolean) : []
+      const billingLabel = s.isFree ? 'Gratuita' : `${formatRecoveryPrice(s.priceCents)} por disciplina`
 
       await createTransport().sendMail({
         from:    `"Pro Campus" <${process.env.GMAIL_USER}>`,
@@ -51,6 +53,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
           <td style="padding:10px 16px;">${isParalela ? subjectsList.join(', ') : s.subjectName}</td></tr>
       <tr><td style="padding:10px 16px;border-bottom:1px solid #bbf7d0;"><b>Série:</b></td><td style="padding:10px 16px;">${s.grade}</td></tr>
       <tr><td style="padding:10px 16px;border-bottom:1px solid #bbf7d0;"><b>Data:</b></td><td style="padding:10px 16px;">${dateFormatted}</td></tr>
+      <tr><td style="padding:10px 16px;border-bottom:1px solid #bbf7d0;"><b>Cobrança:</b></td><td style="padding:10px 16px;">${billingLabel}</td></tr>
       <tr><td style="padding:10px 16px;"><b>Horário:</b></td><td style="padding:10px 16px;">${s.startTime} – ${s.endTime}</td></tr>
     </table>
     <div style="margin-top:20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;">

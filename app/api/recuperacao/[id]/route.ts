@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import nodemailer from 'nodemailer'
 import { formatDateShort } from '@/lib/slots'
+import { formatRecoveryPrice, normalizeRecoveryBilling } from '@/lib/recovery-pricing'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +35,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const { date, startTime, endTime, registrationDeadline } = await req.json()
+  const { date, startTime, endTime, registrationDeadline, isFree, priceCents, price } = await req.json()
 
   if (!date || !startTime || !endTime || startTime >= endTime) {
     return NextResponse.json({ error: 'Data ou horários inválidos.' }, { status: 400 })
@@ -49,9 +50,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       })()
     : null
 
+  const current = await prisma.recoverySchedule.findUnique({ where: { id: params.id } })
+  if (!current) return NextResponse.json({ error: 'Slot não encontrado.' }, { status: 404 })
+
+  const hasBillingChange = isFree !== undefined || priceCents !== undefined || price !== undefined
+  const billing = hasBillingChange
+    ? normalizeRecoveryBilling(current.grade, { isFree, priceCents, price })
+    : null
+  if (billing && (!billing.isFree && (!Number.isInteger(billing.priceCents) || billing.priceCents <= 0 || billing.priceCents > 1_000_000))) {
+    return NextResponse.json({ error: 'Informe um valor válido maior que zero para a recuperação paga.' }, { status: 400 })
+  }
+
   const updated = await prisma.recoverySchedule.update({
     where: { id: params.id },
-    data: { date: scheduleDate, startTime, endTime, registrationDeadline: deadline },
+    data: {
+      date: scheduleDate,
+      startTime,
+      endTime,
+      registrationDeadline: deadline,
+      ...(billing ? { isFree: billing.isFree, priceCents: billing.priceCents } : {}),
+    },
   })
   return Response.json(updated)
 }
@@ -107,7 +125,7 @@ export async function POST(
       return NextResponse.json({ error: 'Uma das disciplinas selecionadas não está disponível.' }, { status: 400 })
     }
 
-    if (schedule.type === 'normal' && !fileUrl) {
+    if (!schedule.isFree && !fileUrl) {
       return NextResponse.json({ error: 'Anexe o comprovante de pagamento.' }, { status: 400 })
     }
 
@@ -133,7 +151,7 @@ export async function POST(
         from:    `"Pro Campus" <${process.env.GMAIL_USER}>`,
         to:      parentEmail,
         subject: `📚 Inscrição em Recuperação recebida — Pro Campus`,
-        html:    buildConfirmEmail({ parentName, studentName, subjectName: schedule.subjectName, grade: schedule.grade, date: dateFormatted, startTime: schedule.startTime, endTime: schedule.endTime, isParalela, subjectsList, period: schedule.period }),
+        html:    buildConfirmEmail({ parentName, studentName, subjectName: schedule.subjectName, grade: schedule.grade, date: dateFormatted, startTime: schedule.startTime, endTime: schedule.endTime, isParalela, isFree: schedule.isFree, priceCents: schedule.priceCents, subjectsList, period: schedule.period }),
       })
     } catch (err) {
       console.error('Erro ao enviar email:', err)
@@ -149,9 +167,10 @@ export async function POST(
 function buildConfirmEmail(d: {
   parentName: string; studentName: string; subjectName: string
   grade: string; date: string; startTime: string; endTime: string
-  isParalela: boolean; subjectsList: string[]; period: string | null
+  isParalela: boolean; isFree: boolean; priceCents: number
+  subjectsList: string[]; period: string | null
 }) {
-  const typeLabel = d.isParalela ? 'Recuperação Paralela (Gratuita)' : 'Recuperação Normal'
+  const typeLabel = d.isParalela ? 'Recuperação Paralela' : 'Recuperação Normal'
   const periodLabel = d.period === 'meio' ? 'Meio do Ano' : d.period === 'final' ? 'Final do Ano' : ''
   const subjectsHtml = d.isParalela && d.subjectsList.length > 0
     ? `<tr><td style="padding:10px 16px;border-bottom:1px solid #e0e7ff;"><b>Disciplinas:</b></td><td style="padding:10px 16px;">${d.subjectsList.join(', ')}</td></tr>`
@@ -181,13 +200,13 @@ function buildConfirmEmail(d: {
       <tr><td style="padding:10px 16px;border-bottom:1px solid #e0e7ff;"><b>Data:</b></td><td style="padding:10px 16px;">${d.date}</td></tr>
       <tr><td style="padding:10px 16px;"><b>Horário:</b></td><td style="padding:10px 16px;">${d.startTime} – ${d.endTime}</td></tr>
     </table>
-    ${!d.isParalela ? `
+    ${!d.isFree ? `
     <div style="margin-top:16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;">
-      <p style="margin:0;color:#c2410c;font-size:13px;font-weight:600;">💰 Taxa: R$ 40,00 via PIX</p>
+      <p style="margin:0;color:#c2410c;font-size:13px;font-weight:600;">💰 Taxa: ${formatRecoveryPrice(d.priceCents)} por disciplina via PIX</p>
       <p style="margin:6px 0 0;color:#92400e;font-size:12px;">Caso já tenha pago, aguarde a confirmação da secretaria.</p>
     </div>` : `
     <div style="margin-top:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;">
-      <p style="margin:0;color:#15803d;font-size:13px;font-weight:600;">✅ Recuperação Paralela — Gratuita</p>
+      <p style="margin:0;color:#15803d;font-size:13px;font-weight:600;">✅ Recuperação ${d.isParalela ? 'Paralela' : 'Normal'} — Gratuita</p>
     </div>`}
   </td></tr>
   <tr><td style="background:#f7f9fe;padding:18px 36px;text-align:center;border-top:1px solid #e5e7eb;">

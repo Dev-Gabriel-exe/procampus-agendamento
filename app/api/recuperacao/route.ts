@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { getGradesForRole, isGeral } from '@/lib/roles'
+import { normalizeRecoveryBilling } from '@/lib/recovery-pricing'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,6 +80,9 @@ export async function POST(req: NextRequest) {
       date, startTime, endTime,
       registrationDeadline,   // ← novo campo (opcional)
       maxSubjects,
+      isFree,
+      priceCents,
+      price,
     } = await req.json()
 
     if (!subjectId || !subjectName || !grade || !type || !date || !startTime || !endTime) {
@@ -90,6 +94,10 @@ export async function POST(req: NextRequest) {
     const parsedMaxSubjects = Number(maxSubjects ?? 5)
     if (!Number.isInteger(parsedMaxSubjects) || parsedMaxSubjects < 1 || parsedMaxSubjects > 20) {
       return NextResponse.json({ error: 'O limite de disciplinas deve estar entre 1 e 20.' }, { status: 400 })
+    }
+    const billing = normalizeRecoveryBilling(grade, { isFree, priceCents, price })
+    if (!billing.isFree && (!Number.isInteger(billing.priceCents) || billing.priceCents <= 0 || billing.priceCents > 1_000_000)) {
+      return NextResponse.json({ error: 'Informe um valor válido maior que zero para a recuperação paga.' }, { status: 400 })
     }
     if (!isGeral(role)) {
       const allowed = getGradesForRole(role)
@@ -136,6 +144,8 @@ export async function POST(req: NextRequest) {
         role,
         registrationDeadline: deadlineDate,   // null se não informado
         maxSubjects: parsedMaxSubjects,
+        isFree: billing.isFree,
+        priceCents: billing.priceCents,
       },
       include: { bookings: true },
     })

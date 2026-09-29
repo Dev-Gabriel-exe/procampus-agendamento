@@ -19,6 +19,7 @@ import RoleBadge from '@/components/secretaria/RoleBadge'
 import PrintByTurma from '@/components/secretaria/PrintByTurma'
 import ArchiveModal from '@/components/secretaria/ArchiveModal'
 import { extractTurma } from '@/lib/turmas'
+import { defaultRecoveryBilling, formatRecoveryPrice, normalizeRecoveryBilling, parsePriceCents } from '@/lib/recovery-pricing'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,7 @@ type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 type ActiveTab     = 'slots' | 'comprovantes'
 type CompFilter    = 'all' | 'PENDING' | 'APPROVED' | 'REJECTED'
 type Subject       = { id: string; name: string; grade: string }
+type BillingDraft  = { isFree: boolean; price: string }
 
 type RecoveryBooking = {
   id: string; studentName: string; studentGrade: string; parentName: string; parentEmail: string
@@ -57,11 +59,14 @@ type RecoverySchedule = {
   date: string; startTime: string; endTime: string; active: boolean
   registrationDeadline?: string | null   // ← novo
   maxSubjects: number
+  isFree: boolean
+  priceCents: number
   bookings: RecoveryBooking[]
 }
 type ComprovanteBooking = RecoveryBooking & {
   recoverySchedule: {
     subjectName: string; grade: string; date: string; startTime: string; endTime: string; type: string
+    isFree: boolean; priceCents: number
   }
 }
 
@@ -113,6 +118,10 @@ function formatLocalInput(dateStr: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
     day: '2-digit', month: 'short',
   })
+}
+
+function priceInputFromCents(cents: number): string {
+  return (Math.max(0, cents) / 100).toFixed(2).replace('.', ',')
 }
 
 /** Badge de prazo de inscrições */
@@ -201,7 +210,7 @@ function EditSlotModal({
   saving,
 }: {
   slot: RecoverySchedule
-  onSave: (data: { date: string; startTime: string; endTime: string; registrationDeadline: string | null }) => void
+  onSave: (data: { date: string; startTime: string; endTime: string; registrationDeadline: string | null; isFree: boolean; priceCents: number }) => void
   onCancel: () => void
   saving: boolean
 }) {
@@ -209,13 +218,20 @@ function EditSlotModal({
   const [start, setStart] = useState(slot.startTime)
   const [end, setEnd] = useState(slot.endTime)
   const [deadline, setDeadline] = useState(slot.registrationDeadline?.split('T')[0] ?? '')
+  const fallbackBilling = defaultRecoveryBilling(slot.grade)
+  const [isFree, setIsFree] = useState(typeof slot.isFree === 'boolean' ? slot.isFree : fallbackBilling.isFree)
+  const [price, setPrice] = useState(formatRecoveryPrice(typeof slot.priceCents === 'number' ? slot.priceCents : fallbackBilling.priceCents).replace('R$', '').trim())
   const [err, setErr] = useState('')
 
   function submit() {
     if (!date || !start || !end) { setErr('Preencha a data e os horários.'); return }
     if (start >= end) { setErr('Horário de fim deve ser após o início.'); return }
     if (deadline && deadline >= date) { setErr('O prazo deve ser anterior à data da prova.'); return }
-    onSave({ date, startTime: start, endTime: end, registrationDeadline: deadline || null })
+    const priceCents = isFree ? 0 : parsePriceCents(price)
+    if (!isFree && (!Number.isInteger(priceCents) || (priceCents as number) <= 0)) {
+      setErr('Informe um valor maior que zero para a recuperação paga.'); return
+    }
+    onSave({ date, startTime: start, endTime: end, registrationDeadline: deadline || null, isFree, priceCents: priceCents ?? 0 })
   }
 
   const iStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid rgba(97,206,112,0.2)', fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#0a1a0d', background: 'white', boxSizing: 'border-box' }
@@ -259,6 +275,26 @@ function EditSlotModal({
                 </button>
               )}
             </div>
+          </div>
+
+          <div>
+            <label style={lStyle}>Cobrança</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => setIsFree(true)}
+                style={{ flex: 1, padding: '9px 8px', borderRadius: 9, border: `1.5px solid ${isFree ? '#23A455' : '#e5e7eb'}`, background: isFree ? '#e8f9eb' : 'white', color: isFree ? '#15803d' : '#6b7280', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ✅ Gratuita
+              </button>
+              <button type="button" onClick={() => setIsFree(false)}
+                style={{ flex: 1, padding: '9px 8px', borderRadius: 9, border: `1.5px solid ${!isFree ? '#f59e0b' : '#e5e7eb'}`, background: !isFree ? '#fff7ed' : 'white', color: !isFree ? '#c2410c' : '#6b7280', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                💰 Paga
+              </button>
+            </div>
+            {!isFree && (
+              <input type="text" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} placeholder="30,00" style={{ ...iStyle, marginTop: 8 }} />
+            )}
+            <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
+              O tipo Normal/Paralela não define a cobrança.
+            </p>
           </div>
 
           {err && (
@@ -338,7 +374,15 @@ export default function RecuperacaoSecretariaPage() {
   // Lote de seleção
   const [loteSelecao,  setLoteSelecao]  = useState<Record<string, string[]>>({})
   const [lotePeriodos, setLotePeriodos] = useState<Record<string, 'meio' | 'final'>>({})
+  const [loteCobranca, setLoteCobranca] = useState<Record<string, BillingDraft>>({})
   const totalLote = Object.values(loteSelecao).reduce((s, ids) => s + ids.length, 0)
+
+  function getBillingDraft(grade: string): BillingDraft {
+    const saved = loteCobranca[grade]
+    if (saved) return saved
+    const fallback = defaultRecoveryBilling(grade)
+    return { isFree: fallback.isFree, price: priceInputFromCents(fallback.priceCents) }
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -376,7 +420,7 @@ export default function RecuperacaoSecretariaPage() {
     toast.info('📋 Data e horário copiados! Ajuste os outros campos se necessário.')
   }
 
-  async function handleSaveEdit(data: { date: string; startTime: string; endTime: string; registrationDeadline: string | null }) {
+  async function handleSaveEdit(data: { date: string; startTime: string; endTime: string; registrationDeadline: string | null; isFree: boolean; priceCents: number }) {
     if (!editTarget) return
     setEditSaving(true)
     try {
@@ -426,6 +470,13 @@ export default function RecuperacaoSecretariaPage() {
       if (ids.length > 0 && GRADES_FUND1.includes(grade) && !lotePeriodos[grade]) {
         setError(`Selecione o período (Meio ou Final) para: ${grade}`); return
       }
+      if (ids.length > 0) {
+        const draft = getBillingDraft(grade)
+        const billing = normalizeRecoveryBilling(grade, { isFree: draft.isFree, price: draft.price })
+        if (!billing.isFree && billing.priceCents <= 0) {
+          setError(`Informe um valor maior que zero para a recuperação paga de ${grade}.`); return
+        }
+      }
     }
 
     setSaving(true)
@@ -436,6 +487,8 @@ export default function RecuperacaoSecretariaPage() {
       const isF1   = GRADES_FUND1.includes(grade)
       const type   = isF1 ? 'normal' : 'paralela'
       const period = isF1 ? lotePeriodos[grade] : null
+      const draft = getBillingDraft(grade)
+      const billing = normalizeRecoveryBilling(grade, { isFree: draft.isFree, price: draft.price })
 
       for (const discId of discIds) {
         const subject = subjects.find(s => s.id === discId)
@@ -448,6 +501,8 @@ export default function RecuperacaoSecretariaPage() {
               date: examDate, startTime, endTime,
               registrationDeadline: regDeadline || null,   // ← passa prazo
               maxSubjects,
+              isFree: billing.isFree,
+              priceCents: billing.priceCents,
             }),
           })
           if (res.ok) criados++; else erros++
@@ -458,7 +513,7 @@ export default function RecuperacaoSecretariaPage() {
     setSaving(false)
     if (criados > 0) {
       toast.success(`✅ ${criados} slot${criados !== 1 ? 's' : ''} criado${criados !== 1 ? 's' : ''}!${erros > 0 ? ` (${erros} já existiam)` : ''}`)
-      setLoteSelecao({}); setLotePeriodos({})
+      setLoteSelecao({}); setLotePeriodos({}); setLoteCobranca({})
       setExamDate(''); setStartTime(''); setEndTime(''); setRegDeadline(''); setMaxSubjects(5)
       loadData()
     } else {
@@ -609,15 +664,16 @@ export default function RecuperacaoSecretariaPage() {
   // Agrupa por série -> disciplina -> slots
   const groupedByGrade = schedules.reduce((acc, s) => {
     const grade = s.grade
-    const disciplineKey = `${s.type}|${s.subjectName}`
+    const billingKey = `${s.isFree ? 'free' : 'paid'}|${s.priceCents ?? 0}`
+    const disciplineKey = `${s.type}|${billingKey}|${s.subjectName}`
     if (!acc[grade]) acc[grade] = {}
-    if (!acc[grade][disciplineKey]) acc[grade][disciplineKey] = { type: s.type, subjectName: s.subjectName, slots: [] }
+    if (!acc[grade][disciplineKey]) acc[grade][disciplineKey] = { type: s.type, subjectName: s.subjectName, isFree: s.isFree, priceCents: s.priceCents, slots: [] }
     acc[grade][disciplineKey].slots.push(s)
     return acc
-  }, {} as Record<string, Record<string, { type: string; subjectName: string; slots: RecoverySchedule[] }>>)
+  }, {} as Record<string, Record<string, { type: string; subjectName: string; isFree: boolean; priceCents: number; slots: RecoverySchedule[] }>>)
 
   const grouped = schedules.reduce((acc, s) => {
-    const key = `${s.type}|${s.grade}|${s.subjectName}`
+    const key = `${s.type}|${s.grade}|${s.subjectName}|${s.isFree ? 'free' : 'paid'}|${s.priceCents ?? 0}`
     if (!acc[key]) acc[key] = { type: s.type, grade: s.grade, subjectName: s.subjectName, slots: [] }
     acc[key].slots.push(s); return acc
   }, {} as Record<string, { type: string; grade: string; subjectName: string; slots: RecoverySchedule[] }>)
@@ -706,7 +762,7 @@ export default function RecuperacaoSecretariaPage() {
             items={schedules.map(s => ({
               id: s.id,
               label: `${s.subjectName} — ${s.grade}`,
-              sublabel: `${formatDate(s.date)} · ${s.startTime}–${s.endTime} · ${s.type === 'normal' ? '💰 Normal' : '✅ Paralela'} · ${s.bookings.length} inscrito(s)`,
+              sublabel: `${formatDate(s.date)} · ${s.startTime}–${s.endTime} · ${s.type === 'normal' ? 'Normal' : 'Paralela'} · ${s.isFree ? 'Gratuita' : formatRecoveryPrice(s.priceCents)} · ${s.bookings.length} inscrito(s)`,
             }))}
             onConfirm={handleArchiveSlots}
             onCancel={() => setShowArchiveModal(false)}
@@ -719,7 +775,7 @@ export default function RecuperacaoSecretariaPage() {
             items={archivedSlots.map(s => ({
               id: s.id,
               label: `${s.subjectName} — ${s.grade}`,
-              sublabel: `${formatDate(s.date)} · ${s.startTime}–${s.endTime} · ${s.type === 'normal' ? '💰 Normal' : '✅ Paralela'}`,
+              sublabel: `${formatDate(s.date)} · ${s.startTime}–${s.endTime} · ${s.type === 'normal' ? 'Normal' : 'Paralela'} · ${s.isFree ? 'Gratuita' : formatRecoveryPrice(s.priceCents)}`,
             }))}
             onConfirm={handleUnarchiveSlots}
             onCancel={() => setShowUnarchiveModal(false)}
@@ -761,7 +817,7 @@ export default function RecuperacaoSecretariaPage() {
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 16px 60px' }}>
         <div style={{ marginBottom: 24 }}>
           <h2 style={{ fontFamily: '"Roboto Slab",serif', fontWeight: 800, fontSize: 24, color: '#0a1a0d', margin: 0 }}>Recuperação</h2>
-          <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Gerencie slots de recuperação normal (Fund1) e paralela (Fund2)</p>
+          <p style={{ color: '#6b8f72', fontSize: 13, marginTop: 4 }}>Gerencie o tipo pedagógico e a cobrança de cada recuperação</p>
 
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
@@ -923,6 +979,7 @@ export default function RecuperacaoSecretariaPage() {
                       const discsDaGrade = subjects.filter(s => s.grade === grade)
                       const selecionadas = loteSelecao[grade] ?? []
                       const todas        = selecionadas.length === discsDaGrade.length && discsDaGrade.length > 0
+                      const billing      = getBillingDraft(grade)
 
                       return (
                         <div key={grade} style={{ borderBottom: '1px solid rgba(97,206,112,0.1)' }}>
@@ -930,7 +987,7 @@ export default function RecuperacaoSecretariaPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: '#0a1a0d' }}>{grade}</span>
                               <span style={{ fontSize: 10, fontWeight: 700, color: isF1 ? '#c2410c' : '#15803d', background: isF1 ? '#fef3c7' : '#dcfce7', padding: '1px 7px', borderRadius: 4 }}>
-                                {isF1 ? '💰 Normal' : '✅ Paralela'}
+                                {isF1 ? 'Normal' : 'Paralela'}
                               </span>
                             </div>
                             {discsDaGrade.length > 0 && (
@@ -941,6 +998,27 @@ export default function RecuperacaoSecretariaPage() {
                               </button>
                             )}
                           </div>
+                          {selecionadas.length > 0 && (
+                            <div style={{ padding: '9px 14px', background: '#ffffff', borderTop: '1px solid rgba(97,206,112,0.1)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#6b8f72', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Cobrança:</span>
+                              <button type="button" onClick={() => setLoteCobranca(prev => ({ ...prev, [grade]: { ...billing, isFree: true, price: '0,00' } }))}
+                                style={{ padding: '5px 9px', borderRadius: 7, border: `1px solid ${billing.isFree ? '#23A455' : '#e5e7eb'}`, background: billing.isFree ? '#e8f9eb' : 'white', color: billing.isFree ? '#15803d' : '#6b7280', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                                ✅ Gratuita
+                              </button>
+                              <button type="button" onClick={() => setLoteCobranca(prev => ({ ...prev, [grade]: { ...billing, isFree: false, price: billing.price === '0,00' ? priceInputFromCents(defaultRecoveryBilling(grade).priceCents) : billing.price } }))}
+                                style={{ padding: '5px 9px', borderRadius: 7, border: `1px solid ${!billing.isFree ? '#f59e0b' : '#e5e7eb'}`, background: !billing.isFree ? '#fff7ed' : 'white', color: !billing.isFree ? '#c2410c' : '#6b7280', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                                💰 Paga
+                              </button>
+                              {!billing.isFree && (
+                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#6b7280', fontWeight: 600 }}>
+                                  R$
+                                  <input type="text" inputMode="decimal" value={billing.price} onChange={e => setLoteCobranca(prev => ({ ...prev, [grade]: { ...billing, price: e.target.value } }))} placeholder="30,00"
+                                    style={{ width: 78, padding: '5px 7px', borderRadius: 7, border: '1px solid #fed7aa', fontSize: 12, color: '#0a1a0d', outline: 'none' }} />
+                                  por disciplina
+                                </label>
+                              )}
+                            </div>
+                          )}
                           {discsDaGrade.length === 0 ? (
                             <p style={{ fontSize: 12, color: '#9ca3af', padding: '8px 14px', margin: 0 }}>Nenhuma disciplina cadastrada</p>
                           ) : (
@@ -1070,6 +1148,7 @@ export default function RecuperacaoSecretariaPage() {
                               const accentColor = isNormal ? '#f59e0b' : '#23A455'
                               const accentBg = isNormal ? '#fef3c7' : '#f0fdf4'
                               const accentBorder = isNormal ? '#fde68a' : '#dcfce7'
+                              const billingLabel = disciplineGroup.isFree ? '✅ Gratuita' : `💰 ${formatRecoveryPrice(disciplineGroup.priceCents)}`
 
                               return (
                                 <div key={disciplineKey} style={{ background: '#ffffff', borderRadius: 12, border: `1px solid ${accentBorder}`, overflow: 'hidden' }}>
@@ -1078,7 +1157,10 @@ export default function RecuperacaoSecretariaPage() {
                                       <p style={{ fontWeight: 700, fontSize: 14, color: '#0a1a0d', margin: 0 }}>{disciplineGroup.subjectName}</p>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                                         <span style={{ fontSize: 11, fontWeight: 700, color: accentColor, background: 'white', padding: '1px 8px', borderRadius: 5 }}>
-                                          {isNormal ? '💰 Normal' : '✅ Paralela'}
+                                          {isNormal ? 'Normal' : 'Paralela'}
+                                        </span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: disciplineGroup.isFree ? '#15803d' : '#c2410c', background: 'white', padding: '1px 8px', borderRadius: 5 }}>
+                                          {billingLabel}
                                         </span>
                                         <span style={{ fontSize: 11, fontWeight: 600, color: accentColor }}>
                                           {disciplineGroup.slots.length} slot{disciplineGroup.slots.length !== 1 ? 's' : ''}
@@ -1229,7 +1311,7 @@ export default function RecuperacaoSecretariaPage() {
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#c2410c' }}>Chave PIX para recuperação normal: {PIX_KEY}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#92400e' }}>Favorecido: {PIX_NAME} · R$ 40,00 por disciplina</p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#92400e' }}>Favorecido: {PIX_NAME} · R$ 30,00 por disciplina (quando o slot estiver pago)</p>
               </div>
             </div>
 
@@ -1297,21 +1379,22 @@ export default function RecuperacaoSecretariaPage() {
                   const isOpen       = expandedComp === b.id
                   const isDeleting   = deletingComp === b.id
                   const isBusy       = actingComp === b.id
-                  const isNormal     = b.recoverySchedule?.type === 'normal'
+                  const isPaid       = b.recoverySchedule?.isFree === false
+                  const billingLabel = b.recoverySchedule?.isFree ? 'Gratuita' : formatRecoveryPrice(b.recoverySchedule?.priceCents ?? 0)
                   const subjectsList = b.subjects ? b.subjects.split(',').map(x => x.trim()).filter(Boolean) : []
 
                   return (
                     <motion.div key={b.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: isDeleting ? 0.4 : 1, y: 0 }} layout
                       style={{ background: 'white', borderRadius: 14, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.04)', transition: 'opacity 0.2s' }}>
                       <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 12, background: isNormal ? '#fff7ed' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ fontSize: 18 }}>{isNormal ? '💰' : '✅'}</span>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: isPaid ? '#fff7ed' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: 18 }}>{isPaid ? '💰' : '✅'}</span>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 14, fontWeight: 700, color: '#0a1a0d' }}>{b.parentName}</span>
                             <StatusBadge status={b.status} />
-                            {isNormal && <span style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: '#fff7ed', padding: '2px 8px', borderRadius: 5 }}>💰 Normal</span>}
+                            <span style={{ fontSize: 11, fontWeight: 600, color: isPaid ? '#c2410c' : '#15803d', background: isPaid ? '#fff7ed' : '#f0fdf4', padding: '2px 8px', borderRadius: 5 }}>{isPaid ? `💰 ${billingLabel}` : '✅ Gratuita'}</span>
                             {b.fileUrl && <span style={{ fontSize: 11, fontWeight: 600, color: '#4054B2', background: '#eef1fb', padding: '2px 8px', borderRadius: 5, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Paperclip style={{ width: 10, height: 10 }} />Comprovante</span>}
                           </div>
                           <p style={{ fontSize: 12, color: '#6b7280', margin: '3px 0 0' }}>
@@ -1362,16 +1445,16 @@ export default function RecuperacaoSecretariaPage() {
                                   </div>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                  {isNormal && (
+                                  {isPaid && (
                                     <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px' }}>
-                                      <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>💰 PIX — R$ 40,00</p>
+                                      <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>💰 PIX — {billingLabel}</p>
                                       <p style={{ fontSize: 12, color: '#92400e', margin: 0 }}>Chave: <strong>{PIX_KEY}</strong></p>
                                       <p style={{ fontSize: 12, color: '#92400e', margin: '3px 0 0' }}>{PIX_NAME}</p>
                                     </div>
                                   )}
                                   <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
                                     <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
-                                      {isNormal ? '🧾 Comprovante PIX' : '📄 Comprovante'}
+                                      {isPaid ? '🧾 Comprovante PIX' : '📄 Comprovante'}
                                     </p>
                                     {b.fileUrl ? (
                                       <div style={{ display: 'flex', gap: 8 }}>
