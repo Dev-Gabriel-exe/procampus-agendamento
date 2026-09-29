@@ -138,13 +138,14 @@ export default function RecuperacaoPage() {
   const [loadingSlots,  setLoadingSlots]  = useState(false)
   const [hasSearched,   setHasSearched]   = useState(false)
   const [selectedSlots, setSelectedSlots] = useState<Record<string, RecoverySchedule>>({})
-  const [configuredMaxSubjects, setConfiguredMaxSubjects] = useState(5)
+  const [configuredMaxSubjects, setConfiguredMaxSubjects] = useState<number | null>(null)
   const turmasDisponiveis = getTurmas(selGrade)
 
   const isFund1    = GRADES_FUND1.has(selGrade)
   const isParalela = !!selGrade && !isFund1
 
-  const maxSubjects = configuredMaxSubjects
+  const maxSubjects = configuredMaxSubjects ?? 0
+  const hasConfiguredLimit = maxSubjects > 0
   const visibleSubjects = allSubjects
 
   const fallbackBilling = defaultRecoveryBilling(selGrade)
@@ -185,7 +186,7 @@ export default function RecuperacaoPage() {
   // Reset ao trocar série
   useEffect(() => {
     setAllSubjects([]); setSelSubjectsP([]); setSchedules([])
-    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setConfiguredMaxSubjects(5); setPixFile(null)
+    setSelectedSlots({}); setHasSearched(false); setSelTurma(''); setConfiguredMaxSubjects(null); setPixFile(null)
     if (!selGrade) return
     ;(async () => {
       try {
@@ -196,8 +197,8 @@ export default function RecuperacaoPage() {
         setSchedules(data)
         setAllSubjects([...new Set(data.map(schedule => schedule.subjectName))])
         const limits = data.map(schedule => schedule.maxSubjects).filter(limit => Number.isInteger(limit) && limit > 0)
-        setConfiguredMaxSubjects(limits.length > 0 ? Math.min(...limits) : 5)
-      } catch { setAllSubjects([]); setSchedules([]) }
+        setConfiguredMaxSubjects(limits.length > 0 ? Math.min(...limits) : null)
+      } catch { setAllSubjects([]); setSchedules([]); setConfiguredMaxSubjects(null) }
     })()
   }, [selGrade])
 
@@ -211,20 +212,23 @@ export default function RecuperacaoPage() {
   }, [selSubjectsP])
 
   async function loadSlots() {
-    if (!selGrade || selSubjectsP.length === 0) return
+    if (!selGrade || !hasConfiguredLimit || selSubjectsP.length === 0) return
     setLoadingSlots(true); setHasSearched(true)
     try {
       const type = isParalela ? 'paralela' : 'normal'
       const res = await fetch(`/api/recuperacao?public=true&grade=${encodeURIComponent(selGrade)}&type=${type}`)
       const data = await res.json()
-      setSchedules(Array.isArray(data) ? data : [])
+      const nextSchedules: RecoverySchedule[] = Array.isArray(data) ? data : []
+      setSchedules(nextSchedules)
+      const limits = nextSchedules.map(schedule => schedule.maxSubjects).filter(limit => Number.isInteger(limit) && limit > 0)
+      setConfiguredMaxSubjects(limits.length > 0 ? Math.min(...limits) : null)
     } catch { setSchedules([]) }
     finally { setLoadingSlots(false) }
   }
 
   function toggleSubject(s: string) {
     setSelSubjectsP(prev =>
-      prev.includes(s) ? prev.filter(x => x !== s) : prev.length < maxSubjects ? [...prev, s] : prev
+      prev.includes(s) ? prev.filter(x => x !== s) : hasConfiguredLimit && prev.length < maxSubjects ? [...prev, s] : prev
     )
   }
 
@@ -356,7 +360,7 @@ export default function RecuperacaoPage() {
 
               {/* Badge tipo */}
               <AnimatePresence>
-                {selGrade && (
+                {selGrade && hasConfiguredLimit && (
                   <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                     style={{ padding: '12px 16px', borderRadius: 14, background: isBillingFree ? 'rgba(35,164,85,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${isBillingFree ? 'rgba(35,164,85,0.3)' : 'rgba(245,158,11,0.3)'}` }}>
                     <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: isBillingFree ? '#4ade80' : '#fbbf24' }}>
@@ -373,9 +377,21 @@ export default function RecuperacaoPage() {
                 )}
               </AnimatePresence>
 
+              <AnimatePresence>
+                {selGrade && schedules.length > 0 && !hasConfiguredLimit && (
+                  <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    style={{ padding: '12px 16px', borderRadius: 14, background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.28)' }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#fbbf24' }}>⚠️ Recuperação ainda não configurada</p>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>
+                      A secretaria ainda não definiu o limite de disciplinas para esta recuperação.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Disciplinas */}
               <AnimatePresence>
-                {selGrade && visibleSubjects.length > 0 && (
+                {selGrade && hasConfiguredLimit && visibleSubjects.length > 0 && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={card}>
                     <label style={labelStyle}>
                       Disciplinas em recuperação
@@ -401,7 +417,7 @@ export default function RecuperacaoPage() {
 
               {/* Buscar horários */}
               <AnimatePresence>
-                {selGrade && selTurma && selSubjectsP.length > 0 && (
+                {selGrade && hasConfiguredLimit && selTurma && selSubjectsP.length > 0 && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <button onClick={loadSlots} style={btnPrimary(false)}>
                       <BookMarked style={{ width: 18, height: 18 }} />Ver horários disponíveis

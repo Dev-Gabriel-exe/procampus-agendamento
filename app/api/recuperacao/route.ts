@@ -91,7 +91,10 @@ export async function POST(req: NextRequest) {
     if (startTime >= endTime) {
       return NextResponse.json({ error: 'Horário de fim deve ser após o início.' }, { status: 400 })
     }
-    const parsedMaxSubjects = Number(maxSubjects ?? 5)
+    if (maxSubjects === undefined || maxSubjects === null || maxSubjects === '') {
+      return NextResponse.json({ error: 'Informe o limite de disciplinas desta recuperação.' }, { status: 400 })
+    }
+    const parsedMaxSubjects = Number(maxSubjects)
     if (!Number.isInteger(parsedMaxSubjects) || parsedMaxSubjects < 1 || parsedMaxSubjects > 20) {
       return NextResponse.json({ error: 'O limite de disciplinas deve estar entre 1 e 20.' }, { status: 400 })
     }

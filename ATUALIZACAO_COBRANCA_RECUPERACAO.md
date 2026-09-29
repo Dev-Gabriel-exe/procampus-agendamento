@@ -47,3 +47,9 @@ sozinho, o slot em gratuito. O total é recalculado pela quantidade de disciplin
 pagas selecionadas: 1 = R$30,00, 2 = R$60,00, 3 = R$90,00 (ou a soma dos valores
 personalizados de cada horário). O comprovante fica na aba `Comprovantes PIX`
 da coordenação, onde pode ser visualizado, aprovado ou reprovado.
+
+O limite de disciplinas também é configurável. A secretaria precisa informar o
+limite ao criar a recuperação; a tela dos pais só mostra “Selecione até X
+disciplinas” depois que essa configuração veio do horário. Não existe mais um
+limite visual automático de 5 para novas recuperações. Registros antigos que já
+possuem limite continuam com o valor gravado até serem editados.

@@ -367,7 +367,7 @@ export default function RecuperacaoSecretariaPage() {
   const [startTime,     setStartTime]     = useState('')
   const [endTime,       setEndTime]       = useState('')
   const [regDeadline,   setRegDeadline]   = useState('')   // ← novo: prazo de inscrições
-  const [maxSubjects,   setMaxSubjects]   = useState(5)
+  const [maxSubjects,   setMaxSubjects]   = useState<number | null>(null)
   const [saving,        setSaving]        = useState(false)
   const [error,         setError]         = useState('')
 
@@ -457,7 +457,7 @@ export default function RecuperacaoSecretariaPage() {
     if (!examDate || !startTime || !endTime) { setError('Preencha a data e os horários.'); return }
     if (startTime >= endTime) { setError('Horário de fim deve ser após o início.'); return }
     if (totalLote === 0) { setError('Selecione pelo menos uma disciplina.'); return }
-    if (!Number.isInteger(maxSubjects) || maxSubjects < 1 || maxSubjects > 20) {
+    if (maxSubjects === null || !Number.isInteger(maxSubjects) || maxSubjects < 1 || maxSubjects > 20) {
       setError('Informe um limite de disciplinas entre 1 e 20.'); return
     }
 
@@ -514,7 +514,7 @@ export default function RecuperacaoSecretariaPage() {
     if (criados > 0) {
       toast.success(`✅ ${criados} slot${criados !== 1 ? 's' : ''} criado${criados !== 1 ? 's' : ''}!${erros > 0 ? ` (${erros} já existiam)` : ''}`)
       setLoteSelecao({}); setLotePeriodos({}); setLoteCobranca({})
-      setExamDate(''); setStartTime(''); setEndTime(''); setRegDeadline(''); setMaxSubjects(5)
+      setExamDate(''); setStartTime(''); setEndTime(''); setRegDeadline(''); setMaxSubjects(null)
       loadData()
     } else {
       setError(`Erro: ${erros} slot${erros !== 1 ? 's' : ''} já existem ou falharam.`)
@@ -954,19 +954,21 @@ export default function RecuperacaoSecretariaPage() {
 
                 {/* Limite de disciplinas */}
                 <div>
-                  <label style={labelStyle}>Máximo de disciplinas por aluno</label>
+                  <label style={labelStyle}>Máximo de disciplinas por aluno <span style={{ color: '#dc2626' }}>*</span></label>
                   <input
                     type="number"
                     min={1}
                     max={20}
-                    value={maxSubjects}
-                    onChange={e => setMaxSubjects(Number(e.target.value))}
+                    value={maxSubjects ?? ''}
+                    placeholder="Ex.: 2"
+                    required
+                    onChange={e => setMaxSubjects(e.target.value === '' ? null : Number(e.target.value))}
                     style={inputStyle}
                     onFocus={e => { e.target.style.borderColor = '#23A455'; e.target.style.boxShadow = '0 0 0 3px rgba(97,206,112,0.1)' }}
                     onBlur={e  => { e.target.style.borderColor = 'rgba(97,206,112,0.2)'; e.target.style.boxShadow = 'none' }}
                   />
                   <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
-                    A tela do aluno bloqueará novas seleções ao atingir esse limite.
+                    Informe quantas disciplinas o aluno poderá selecionar nesta recuperação. Esse limite aparecerá na tela dos pais.
                   </p>
                 </div>
 
